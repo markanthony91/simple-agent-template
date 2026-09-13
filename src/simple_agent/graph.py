@@ -1,4 +1,4 @@
-"""Minimal LangChain agent graph for deployment."""
+"""LangGraph agent runtime with external prompts and OKF tools."""
 
 from __future__ import annotations
 
@@ -10,7 +10,10 @@ from typing import Any
 from langchain.agents import create_agent
 from langchain_core.tools import tool
 
-DEFAULT_MODEL = os.getenv("SIMPLE_AGENT_MODEL", "anthropic:claude-sonnet-4-6")
+from simple_agent.prompt_loader import load_agent_prompt
+from simple_agent.tools.okf_tools import OKF_TOOLS
+
+DEFAULT_MODEL = os.getenv("SIMPLE_AGENT_MODEL", "openai:gpt-4.1-mini")
 
 
 @tool
@@ -46,16 +49,20 @@ def calculator(expression: str) -> str:
         if not isinstance(node, allowed_nodes):
             raise ValueError("Expression contains unsupported syntax")
 
-    result: Any = eval(compile(parsed, "<calculator>", "eval"), {"__builtins__": {}}, {})
+    result: Any = eval(
+        compile(parsed, "<calculator>", "eval"),
+        {"__builtins__": {}},
+        {},
+    )
     return str(result)
 
 
+SYSTEM_PROMPT = load_agent_prompt()
+TOOLS = [utc_now, calculator, *OKF_TOOLS]
+
 graph = create_agent(
     model=DEFAULT_MODEL,
-    tools=[utc_now, calculator],
-    system_prompt=(
-        "You are a concise assistant. "
-        "Use tools when they add factual precision, then return a direct answer."
-    ),
+    tools=TOOLS,
+    system_prompt=SYSTEM_PROMPT,
     name="simple_agent",
 )
