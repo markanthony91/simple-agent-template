@@ -7,6 +7,7 @@ RUN pip install --no-cache-dir uv
 COPY . .
 
 RUN uv sync --no-dev
+RUN uv pip install --python .venv/bin/python "langchain-openai>=1.4.0,<2.0.0"
 
 ENV PATH="/app/.venv/bin:$PATH"
 
