@@ -1,102 +1,54 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Any
-
 from langchain_core.tools import tool
-from langchain.tools import ToolRuntime
 
-from simple_agent.services.okf_service import OKFService
+from simple_agent.services.okf_store import PersistentOKFStore
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
-OKF_ROOT = PROJECT_ROOT / "knowledge" / "okf"
-okf_service = OKFService(OKF_ROOT)
+store = PersistentOKFStore()
 
 
-def _context(runtime: ToolRuntime) -> dict[str, Any]:
-    if runtime is None:
-        return {}
-    context: Any = runtime.context
-    return context if isinstance(context, dict) else {}
-
-
-def _overrides(runtime: ToolRuntime) -> dict[str, str]:
-    raw = _context(runtime).get("okf_overrides")
-    if not isinstance(raw, dict):
-        return {}
-    return {
-        key: value
-        for key, value in raw.items()
-        if isinstance(key, str) and isinstance(value, str)
-    }
-
-
-def _active_files(runtime: ToolRuntime) -> set[str]:
-    """Return the active uploaded bundle paths.
-
-    Fail closed when the Assistant context has no active bundle. This prevents
-    the runtime from silently falling back to Markdown files baked into the
-    container after an in-memory restart or lost Assistant context.
-    """
-    raw = _context(runtime).get("okf_bundle_files")
-    if not isinstance(raw, list):
-        return set()
-    return {
-        item
-        for item in raw
-        if isinstance(item, str) and item.endswith(".md")
-    }
+def _service():
+    service = store.service()
+    if service is None:
+        raise FileNotFoundError("No active OKF bundle in persistent storage")
+    return service
 
 
 @tool
-def okf_index(directory: str = "", runtime: ToolRuntime = None) -> str:
+def okf_index(directory: str = "") -> str:
     """Read an OKF index.md for progressive disclosure. Use this before opening concepts."""
-    return okf_service.read_index(
-        directory,
-        overrides=_overrides(runtime),
-        active_files=_active_files(runtime),
-    )
+    service = store.service()
+    if service is None:
+        return "No active OKF bundle."
+    return service.read_index(directory)
 
 
 @tool
-def okf_list(runtime: ToolRuntime = None) -> str:
-    """List all Markdown paths in the active OKF bundle."""
-    return okf_service.list_files(
-        overrides=_overrides(runtime),
-        active_files=_active_files(runtime),
-    )
+def okf_list() -> str:
+    """List all Markdown paths in the active persistent OKF bundle."""
+    files = store.list_files()
+    return "\n".join(files) if files else "No OKF files available."
 
 
 @tool
-def okf_search(query: str, scope: str = "", runtime: ToolRuntime = None) -> str:
+def okf_search(query: str, scope: str = "") -> str:
     """Fallback lexical search across active OKF concepts, optionally scoped to a directory."""
-    return okf_service.search(
-        query,
-        scope,
-        overrides=_overrides(runtime),
-        active_files=_active_files(runtime),
-    )
+    service = store.service()
+    if service is None:
+        return "No OKF matches found."
+    return service.search(query, scope)
 
 
 @tool
-def okf_read(path: str, runtime: ToolRuntime = None) -> str:
-    """Read one concept or reserved Markdown file from the active OKF bundle."""
-    return okf_service.read_file(
-        path,
-        overrides=_overrides(runtime),
-        active_files=_active_files(runtime),
-    )
+def okf_read(path: str) -> str:
+    """Read one concept or reserved Markdown file from the active persistent OKF bundle."""
+    return _service().read_file(path)
 
 
 @tool
-def okf_read_section(path: str, heading: str, runtime: ToolRuntime = None) -> str:
-    """Read one Markdown section from an active OKF concept by heading."""
-    return okf_service.read_section(
-        path,
-        heading,
-        overrides=_overrides(runtime),
-        active_files=_active_files(runtime),
-    )
+def okf_read_section(path: str, heading: str) -> str:
+    """Read one Markdown section from an active persistent OKF concept by heading."""
+    return _service().read_section(path, heading)
 
 
 OKF_TOOLS = [okf_index, okf_list, okf_search, okf_read, okf_read_section]
