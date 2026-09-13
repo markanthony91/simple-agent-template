@@ -3,7 +3,8 @@
   "python_version": "3.12",
   "dependencies": ["."],
   "graphs": {
-    "agent": "simple_agent.graph:graph"
+    "agent": "simple_agent.graph:graph",
+    "okf_admin": "simple_agent.okf_admin_graph:graph"
   },
   "env": ".env",
   "image_distro": "wolfi"
