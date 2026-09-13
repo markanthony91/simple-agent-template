@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from langchain.agents import create_agent
-from langchain.agents.middleware import dynamic_prompt, ModelRequest
+from langchain.agents.middleware import ModelRequest, dynamic_prompt
 from langchain_core.tools import tool
 
 from simple_agent.prompt_loader import load_agent_prompt
@@ -28,14 +28,28 @@ def calculator(expression: str) -> str:
     """Evaluate a simple arithmetic expression safely."""
     parsed = ast.parse(expression, mode="eval")
     allowed_nodes = (
-        ast.Expression, ast.BinOp, ast.UnaryOp, ast.Constant,
-        ast.Add, ast.Sub, ast.Mult, ast.Div, ast.Mod, ast.Pow,
-        ast.USub, ast.UAdd, ast.Load,
+        ast.Expression,
+        ast.BinOp,
+        ast.UnaryOp,
+        ast.Constant,
+        ast.Add,
+        ast.Sub,
+        ast.Mult,
+        ast.Div,
+        ast.Mod,
+        ast.Pow,
+        ast.USub,
+        ast.UAdd,
+        ast.Load,
     )
     for node in ast.walk(parsed):
         if not isinstance(node, allowed_nodes):
             raise ValueError("Expression contains unsupported syntax")
-    result: Any = eval(compile(parsed, "<calculator>", "eval"), {"__builtins__": {}}, {})
+    result: Any = eval(
+        compile(parsed, "<calculator>", "eval"),
+        {"__builtins__": {}},
+        {},
+    )
     return str(result)
 
 
@@ -47,7 +61,7 @@ def runtime_prompt(request: ModelRequest) -> str:
     if isinstance(context, dict):
         configured = context.get("system_prompt")
     if isinstance(configured, str) and configured.strip():
-        return load_agent_prompt(system_override=configured)
+        return load_agent_prompt(system_prompt=configured)
     return load_agent_prompt()
 
 
