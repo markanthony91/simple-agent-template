@@ -12,9 +12,23 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-def load_agent_prompt(system_prompt: str | None = None) -> str:
-    base_prompt = (system_prompt or "").strip()
-    if not base_prompt:
-        base_prompt = _read_text(CONFIG_ROOT / "system_prompt.md")
-    agent_rules = _read_text(CONFIG_ROOT / "AGENTS.md")
-    return f"{base_prompt}\n\n# Operational Instructions\n\n{agent_rules}"
+def load_agent_prompt(
+    system_prompt: str | None = None,
+    agent_instructions: str | None = None,
+    workflow: str | None = None,
+) -> str:
+    base_prompt = (system_prompt or "").strip() or _read_text(CONFIG_ROOT / "system_prompt.md")
+    agent_rules = (agent_instructions or "").strip() or _read_text(CONFIG_ROOT / "AGENTS.md")
+
+    sections = [
+        base_prompt,
+        "# Operational Instructions\n\n" + agent_rules,
+    ]
+    if isinstance(workflow, str) and workflow.strip():
+        sections.append(
+            "# Active Workflow\n\n"
+            "Follow this workflow as an agentic process guide. Preserve mandatory gates and ordering constraints, "
+            "but allow natural conversational detours that do not violate them. Do not expose workflow internals to the user.\n\n"
+            + workflow.strip()
+        )
+    return "\n\n".join(sections)
