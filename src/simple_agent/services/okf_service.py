@@ -6,6 +6,8 @@ from pathlib import Path
 
 
 class OKFService:
+    RESERVED_MARKDOWN = {"index.md", "log.md"}
+
     def __init__(self, root: Path, max_chars_per_file: int = 15000, max_results: int = 10):
         self.root = root.resolve()
         self.max_chars_per_file = max_chars_per_file
@@ -103,7 +105,7 @@ class OKFService:
             raise ValueError("OKF file cannot be empty")
         if len(content) > 200_000:
             raise ValueError("OKF file exceeds the 200000 character edit limit")
-        if Path(relative).name != "index.md" and not re.search(r"^type\s*:\s*.+$", content, flags=re.MULTILINE):
+        if Path(relative).name.lower() not in self.RESERVED_MARKDOWN and not re.search(r"^type\s*:\s*.+$", content, flags=re.MULTILINE):
             raise ValueError("OKF concept must contain a 'type:' frontmatter field")
         return relative
 
@@ -114,7 +116,7 @@ class OKFService:
         cleaned_scope = scope.strip("/")
         ranked: list[tuple[int, str]] = []
         for relative in self.list_files(overrides, active_files).splitlines():
-            if not relative.endswith(".md") or Path(relative).name in {"index.md", "log.md"}:
+            if not relative.endswith(".md") or Path(relative).name.lower() in self.RESERVED_MARKDOWN:
                 continue
             if cleaned_scope and not relative.startswith(cleaned_scope + "/"):
                 continue
