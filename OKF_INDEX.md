@@ -1,3 +1,7 @@
-# Knowledge Index
+# OKF Knowledge Index
 
-Payments are documented in policies/payment.md.
+## Payments
+
+File: OKF_PAYMENT.md
+
+Contains payment rules, installment policy and the maximum number of installments.
