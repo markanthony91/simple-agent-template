@@ -7,6 +7,7 @@ from pathlib import Path
 
 class OKFService:
     RESERVED_MARKDOWN = {"index.md", "log.md"}
+    TOP_LEVEL_DIRECTORIES = {"GLOBAL", "INSTITUTIONS", "PRODUCTS"}
 
     def __init__(self, root: Path, max_chars_per_file: int = 15000, max_results: int = 10):
         self.root = root.resolve()
@@ -16,18 +17,95 @@ class OKFService:
     def _markdown_files(self) -> list[Path]:
         return sorted(path for path in self.root.rglob("*.md") if path.is_file())
 
-    def _safe_path(self, relative_path: str, require_exists: bool = True) -> Path:
-        candidate = (self.root / relative_path).resolve()
-        if not candidate.is_relative_to(self.root):
+    @classmethod
+    def _collapse_duplicate_root(cls, relative_path: str) -> str:
+        """Collapse accidental repeated OKF roots from model-composed paths.
+
+        Example:
+        INSTITUTIONS/fastpay/INSTITUTIONS/fastpay/policy.md
+        -> INSTITUTIONS/fastpay/policy.md
+        """
+        raw_parts = [part for part in relative_path.replace("\\", "/").split("/") if part not in {"", "."}]
+        if not raw_parts:
+            return ""
+
+        root_indexes = [
+            index
+            for index, part in enumerate(raw_parts)
+            if part.upper() in cls.TOP_LEVEL_DIRECTORIES
+        ]
+        if len(root_indexes) > 1:
+            first_root = raw_parts[root_indexes[0]].upper()
+            matching = [index for index in root_indexes[1:] if raw_parts[index].upper() == first_root]
+            if matching:
+                raw_parts = raw_parts[matching[-1]:]
+
+        return "/".join(raw_parts)
+
+    def _resolve_case_insensitive(self, relative_path: str, require_exists: bool = True) -> Path:
+        """Resolve an OKF path safely while preserving on-disk canonical casing."""
+        collapsed = self._collapse_duplicate_root(relative_path)
+        parts = [part for part in collapsed.split("/") if part]
+        current = self.root
+
+        for index, part in enumerate(parts):
+            if part == "..":
+                raise ValueError("Invalid OKF path")
+
+            exact = current / part
+            if exact.exists():
+                current = exact
+                continue
+
+            if not current.exists() or not current.is_dir():
+                if require_exists:
+                    raise FileNotFoundError(f"OKF path not found: {relative_path}")
+                current = exact
+                continue
+
+            matches = [child for child in current.iterdir() if child.name.casefold() == part.casefold()]
+            if len(matches) == 1:
+                current = matches[0]
+                continue
+            if len(matches) > 1:
+                raise ValueError(f"Ambiguous OKF path segment: {part}")
+
+            if require_exists:
+                raise FileNotFoundError(f"OKF path not found: {relative_path}")
+
+            current = exact
+            for remaining in parts[index + 1:]:
+                current = current / remaining
+            break
+
+        resolved = current.resolve()
+        if not resolved.is_relative_to(self.root):
             raise ValueError("Invalid OKF path")
-        if candidate.suffix != ".md":
+        return resolved
+
+    def canonical_directory(self, directory: str = "", require_exists: bool = True) -> str:
+        cleaned = self._collapse_duplicate_root(directory.strip("/"))
+        if not cleaned:
+            return ""
+        resolved = self._resolve_case_insensitive(cleaned, require_exists=require_exists)
+        if require_exists and (not resolved.exists() or not resolved.is_dir()):
+            raise FileNotFoundError(f"OKF directory not found: {directory}")
+        return str(resolved.relative_to(self.root)).replace("\\", "/")
+
+    def canonical_path(self, relative_path: str, require_exists: bool = True) -> str:
+        resolved = self._resolve_case_insensitive(relative_path, require_exists=require_exists)
+        if resolved.suffix.lower() != ".md":
             raise ValueError("Only Markdown OKF files are supported")
-        if require_exists and (not candidate.exists() or not candidate.is_file()):
+        if require_exists and (not resolved.exists() or not resolved.is_file()):
             raise FileNotFoundError(f"OKF file not found: {relative_path}")
-        return candidate
+        return str(resolved.relative_to(self.root)).replace("\\", "/")
+
+    def _safe_path(self, relative_path: str, require_exists: bool = True) -> Path:
+        canonical = self.canonical_path(relative_path, require_exists=require_exists)
+        return (self.root / canonical).resolve()
 
     def _relative(self, relative_path: str) -> str:
-        return str(self._safe_path(relative_path, require_exists=False).relative_to(self.root))
+        return self.canonical_path(relative_path, require_exists=False)
 
     @staticmethod
     def _normalize(text: str) -> str:
@@ -50,13 +128,13 @@ class OKFService:
         result: set[str] = set()
         for path in active_files:
             try:
-                result.add(self._relative(path))
+                result.add(self.canonical_path(path, require_exists=False))
             except ValueError:
                 continue
         return result
 
     def _ensure_active(self, relative_path: str, active_files: set[str] | None) -> str:
-        relative = self._relative(relative_path)
+        relative = self.canonical_path(relative_path)
         active = self._active(active_files)
         if active is not None and relative not in active:
             raise FileNotFoundError(f"OKF file not active in current bundle: {relative_path}")
@@ -69,21 +147,40 @@ class OKFService:
         return value[: self.max_chars_per_file] if isinstance(value, str) else None
 
     def read_index(self, directory: str = "", overrides: dict[str, str] | None = None, active_files: set[str] | None = None) -> str:
-        cleaned = directory.strip("/")
+        try:
+            cleaned = self.canonical_directory(directory) if directory.strip("/") else ""
+        except FileNotFoundError:
+            cleaned = self._collapse_duplicate_root(directory.strip("/"))
+            parent = str(Path(cleaned).parent).replace("\\", "/") if cleaned else ""
+            if parent == ".":
+                parent = ""
+            hint = f" Parent index: {parent or '<root>'}." if cleaned else ""
+            return (
+                f"No index.md found for OKF directory: {cleaned or directory}."
+                f"{hint} Prefer the parent index, then scoped okf_search; use okf_list only as a last fallback."
+            )
+
         relative = f"{cleaned}/index.md" if cleaned else "index.md"
         try:
-            return self.read_file(relative, overrides, active_files)
+            content = self.read_file(relative, overrides, active_files)
+            marker = cleaned or "<root>"
+            return f"OKF_CANONICAL_DIRECTORY: {marker}\n\n{content}"
         except FileNotFoundError:
-            if cleaned:
-                return f"No index.md found for OKF directory: {cleaned}. Use the parent index or okf_list/okf_search as fallback."
-            return "No root index.md found in the OKF bundle. Use okf_list or okf_search as fallback."
+            parent = str(Path(cleaned).parent).replace("\\", "/") if cleaned else ""
+            if parent == ".":
+                parent = ""
+            hint = f" Parent index: {parent or '<root>'}." if cleaned else ""
+            return (
+                f"No index.md found for OKF directory: {cleaned}."
+                f"{hint} Prefer the parent index, then scoped okf_search; use okf_list only as a last fallback."
+            )
 
     def list_files(self, overrides: dict[str, str] | None = None, active_files: set[str] | None = None) -> str:
         active = self._active(active_files)
         if active is not None:
             files = active
         else:
-            files = {str(path.relative_to(self.root)) for path in self._markdown_files()}
+            files = {str(path.relative_to(self.root)).replace("\\", "/") for path in self._markdown_files()}
             if overrides:
                 for path in overrides:
                     try:
@@ -96,8 +193,9 @@ class OKFService:
         relative = self._ensure_active(relative_path, active_files)
         overridden = self._override(relative, overrides)
         if overridden is not None:
-            return overridden
-        return self._safe_path(relative).read_text(encoding="utf-8")[: self.max_chars_per_file]
+            return f"OKF_CANONICAL_PATH: {relative}\n\n{overridden}"
+        content = self._safe_path(relative).read_text(encoding="utf-8")[: self.max_chars_per_file]
+        return f"OKF_CANONICAL_PATH: {relative}\n\n{content}"
 
     def validate_edit(self, relative_path: str, content: str) -> str:
         relative = self._relative(relative_path)
@@ -113,7 +211,14 @@ class OKFService:
         query_tokens = set(self._normalize(query).split())
         if not query_tokens:
             raise ValueError("Search query cannot be empty")
-        cleaned_scope = scope.strip("/")
+
+        cleaned_scope = ""
+        if scope.strip("/"):
+            try:
+                cleaned_scope = self.canonical_directory(scope)
+            except FileNotFoundError:
+                cleaned_scope = self._collapse_duplicate_root(scope.strip("/"))
+
         ranked: list[tuple[int, str]] = []
         for relative in self.list_files(overrides, active_files).splitlines():
             if not relative.endswith(".md") or Path(relative).name.lower() in self.RESERVED_MARKDOWN:
@@ -125,6 +230,8 @@ class OKFService:
             except FileNotFoundError:
                 continue
             for number, line in enumerate(content.splitlines(), start=1):
+                if line.startswith("OKF_CANONICAL_PATH:"):
+                    continue
                 score = len(query_tokens & set(self._normalize(line).split()))
                 if score:
                     ranked.append((score, f"{relative}:{number}: {line.strip()}"))
@@ -133,10 +240,12 @@ class OKFService:
         return "\n".join(matches) if matches else "No OKF matches found."
 
     def read_section(self, relative_path: str, heading: str, overrides: dict[str, str] | None = None, active_files: set[str] | None = None) -> str:
-        content = self.read_file(relative_path, overrides, active_files)
+        canonical = self.canonical_path(relative_path)
+        content = self.read_file(canonical, overrides, active_files)
         target = self._normalize(heading)
         if not target:
             raise ValueError("Heading cannot be empty")
+
         lines = content.splitlines()
         headings = self._extract_headings(content)
         start = None
@@ -158,7 +267,12 @@ class OKFService:
                 _, start, resolved, start_level = candidates[0]
         if start is None or start_level is None:
             available = ", ".join(title for _, title, _ in headings) or "none"
-            return f"Section not found: {heading}. Available headings in {relative_path}: {available}. Retry using one of these exact headings."
+            return (
+                f"OKF_CANONICAL_PATH: {canonical}\n\n"
+                f"Section not found: {heading}. Available headings in {canonical}: {available}. "
+                "Retry using one of these exact headings."
+            )
+
         collected = [lines[start]]
         for line in lines[start + 1:]:
             match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
@@ -166,6 +280,7 @@ class OKFService:
                 break
             collected.append(line)
         result = "\n".join(collected)[: self.max_chars_per_file]
+        prefix = f"OKF_CANONICAL_PATH: {canonical}\n\n"
         if resolved and self._normalize(resolved) != target:
-            return f"Resolved heading '{heading}' to '{resolved}'.\n\n{result}"
-        return result
+            return f"{prefix}Resolved heading '{heading}' to '{resolved}'.\n\n{result}"
+        return f"{prefix}{result}"
