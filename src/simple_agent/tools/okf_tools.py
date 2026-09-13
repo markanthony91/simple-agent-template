@@ -26,7 +26,15 @@ def _log_call(name: str, started: float, **fields: str) -> None:
 
 @tool
 def okf_index(directory: str = "") -> str:
-    """Read an OKF index.md for progressive disclosure. Use this before opening concepts."""
+    """Discover institutional knowledge through an OKF index.md.
+
+    Use this as the normal first tool when a user asks about a company,
+    institution, creditor, product, service, policy, procedure, collection
+    rule, contract, support channel, official channel, or other information
+    that may belong to the active institutional knowledge bundle. Start with
+    the root index when the correct branch is not already known from retrieved
+    OKF content, then follow the indexes progressively. Do not guess paths.
+    """
     started = perf_counter()
     service = store.service()
     if service is None:
@@ -39,7 +47,11 @@ def okf_index(directory: str = "") -> str:
 
 @tool
 def okf_list() -> str:
-    """List all Markdown paths in the active persistent OKF bundle."""
+    """List Markdown paths in the active persistent OKF bundle.
+
+    Use only when progressive navigation through okf_index is unavailable,
+    incomplete, or inconsistent. This is not the preferred discovery method.
+    """
     started = perf_counter()
     files = store.list_files()
     result = "\n".join(files) if files else "No OKF files available."
@@ -49,7 +61,13 @@ def okf_list() -> str:
 
 @tool
 def okf_search(query: str, scope: str = "") -> str:
-    """Fallback lexical search across active OKF concepts, optionally scoped to a directory."""
+    """Fallback lexical search across active OKF concepts.
+
+    Use this when progressive navigation with okf_index cannot locate the
+    needed institutional information, or when indexes do not expose enough
+    information to identify a concept. It may be scoped to a directory. Do
+    not use it as the default replacement for index-based discovery.
+    """
     started = perf_counter()
     service = store.service()
     if service is None:
@@ -62,7 +80,13 @@ def okf_search(query: str, scope: str = "") -> str:
 
 @tool
 def okf_read(path: str) -> str:
-    """Read one concept or reserved Markdown file from the active persistent OKF bundle."""
+    """Read a complete OKF Markdown concept from the active bundle.
+
+    Use after an index or search has identified the relevant path and broader
+    concept context is needed. For a single known section, prefer
+    okf_read_section. Preserve uncertainty, placeholders, and limitations
+    found in the source instead of filling them from general model knowledge.
+    """
     started = perf_counter()
     result = _service().read_file(path)
     _log_call("okf_read", started, path=path)
@@ -71,7 +95,13 @@ def okf_read(path: str) -> str:
 
 @tool
 def okf_read_section(path: str, heading: str) -> str:
-    """Read one Markdown section from an active persistent OKF concept by heading."""
+    """Read one exact Markdown section from an active OKF concept.
+
+    Use this after OKF navigation has identified a relevant file and exact
+    heading. It is preferred when one section is sufficient to answer the
+    user's institutional question. Use headings exactly as exposed by the
+    indexes or previous OKF tool output; do not invent or translate them.
+    """
     started = perf_counter()
     result = _service().read_section(path, heading)
     _log_call("okf_read_section", started, path=path, heading=heading)
