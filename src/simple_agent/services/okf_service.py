@@ -157,14 +157,14 @@ class OKFService:
             hint = f" Parent index: {parent or '<root>'}." if cleaned else ""
             return (
                 f"No index.md found for OKF directory: {cleaned or directory}."
-                f"{hint} Prefer the parent index, then scoped okf_search; use okf_list only as a last fallback."
+                f"{hint} Prefer the parent index, then scoped okf_search; use okf_list only as a last fallback. OKF_CANONICAL_SCOPE: {cleaned or '<root>'}"
             )
 
         relative = f"{cleaned}/index.md" if cleaned else "index.md"
         try:
             content = self.read_file(relative, overrides, active_files)
             marker = cleaned or "<root>"
-            return f"OKF_CANONICAL_DIRECTORY: {marker}\n\n{content}"
+            return f"OKF_CANONICAL_DIRECTORY: {marker}\nOKF_CANONICAL_SCOPE: {marker}\n\n{content}"
         except FileNotFoundError:
             parent = str(Path(cleaned).parent).replace("\\", "/") if cleaned else ""
             if parent == ".":
@@ -172,7 +172,7 @@ class OKFService:
             hint = f" Parent index: {parent or '<root>'}." if cleaned else ""
             return (
                 f"No index.md found for OKF directory: {cleaned}."
-                f"{hint} Prefer the parent index, then scoped okf_search; use okf_list only as a last fallback."
+                f"{hint} Prefer the parent index, then scoped okf_search; use okf_list only as a last fallback. OKF_CANONICAL_SCOPE: {cleaned or '<root>'}"
             )
 
     def list_files(self, overrides: dict[str, str] | None = None, active_files: set[str] | None = None) -> str:
@@ -187,7 +187,7 @@ class OKFService:
                         files.add(self._relative(path))
                     except ValueError:
                         pass
-        return "\n".join(sorted(files)) if files else "No OKF files available."
+        return "\\n".join(sorted(files)) if files else "No OKF files available."
 
     def read_file(self, relative_path: str, overrides: dict[str, str] | None = None, active_files: set[str] | None = None) -> str:
         relative = self._ensure_active(relative_path, active_files)
@@ -212,6 +212,7 @@ class OKFService:
         if not query_tokens:
             raise ValueError("Search query cannot be empty")
 
+        # Canonicalize scope: case-insensitive, collapse duplicates
         cleaned_scope = ""
         if scope.strip("/"):
             try:
@@ -237,17 +238,32 @@ class OKFService:
                     ranked.append((score, f"{relative}:{number}: {line.strip()}"))
         ranked.sort(key=lambda item: (-item[0], item[1]))
         matches = [text for _, text in ranked[: self.max_results]]
-        return "\n".join(matches) if matches else "No OKF matches found."
+        
+        # Always include OKF_CANONICAL_SCOPE even when no matches
+        scope_marker = f"OKF_CANONICAL_SCOPE: {cleaned_scope or '<root>'}"
+        if matches:
+            return f"{scope_marker}\n\n" + "\n".join(matches)
+        else:
+            return f"{scope_marker}\n\nNo OKF matches found."
 
     def read_section(self, relative_path: str, heading: str, overrides: dict[str, str] | None = None, active_files: set[str] | None = None) -> str:
+        """Read a section by exact heading only. Fuzzy resolution removed.
+        
+        If exact heading is missing, return canonical path plus available headings
+        and instruct the agent to retry with one exact heading.
+        """
         canonical = self.canonical_path(relative_path)
         content = self.read_file(canonical, overrides, active_files)
+        
+        # Normalize target for exact comparison
         target = self._normalize(heading)
         if not target:
             raise ValueError("Heading cannot be empty")
 
         lines = content.splitlines()
         headings = self._extract_headings(content)
+        
+        # EXACT MATCH ONLY: strict heading resolution
         start = None
         start_level = None
         resolved = None
@@ -255,24 +271,17 @@ class OKFService:
             if self._normalize(title) == target:
                 start, start_level, resolved = index, level, title
                 break
+        
+        # No fuzzy fallback; report available headings and require exact retry
         if start is None:
-            target_tokens = set(target.split())
-            candidates = []
-            for index, title, level in headings:
-                score = len(target_tokens & set(self._normalize(title).split()))
-                if score:
-                    candidates.append((score, index, title, level))
-            candidates.sort(key=lambda item: (-item[0], item[2]))
-            if candidates and (len(candidates) == 1 or candidates[0][0] > candidates[1][0]):
-                _, start, resolved, start_level = candidates[0]
-        if start is None or start_level is None:
-            available = ", ".join(title for _, title, _ in headings) or "none"
+            available = ", ".join(f'"{title}"' for _, title, _ in headings) or "none"
             return (
                 f"OKF_CANONICAL_PATH: {canonical}\n\n"
-                f"Section not found: {heading}. Available headings in {canonical}: {available}. "
-                "Retry using one of these exact headings."
+                f"Section '{heading}' not found (no fuzzy match). Available headings in {canonical}: {available}. "
+                "Retry with one of these exact headings."
             )
 
+        # Extract section content
         collected = [lines[start]]
         for line in lines[start + 1:]:
             match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
@@ -281,6 +290,9 @@ class OKFService:
             collected.append(line)
         result = "\n".join(collected)[: self.max_chars_per_file]
         prefix = f"OKF_CANONICAL_PATH: {canonical}\n\n"
+        
+        # Return with resolved heading note
         if resolved and self._normalize(resolved) != target:
             return f"{prefix}Resolved heading '{heading}' to '{resolved}'.\n\n{result}"
         return f"{prefix}{result}"
+
