@@ -7,8 +7,8 @@ RUN pip install --no-cache-dir uv
 
 COPY . .
 
-RUN uv sync --no-dev
-RUN uv pip install --python .venv/bin/python "langchain-openai>=1.4.0,<2.0.0"
+RUN env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy uv sync --no-dev
+RUN env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy uv pip install --python .venv/bin/python "langchain-openai>=1.4.0,<2.0.0"
 
 ENV PATH="/app/.venv/bin:$PATH"
 
