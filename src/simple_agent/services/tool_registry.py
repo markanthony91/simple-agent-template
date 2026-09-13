@@ -9,87 +9,17 @@ from typing import Any
 
 
 DEFAULT_TOOLS: dict[str, dict[str, Any]] = {
-    "utc_now": {
-        "name": "utc_now",
-        "description": "Current UTC date and time.",
-        "category": "utility",
-        "enabled": True,
-        "mode": "read_only",
-        "risk": "low",
-        "requires_auth": False,
-    },
-    "calculator": {
-        "name": "calculator",
-        "description": "Safe arithmetic calculator.",
-        "category": "utility",
-        "enabled": True,
-        "mode": "read_only",
-        "risk": "low",
-        "requires_auth": False,
-    },
-    "okf_index": {
-        "name": "okf_index",
-        "description": "Navigate OKF indexes using progressive disclosure.",
-        "category": "knowledge",
-        "enabled": True,
-        "mode": "read_only",
-        "risk": "low",
-        "requires_auth": False,
-    },
-    "okf_list": {
-        "name": "okf_list",
-        "description": "List files in the active OKF bundle.",
-        "category": "knowledge",
-        "enabled": True,
-        "mode": "read_only",
-        "risk": "low",
-        "requires_auth": False,
-    },
-    "okf_search": {
-        "name": "okf_search",
-        "description": "Search the active OKF bundle as a fallback.",
-        "category": "knowledge",
-        "enabled": True,
-        "mode": "read_only",
-        "risk": "low",
-        "requires_auth": False,
-    },
-    "okf_read": {
-        "name": "okf_read",
-        "description": "Read a document from the active OKF bundle.",
-        "category": "knowledge",
-        "enabled": True,
-        "mode": "read_only",
-        "risk": "low",
-        "requires_auth": False,
-    },
-    "okf_read_section": {
-        "name": "okf_read_section",
-        "description": "Read one section from an OKF document.",
-        "category": "knowledge",
-        "enabled": True,
-        "mode": "read_only",
-        "risk": "low",
-        "requires_auth": False,
-    },
-    "get_customer": {
-        "name": "get_customer",
-        "description": "Return the configured simulator customer and debt when the CPF matches.",
-        "category": "collection",
-        "enabled": True,
-        "mode": "read_only",
-        "risk": "low",
-        "requires_auth": False,
-    },
-    "generate_offer": {
-        "name": "generate_offer",
-        "description": "Calculate a simulator offer from current debt and customer eligibility.",
-        "category": "collection",
-        "enabled": True,
-        "mode": "read_only",
-        "risk": "low",
-        "requires_auth": False,
-    },
+    "utc_now": {"name": "utc_now", "description": "Current UTC date and time.", "category": "utility", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
+    "calculator": {"name": "calculator", "description": "Safe arithmetic calculator.", "category": "utility", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
+    "okf_index": {"name": "okf_index", "description": "Navigate OKF indexes using progressive disclosure.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
+    "okf_list": {"name": "okf_list", "description": "List files in the active OKF bundle.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
+    "okf_search": {"name": "okf_search", "description": "Search the active OKF bundle as a fallback.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
+    "okf_read": {"name": "okf_read", "description": "Read a document from the active OKF bundle.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
+    "okf_read_section": {"name": "okf_read_section", "description": "Read one section from an OKF document.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
+    "get_customer": {"name": "get_customer", "description": "Return the configured simulator customer and debt when the document matches.", "category": "collection", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
+    "verify_customer_identity": {"name": "verify_customer_identity", "description": "Verify the simulator customer using document plus a secondary factor.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "generate_offer": {"name": "generate_offer", "description": "Calculate and persist a simulator offer from current debt and customer eligibility.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "create_agreement": {"name": "create_agreement", "description": "Create a simulated agreement from a valid persisted offer after explicit confirmation.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
 }
 
 
@@ -118,11 +48,7 @@ class ToolRegistry:
     def _ensure_registry(self) -> None:
         if self.registry_file.exists():
             return
-        self._write_atomic({
-            "version": 1,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "tools": DEFAULT_TOOLS,
-        })
+        self._write_atomic({"version": 1, "updated_at": datetime.now(timezone.utc).isoformat(), "tools": DEFAULT_TOOLS})
 
     def _load(self) -> dict[str, Any]:
         self._ensure_registry()
@@ -136,22 +62,14 @@ class ToolRegistry:
             for name, metadata in tools.items():
                 if name in merged and isinstance(metadata, dict):
                     merged[name].update(metadata)
-        return {
-            "version": int(data.get("version", 1)) if isinstance(data, dict) else 1,
-            "updated_at": data.get("updated_at") if isinstance(data, dict) else None,
-            "tools": merged,
-        }
+        return {"version": int(data.get("version", 1)) if isinstance(data, dict) else 1, "updated_at": data.get("updated_at") if isinstance(data, dict) else None, "tools": merged}
 
     def list_tools(self) -> list[dict[str, Any]]:
         payload = self._load()
         return [dict(payload["tools"][name]) for name in sorted(payload["tools"])]
 
     def enabled_names(self) -> set[str]:
-        return {
-            item["name"]
-            for item in self.list_tools()
-            if item.get("enabled") is True and isinstance(item.get("name"), str)
-        }
+        return {item["name"] for item in self.list_tools() if item.get("enabled") is True and isinstance(item.get("name"), str)}
 
     def set_enabled(self, name: str, enabled: bool) -> dict[str, Any]:
         payload = self._load()
@@ -164,10 +82,5 @@ class ToolRegistry:
         return dict(tools[name])
 
     def reset(self) -> list[dict[str, Any]]:
-        self._write_atomic({
-            "version": 1,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "tools": DEFAULT_TOOLS,
-        })
+        self._write_atomic({"version": 1, "updated_at": datetime.now(timezone.utc).isoformat(), "tools": DEFAULT_TOOLS})
         return self.list_tools()
-
