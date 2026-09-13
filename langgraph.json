@@ -4,7 +4,8 @@
   "dependencies": ["."],
   "graphs": {
     "agent": "simple_agent.managed_graph:graph",
-    "okf_admin": "simple_agent.admin_graph_v2:graph"
+    "okf_admin": "simple_agent.admin_graph_v2:graph",
+    "raw_compiler": "simple_agent.raw_compiler_graph:graph"
   },
   "env": ".env",
   "image_distro": "wolfi"
