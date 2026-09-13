@@ -11,6 +11,7 @@ def create_llm() -> ChatOpenAI:
     model_name = os.environ["LLM_MODEL"]
     api_key = os.getenv("LLM_API_KEY", "dummy")
     proxy_url = os.getenv("LLM_PROXY_URL")
+    temperature = float(os.getenv("LLM_TEMPERATURE", "0.2"))
 
     sync_client = httpx.Client(proxy=proxy_url or None, timeout=60.0)
     async_client = httpx.AsyncClient(proxy=proxy_url or None, timeout=60.0)
@@ -19,6 +20,7 @@ def create_llm() -> ChatOpenAI:
         model=model_name,
         base_url=base_url,
         api_key=api_key,
+        temperature=temperature,
         http_client=sync_client,
         http_async_client=async_client,
         streaming=True,
