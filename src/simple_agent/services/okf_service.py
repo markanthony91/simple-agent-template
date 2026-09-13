@@ -40,8 +40,17 @@ class OKFService:
         return headings
 
     def read_index(self, directory: str = "") -> str:
-        relative = f"{directory.strip('/')}/index.md" if directory.strip("/") else "index.md"
-        return self.read_file(relative)
+        cleaned = directory.strip("/")
+        relative = f"{cleaned}/index.md" if cleaned else "index.md"
+        try:
+            return self.read_file(relative)
+        except FileNotFoundError:
+            if cleaned:
+                return (
+                    f"No index.md found for OKF directory: {cleaned}. "
+                    "Use the parent index or okf_list/okf_search as fallback."
+                )
+            return "No root index.md found in the OKF bundle. Use okf_list or okf_search as fallback."
 
     def list_files(self) -> str:
         files = [str(path.relative_to(self.root)) for path in self._markdown_files()]
@@ -88,7 +97,6 @@ class OKFService:
         start_level: int | None = None
         resolved_heading: str | None = None
 
-        # Prefer an exact normalized heading match.
         for index, title, level in headings:
             if self._normalize(title) == target:
                 start = index
@@ -96,7 +104,6 @@ class OKFService:
                 resolved_heading = title
                 break
 
-        # If the caller used a partial form, accept a unique token-overlap match.
         if start is None:
             target_tokens = set(target.split())
             candidates: list[tuple[int, int, str, int]] = []
