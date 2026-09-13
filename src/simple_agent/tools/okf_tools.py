@@ -31,12 +31,21 @@ def _overrides(runtime: ToolRuntime) -> dict[str, str]:
     }
 
 
-def _active_files(runtime: ToolRuntime) -> set[str] | None:
+def _active_files(runtime: ToolRuntime) -> set[str]:
+    """Return the active uploaded bundle paths.
+
+    Fail closed when the Assistant context has no active bundle. This prevents
+    the runtime from silently falling back to Markdown files baked into the
+    container after an in-memory restart or lost Assistant context.
+    """
     raw = _context(runtime).get("okf_bundle_files")
     if not isinstance(raw, list):
-        return None
-    active = {item for item in raw if isinstance(item, str) and item.endswith(".md")}
-    return active or None
+        return set()
+    return {
+        item
+        for item in raw
+        if isinstance(item, str) and item.endswith(".md")
+    }
 
 
 @tool
