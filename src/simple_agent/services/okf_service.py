@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 import unicodedata
 from pathlib import Path
 
@@ -14,13 +16,13 @@ class OKFService:
     def _markdown_files(self) -> list[Path]:
         return sorted(path for path in self.root.rglob("*.md") if path.is_file())
 
-    def _safe_path(self, relative_path: str) -> Path:
+    def _safe_path(self, relative_path: str, require_exists: bool = True) -> Path:
         candidate = (self.root / relative_path).resolve()
         if not candidate.is_relative_to(self.root):
             raise ValueError("Invalid OKF path")
         if candidate.suffix != ".md":
-            raise ValueError("Only Markdown OKF files can be read")
-        if not candidate.exists() or not candidate.is_file():
+            raise ValueError("Only Markdown OKF files are supported")
+        if require_exists and (not candidate.exists() or not candidate.is_file()):
             raise FileNotFoundError(f"OKF file not found: {relative_path}")
         return candidate
 
@@ -59,6 +61,29 @@ class OKFService:
     def read_file(self, relative_path: str) -> str:
         content = self._safe_path(relative_path).read_text(encoding="utf-8")
         return content[: self.max_chars_per_file]
+
+    def write_file(self, relative_path: str, content: str) -> str:
+        if not isinstance(content, str):
+            raise ValueError("Content must be text")
+        if len(content) > 200_000:
+            raise ValueError("OKF file exceeds the 200000 character edit limit")
+        target = self._safe_path(relative_path, require_exists=True)
+        if not content.strip():
+            raise ValueError("OKF file cannot be empty")
+        if target.name != "index.md" and not re.search(r"^type\s*:\s*.+$", content, flags=re.MULTILINE):
+            raise ValueError("OKF concept must contain a 'type:' frontmatter field")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=str(target.parent))
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as temp_file:
+                temp_file.write(content)
+                temp_file.flush()
+                os.fsync(temp_file.fileno())
+            os.replace(temp_name, target)
+        finally:
+            if os.path.exists(temp_name):
+                os.unlink(temp_name)
+        return f"Saved OKF file: {relative_path} ({len(content)} characters)"
 
     def search(self, query: str, scope: str = "") -> str:
         query_tokens = set(self._normalize(query).split())
