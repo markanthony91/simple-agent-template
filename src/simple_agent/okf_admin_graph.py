@@ -14,7 +14,9 @@ class AdminState(TypedDict, total=False):
     files: dict[str, str]
     path: str
     content: str
-    result: dict[str, Any]
+    draft_id: str
+    from_active: bool
+    result: dict[str, Any] | list[dict[str, Any]]
     error: str
 
 
@@ -25,7 +27,7 @@ def execute(state: AdminState) -> AdminState:
     operation = state.get("operation", "status")
     try:
         if operation == "status":
-            result: dict[str, Any] = store.status()
+            result: dict[str, Any] | list[dict[str, Any]] = store.status()
         elif operation == "list":
             status = store.status()
             result = {
@@ -57,11 +59,55 @@ def execute(state: AdminState) -> AdminState:
                 str(state.get("bundle_version") or "0.2"),
                 files,
             )
+        elif operation == "create_draft":
+            result = store.create_draft(
+                str(state.get("bundle_name") or "okf-draft"),
+                str(state.get("bundle_version") or "0.2"),
+                bool(state.get("from_active", True)),
+            )
+        elif operation == "list_drafts":
+            result = store.list_drafts()
+        elif operation == "draft_list":
+            draft_id = _draft_id(state)
+            files = store.draft_files(draft_id)
+            result = {"draft_id": draft_id, "files": sorted(files), "file_count": len(files)}
+        elif operation == "draft_read":
+            draft_id = _draft_id(state)
+            path = _path(state)
+            files = store.draft_files(draft_id)
+            if path not in files:
+                raise FileNotFoundError(f"Draft file not found: {path}")
+            result = {"draft_id": draft_id, "path": path, "content": files[path]}
+        elif operation == "draft_write":
+            draft_id = _draft_id(state)
+            path = _path(state)
+            content = state.get("content")
+            if not isinstance(content, str):
+                raise ValueError("content is required")
+            result = store.write_draft_file(draft_id, path, content)
+        elif operation == "validate_draft":
+            result = store.validate_draft(_draft_id(state))
+        elif operation == "publish_draft":
+            result = store.publish_draft(_draft_id(state))
         else:
             raise ValueError(f"Unsupported OKF admin operation: {operation}")
         return {**state, "result": result, "error": ""}
     except Exception as exc:
         return {**state, "result": {}, "error": str(exc)}
+
+
+def _draft_id(state: AdminState) -> str:
+    value = state.get("draft_id")
+    if not isinstance(value, str) or not value:
+        raise ValueError("draft_id is required")
+    return value
+
+
+def _path(state: AdminState) -> str:
+    value = state.get("path")
+    if not isinstance(value, str) or not value:
+        raise ValueError("path is required")
+    return value
 
 
 builder = StateGraph(AdminState)
