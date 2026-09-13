@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from time import perf_counter
 
@@ -24,86 +25,79 @@ def _log_call(name: str, started: float, **fields: str) -> None:
     logger.info("OKF_TOOL name=%s elapsed_ms=%s %s", name, elapsed_ms, details)
 
 
+def _recoverable_error(name: str, error: Exception, **details: str) -> str:
+    logger.warning("OKF_TOOL_RECOVERABLE name=%s error=%s details=%s", name, type(error).__name__, details)
+    return json.dumps({
+        "error": True,
+        "tool": name,
+        "reason": "knowledge_lookup_failed",
+        "error_type": type(error).__name__,
+        "details": details,
+        "instruction": "Recover by navigating from okf_index or okf_search instead of inventing a path or heading.",
+    }, ensure_ascii=False)
+
+
 @tool
 def okf_index(directory: str = "") -> str:
-    """Discover institutional knowledge through an OKF index.md.
-
-    Use this as the normal first tool when a user asks about a company,
-    institution, creditor, product, service, policy, procedure, collection
-    rule, contract, support channel, official channel, or other information
-    that may belong to the active institutional knowledge bundle. Start with
-    the root index when the correct branch is not already known from retrieved
-    OKF content, then follow the indexes progressively. Do not guess paths.
-    """
+    """Discover institutional knowledge through an OKF index.md."""
     started = perf_counter()
-    service = store.service()
-    if service is None:
-        result = "No active OKF bundle."
-    else:
-        result = service.read_index(directory)
+    try:
+        service = store.service()
+        result = "No active OKF bundle." if service is None else service.read_index(directory)
+    except (FileNotFoundError, ValueError, KeyError) as error:
+        result = _recoverable_error("okf_index", error, directory=directory)
     _log_call("okf_index", started, directory=directory)
     return result
 
 
 @tool
 def okf_list() -> str:
-    """List Markdown paths in the active persistent OKF bundle.
-
-    Use only when progressive navigation through okf_index is unavailable,
-    incomplete, or inconsistent. This is not the preferred discovery method.
-    """
+    """List Markdown paths in the active persistent OKF bundle."""
     started = perf_counter()
-    files = store.list_files()
-    result = "\n".join(files) if files else "No OKF files available."
-    _log_call("okf_list", started, count=str(len(files)))
+    try:
+        files = store.list_files()
+        result = "\n".join(files) if files else "No OKF files available."
+        count = str(len(files))
+    except (FileNotFoundError, ValueError, KeyError) as error:
+        result = _recoverable_error("okf_list", error)
+        count = "0"
+    _log_call("okf_list", started, count=count)
     return result
 
 
 @tool
 def okf_search(query: str, scope: str = "") -> str:
-    """Fallback lexical search across active OKF concepts.
-
-    Use this when progressive navigation with okf_index cannot locate the
-    needed institutional information, or when indexes do not expose enough
-    information to identify a concept. It may be scoped to a directory. Do
-    not use it as the default replacement for index-based discovery.
-    """
+    """Fallback lexical search across active OKF concepts."""
     started = perf_counter()
-    service = store.service()
-    if service is None:
-        result = "No OKF matches found."
-    else:
-        result = service.search(query, scope)
+    try:
+        service = store.service()
+        result = "No OKF matches found." if service is None else service.search(query, scope)
+    except (FileNotFoundError, ValueError, KeyError) as error:
+        result = _recoverable_error("okf_search", error, query=query, scope=scope)
     _log_call("okf_search", started, query=query, scope=scope)
     return result
 
 
 @tool
 def okf_read(path: str) -> str:
-    """Read a complete OKF Markdown concept from the active bundle.
-
-    Use after an index or search has identified the relevant path and broader
-    concept context is needed. For a single known section, prefer
-    okf_read_section. Preserve uncertainty, placeholders, and limitations
-    found in the source instead of filling them from general model knowledge.
-    """
+    """Read a complete OKF Markdown concept from the active bundle."""
     started = perf_counter()
-    result = _service().read_file(path)
+    try:
+        result = _service().read_file(path)
+    except (FileNotFoundError, ValueError, KeyError) as error:
+        result = _recoverable_error("okf_read", error, path=path)
     _log_call("okf_read", started, path=path)
     return result
 
 
 @tool
 def okf_read_section(path: str, heading: str) -> str:
-    """Read one exact Markdown section from an active OKF concept.
-
-    Use this after OKF navigation has identified a relevant file and exact
-    heading. It is preferred when one section is sufficient to answer the
-    user's institutional question. Use headings exactly as exposed by the
-    indexes or previous OKF tool output; do not invent or translate them.
-    """
+    """Read one exact Markdown section from an active OKF concept."""
     started = perf_counter()
-    result = _service().read_section(path, heading)
+    try:
+        result = _service().read_section(path, heading)
+    except (FileNotFoundError, ValueError, KeyError) as error:
+        result = _recoverable_error("okf_read_section", error, path=path, heading=heading)
     _log_call("okf_read_section", started, path=path, heading=heading)
     return result
 
