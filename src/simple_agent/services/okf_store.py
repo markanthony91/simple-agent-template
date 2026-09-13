@@ -101,7 +101,14 @@ class PersistentOKFStore:
         return value if isinstance(value, str) and value else None
 
     def bundle_root(self, bundle_id: str) -> Path:
-        root = (self.bundles_root / self._slug(bundle_id)).resolve()
+        candidate = bundle_id.strip()
+        if (
+            not candidate
+            or len(candidate) > 120
+            or not re.fullmatch(r"[A-Za-z0-9._-]+", candidate)
+        ):
+            raise ValueError(f"Invalid bundle id: {bundle_id}")
+        root = (self.bundles_root / candidate).resolve()
         if not root.is_relative_to(self.bundles_root.resolve()) or not root.is_dir():
             raise FileNotFoundError(f"Bundle not found: {bundle_id}")
         return root
