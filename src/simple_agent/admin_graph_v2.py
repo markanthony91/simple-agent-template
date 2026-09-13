@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 from simple_agent.services.okf_store import PersistentOKFStore
+from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.services.tool_registry import ToolRegistry
 
 class AdminState(TypedDict, total=False):
@@ -17,10 +18,12 @@ class AdminState(TypedDict, total=False):
     from_active: bool
     tool_name: str
     enabled: bool
+    fixture: dict[str, Any]
     result: dict[str, Any] | list[dict[str, Any]]
     error: str
 
 store = PersistentOKFStore()
+simulator = SimulatorStore()
 registry = ToolRegistry()
 
 def required_text(state: AdminState, key: str) -> str:
@@ -100,6 +103,13 @@ def execute(state: AdminState) -> AdminState:
             result = registry.set_enabled(required_text(state, "tool_name"), value)
         elif operation == "reset_tools":
             result = registry.reset()
+        elif operation == "get_simulator_fixture":
+            result = simulator.load()
+        elif operation == "save_simulator_fixture":
+            fixture = state.get("fixture")
+            if not isinstance(fixture, dict):
+                raise ValueError("fixture must be an object")
+            result = simulator.save(fixture)
         else:
             raise ValueError(f"Unsupported admin operation: {operation}")
         return {**state, "result": result, "error": ""}
@@ -111,3 +121,4 @@ builder.add_node("execute", execute)
 builder.add_edge(START, "execute")
 builder.add_edge("execute", END)
 graph = builder.compile()
+

@@ -9,6 +9,7 @@ from simple_agent.graph import calculator, utc_now
 from simple_agent.prompt_loader import load_agent_prompt
 from simple_agent.tool_middleware import filter_enabled_tools
 from simple_agent.tools.okf_tools import OKF_TOOLS
+from simple_agent.tools.collection_tools import COLLECTION_TOOLS
 
 DEFAULT_MODEL = os.getenv("SIMPLE_AGENT_MODEL", "openai:gpt-4.1-mini")
 
@@ -28,7 +29,7 @@ def runtime_prompt(request: ModelRequest) -> str:
     )
 
 
-ALL_TOOLS = [utc_now, calculator, *OKF_TOOLS]
+ALL_TOOLS = [utc_now, calculator, *OKF_TOOLS, *COLLECTION_TOOLS]
 
 graph = create_agent(
     model=DEFAULT_MODEL,
@@ -36,3 +37,4 @@ graph = create_agent(
     middleware=[runtime_prompt, filter_enabled_tools],
     name="simple_agent",
 )
+

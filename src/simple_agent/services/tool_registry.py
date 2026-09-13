@@ -72,6 +72,24 @@ DEFAULT_TOOLS: dict[str, dict[str, Any]] = {
         "risk": "low",
         "requires_auth": False,
     },
+    "get_customer": {
+        "name": "get_customer",
+        "description": "Return the configured simulator customer and debt when the CPF matches.",
+        "category": "collection",
+        "enabled": True,
+        "mode": "read_only",
+        "risk": "low",
+        "requires_auth": False,
+    },
+    "generate_offer": {
+        "name": "generate_offer",
+        "description": "Calculate a simulator offer from current debt and customer eligibility.",
+        "category": "collection",
+        "enabled": True,
+        "mode": "read_only",
+        "risk": "low",
+        "requires_auth": False,
+    },
 }
 
 
@@ -152,3 +170,4 @@ class ToolRegistry:
             "tools": DEFAULT_TOOLS,
         })
         return self.list_tools()
+
