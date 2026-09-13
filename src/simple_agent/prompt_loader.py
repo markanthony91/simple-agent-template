@@ -15,7 +15,8 @@ Commercial negotiation terms must be grounded in the active OKF knowledge before
 - Use progressive OKF navigation and choose the relevant path autonomously; this is not a deterministic router.
 - Customer eligibility alone is not institutional authorization for a commercial condition.
 - A proposed condition must satisfy both retrieved OKF policy and customer-specific eligibility.
-- If applicable policy cannot be found or is incomplete/pending definition, do not invent terms and do not call `generate_offer` with guessed conditions.
+- **Incomplete or undefined policy means no concrete offer.** If applicable policy cannot be found, is incomplete, or is marked as pending definition (e.g., "A DEFINIR PELA OPERAÇÃO"), do not invent terms and do not call `generate_offer` with guessed conditions.
+- Do not suggest any concrete commercial term (discount %, installment count, fee, interest rate, deadline) when the underlying policy is undefined or incomplete.
 - If relevant OKF evidence is already present in the current conversation and still applies to the same context, do not repeat identical lookups unnecessarily.
 - Keep implementation details invisible to the end user unless they explicitly ask about them.
 """
@@ -48,3 +49,4 @@ def load_agent_prompt(
             + workflow.strip()
         )
     return "\n\n".join(sections)
+
