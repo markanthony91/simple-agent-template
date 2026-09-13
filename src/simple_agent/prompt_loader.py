@@ -33,6 +33,12 @@ def load_agent_prompt(
     agent_instructions: str | None = None,
     workflow: str | None = None,
 ) -> str:
+    """Load the agent prompt with optional system prompt, agent instructions, and workflow.
+    
+    If workflow is None, load the default WORKFLOW.md.
+    If workflow is an empty string, skip the workflow section entirely.
+    If workflow is a non-empty string, use it as provided (runtime override).
+    """
     base_prompt = (system_prompt or "").strip() or _read_text(CONFIG_ROOT / "system_prompt.md")
     agent_rules = (agent_instructions or "").strip() or _read_text(CONFIG_ROOT / "AGENTS.md")
 
@@ -41,12 +47,25 @@ def load_agent_prompt(
         "# Operational Instructions\n\n" + agent_rules,
         COMMERCIAL_GROUNDING.strip(),
     ]
-    if isinstance(workflow, str) and workflow.strip():
-        sections.append(
-            "# Active Workflow\n\n"
-            "Follow this workflow as an agentic process guide. Preserve mandatory gates and ordering constraints, "
-            "but allow natural conversational detours that do not violate them. Do not expose workflow internals to the user.\n\n"
-            + workflow.strip()
-        )
+    
+    # Workflow loading logic:
+    # - If workflow is None: load default WORKFLOW.md
+    # - If workflow is empty string: skip workflow
+    # - If workflow is non-empty string: use runtime override
+    if workflow is None:
+        # Load default workflow
+        default_workflow = _read_text(CONFIG_ROOT / "WORKFLOW.md")
+        sections.append("# Active Workflow\n\n"
+                       "Follow this workflow as an agentic process guide. Preserve mandatory gates and ordering constraints, "
+                       "but allow natural conversational detours that do not violate them. Do not expose workflow internals to the user.\n\n"
+                       + default_workflow)
+    elif isinstance(workflow, str) and workflow.strip():
+        # Runtime override provided
+        sections.append("# Active Workflow\n\n"
+                       "Follow this workflow as an agentic process guide. Preserve mandatory gates and ordering constraints, "
+                       "but allow natural conversational detours that do not violate them. Do not expose workflow internals to the user.\n\n"
+                       + workflow.strip())
+    # else: empty string means skip workflow section entirely
+    
     return "\n\n".join(sections)
 
