@@ -22,41 +22,101 @@ This is an agentic workflow guide for the standard collection/negotiation proces
 - **Gate**: Retrieve and establish the customer's account context, outstanding debt, collection status, or negotiation history.
 - **Autonomy**: Agent calls `get_customer` or performs contextual lookups to populate customer state.
 - **Tools available**: `get_customer`, `okf_search`, `okf_index`.
-- **Exit condition**: Sufficient customer context is available.
+- **Exit condition**: Sufficient customer context is available (account number, debt amount, product, due date, status, etc.).
 - **Constraint**: If customer lookup fails or data is incomplete, explain the limitation transparently and ask for missing information.
 - **Next stage**: Advance to Policy Retrieval.
 
 ### Stage 4: Retrieve Applicable OKF Policy (Mandatory Gate)
 - **Gate**: Before generating any offer or discussing concrete terms, retrieve the applicable institutional policy for the customer's institution, product, and negotiation type.
 - **Autonomy**: Agent performs progressive OKF index navigation. Tool selection and path discovery are autonomous.
-- **Navigation constraints**:
-  - Follow `OKF_CHILD_DIRECTORIES` and `OKF_CONCEPT_PATHS` returned by `okf_index`.
-  - Do not invent child directories.
+- **Tools available**: `okf_index`, `okf_search`, `okf_read`, `okf_read_section`.
+- **Navigation constraints**: 
+  - Follow OKF_CHILD_DIRECTORIES and OKF_CONCEPT_PATHS returned by `okf_index`.
+  - Do NOT invent child directories.
   - Use scoped `okf_search` if index navigation is exhausted.
   - Use `okf_list` only as a last resort.
-- **Evidence states**:
-  - `POLICY_FOUND_DEFINED`: policy exists and contains concrete terms.
-  - `POLICY_FOUND_UNDEFINED`: policy exists but contains unresolved placeholders.
-  - `POLICY_NOT_FOUND`: no policy found despite a genuine lookup.
-  - `NAVIGATION_FAILED`: lookup failed because navigation could not reach valid evidence.
+- **Exit condition**: Policy search is complete. Classify evidence into one of four states:
+  - **POLICY_FOUND_DEFINED**: Policy exists and contains concrete terms.
+  - **POLICY_FOUND_UNDEFINED**: Policy exists but contains placeholders (A DEFINIR PELA OPERAÇÃO, etc.).
+  - **POLICY_NOT_FOUND**: No policy found despite genuine lookup.
+  - **NAVIGATION_FAILED**: OKF lookup failed (structure issues, all paths exhausted).
+- **Constraint**: Record and communicate the evidence state to guide subsequent actions.
+- **Next stage**: Conditional branching based on evidence state.
 
 ### Stage 5: Classify Evidence & Conditional Offer Generation
-- If `POLICY_FOUND_DEFINED`, evaluate the requested terms and call `generate_offer` only when policy and customer state allow it.
-- If `POLICY_FOUND_UNDEFINED`, do not generate or suggest concrete commercial terms.
-- If `POLICY_NOT_FOUND` or `NAVIGATION_FAILED`, do not invent a commercial condition; explain the limitation and offer a safe next step.
+
+#### Branch 5a: POLICY_FOUND_DEFINED
+- **Autonomy**: Agent has concrete policy. Evaluate user's requested terms against policy using autonomous reasoning.
+- **Next action**: If user terms align with policy and customer eligibility is confirmed, proceed to `generate_offer`.
+- **If terms misaligned**: Explain policy constraints and ask for revised user terms, or advance to user confirmation with policy-compliant terms.
+- **Next stage**: Advance to Stage 6 (Explicit Confirmation).
+
+#### Branch 5b: POLICY_FOUND_UNDEFINED
+- **Constraint**: Do NOT generate `generate_offer` or suggest concrete commercial terms.
+- **Action**: Acknowledge the policy placeholder and explain that operational definition is required.
+- **Next action**: Offer to escalate, continue conversation, or ask if customer wishes to wait for policy clarification.
+- **Next stage**: Return to Stage 1 (continue conversation) or exit to escalation.
+
+#### Branch 5c: POLICY_NOT_FOUND or NAVIGATION_FAILED
+- **Constraint**: Do NOT invent commercial terms or suggest concrete offers without policy grounding.
+- **Action**: Report the evidence state transparently. Explain that policy could not be retrieved for the requested context.
+- **Next action**: Offer alternative paths (different product, alternative institution, escalation) or request additional context.
+- **Next stage**: Return to Stage 1 (continue conversation with user) or exit to escalation/support.
 
 ### Stage 6: Explicit User Confirmation (Mandatory Gate)
-- Before calling `create_agreement`, require explicit user acceptance of the proposed terms.
-- Do not call `create_agreement` without explicit confirmation.
+- **Gate**: Before calling `create_agreement`, the user must explicitly confirm they accept the proposed terms.
+- **Autonomy**: Agent presents the offer clearly and requests confirmation using natural conversational language.
+- **Constraint**: Do NOT call `create_agreement` without explicit user agreement.
+- **Exit condition**: User confirms acceptance.
+- **Next stage**: Advance to Stage 7 (Agreement Creation & Summary).
 
-### Stage 7: Agreement Creation & Summary
-- After confirmation, call `create_agreement` with the confirmed terms.
-- Summarize the agreement naturally and clearly without exposing internal tool output.
+### Stage 7: Agreement Creation & Post-Negotiation Summary
+- **Gate**: User confirmed; proceed to `create_agreement`.
+- **Autonomy**: Call `create_agreement` with confirmed terms. Handle success or failure gracefully.
+- **Next action**: Summarize the agreement naturally, confirm next steps (payment, collection schedule, contact channels), and close the negotiation.
+- **Constraint**: Keep summary brief and human-friendly; do not expose tool outputs.
+- **End of workflow**: Negotiation complete.
 
 ## Conversational Detours
 
-The user may ask clarifying or unrelated questions at any stage. Answer naturally and then resume the current stage without bypassing mandatory gates.
+- **Allowed**: At any stage, the user may ask clarifying questions, request additional information, or discuss unrelated topics. The agent should answer naturally using available tools.
+- **Constraint**: Detours must not skip mandatory gates (Identity Verification, Policy Retrieval, User Confirmation).
+- **Re-entry**: After a detour, return to the current stage and resume from the last exit condition.
+
+## Tool Availability & Constraints
+
+### Stages 1–3: Pre-Policy Lookup
+- `utc_now`, `calculator`, `okf_index`, `okf_search`, `okf_read`, `okf_read_section`, `okf_list`
+- `get_customer` (if integrated)
+- Not available: `generate_offer`, `create_agreement` (policy not yet retrieved)
+
+### Stage 4: Policy Retrieval
+- `utc_now`, `calculator`, `okf_index`, `okf_search`, `okf_read`, `okf_read_section`, `okf_list`
+- Full autonomy for tool selection and navigation.
+
+### Stage 5: Conditional Offer Generation (POLICY_FOUND_DEFINED only)
+- `generate_offer` becomes available only if POLICY_FOUND_DEFINED.
+- `okf_read`, `okf_read_section` remain available if customer has questions.
+- `calculator` for term adjustments.
+
+### Stage 6–7: Confirmation & Agreement
+- `create_agreement` available only after explicit user confirmation.
+- `okf_search`, `okf_read` still available for answering customer questions.
+
+## Evidence State Reference
+
+| State | Meaning | Action | Offer Generation | Next Stage |
+|-------|---------|--------|-------------------|-----------|
+| POLICY_FOUND_DEFINED | Policy retrieved with concrete terms | Evaluate terms, present offer if compliant | ✅ Allowed | Stage 6 |
+| POLICY_FOUND_UNDEFINED | Policy exists but incomplete (placeholders) | Explain limitation, do not suggest concrete terms | ❌ Forbidden | Escalate or Stage 1 |
+| POLICY_NOT_FOUND | No policy found despite lookup | Report state, offer alternatives | ❌ Forbidden | Escalate or Stage 1 |
+| NAVIGATION_FAILED | OKF lookup failed (structure, paths) | Report state, attempt escalation | ❌ Forbidden | Escalate or Stage 1 |
 
 ## Implementation Notes
 
-This workflow is guidance, not a hard router. The agent retains autonomy over wording, tool choice, and conversational detours while respecting mandatory gates and evidence constraints.
+- This workflow is embedded in the agent prompt as a guide, not a hard router.
+- The agent should use autonomy to navigate stages and gates based on conversational context.
+- Mandatory gates (2, 4, 6) are constraints that must be honored; others allow flexibility.
+- Tool availability changes between stages to guide the agent; the agent must respect these boundaries.
+- Always prioritize natural conversation and user clarity over workflow formalism.
+
