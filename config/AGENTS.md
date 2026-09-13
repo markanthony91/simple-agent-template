@@ -97,3 +97,4 @@ After retrieving OKF policy for a negotiation context, classify the evidence int
 - Convert retrieved knowledge into natural conversational language.
 - Keep the conversation fluid and human; tool use should support the conversation rather than make it feel scripted.
 - Do not announce that you are reading an index, opening a Markdown file, or calling a tool unless that implementation detail is relevant to the user's explicit technical question.
+
