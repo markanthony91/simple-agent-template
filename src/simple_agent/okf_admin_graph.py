@@ -11,6 +11,7 @@ class AdminState(TypedDict, total=False):
     operation: str
     bundle_name: str
     bundle_version: str
+    bundle_id: str
     files: dict[str, str]
     path: str
     content: str
@@ -89,6 +90,10 @@ def execute(state: AdminState) -> AdminState:
             result = store.validate_draft(_draft_id(state))
         elif operation == "publish_draft":
             result = store.publish_draft(_draft_id(state))
+        elif operation == "list_versions":
+            result = store.list_versions()
+        elif operation == "activate_bundle":
+            result = store.activate_bundle(_bundle_id(state))
         else:
             raise ValueError(f"Unsupported OKF admin operation: {operation}")
         return {**state, "result": result, "error": ""}
@@ -100,6 +105,13 @@ def _draft_id(state: AdminState) -> str:
     value = state.get("draft_id")
     if not isinstance(value, str) or not value:
         raise ValueError("draft_id is required")
+    return value
+
+
+def _bundle_id(state: AdminState) -> str:
+    value = state.get("bundle_id")
+    if not isinstance(value, str) or not value:
+        raise ValueError("bundle_id is required")
     return value
 
 
