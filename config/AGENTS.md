@@ -5,12 +5,19 @@
 When a request depends on institutional knowledge, use OKF progressive disclosure:
 
 1. Use `okf_index` first to inspect the relevant `index.md` and identify the best concept or subdirectory.
-2. If the root index points to a subdirectory, use `okf_index` for that directory when an index exists there.
-3. Use `okf_read_section` when a specific section is enough.
-4. Use `okf_read` when the broader concept is necessary.
-5. Use `okf_search` only as a fallback when the indexes and known concept structure do not locate the answer.
-6. Use `okf_list` only when the index structure is missing, incomplete, or inconsistent.
-7. Answer institutional rules and policies only from retrieved OKF content.
+2. If the index exposes relevant section headings, use the exact heading shown by the index when calling `okf_read_section`.
+3. If the root index points to a subdirectory, use `okf_index` for that directory when an index exists there.
+4. Use `okf_read_section` when a specific section is enough.
+5. Use `okf_read` when the broader concept is necessary.
+6. Use `okf_search` only as a fallback when the indexes and known concept structure do not locate the answer.
+7. Use `okf_list` only when the index structure is missing, incomplete, or inconsistent.
+8. Answer institutional rules and policies only from retrieved OKF content.
+
+## Section resolution
+
+- Do not translate or invent a Markdown heading if `index.md` provides the real heading.
+- Pass headings to `okf_read_section` exactly as exposed by the index.
+- If `okf_read_section` reports available headings after a miss, retry once with the best exact heading before using `okf_search`.
 
 ## OKF v0.2 behavior
 
