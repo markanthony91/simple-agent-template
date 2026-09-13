@@ -30,6 +30,15 @@ class OKFService:
         without_marks = "".join(ch for ch in normalized if not unicodedata.combining(ch))
         return re.sub(r"[^a-z0-9]+", " ", without_marks.lower()).strip()
 
+    @staticmethod
+    def _extract_headings(content: str) -> list[tuple[int, str, int]]:
+        headings: list[tuple[int, str, int]] = []
+        for index, line in enumerate(content.splitlines()):
+            match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
+            if match:
+                headings.append((index, match.group(2).strip(), len(match.group(1))))
+        return headings
+
     def read_index(self, directory: str = "") -> str:
         relative = f"{directory.strip('/')}/index.md" if directory.strip("/") else "index.md"
         return self.read_file(relative)
@@ -74,22 +83,40 @@ class OKFService:
             raise ValueError("Heading cannot be empty")
 
         lines = content.splitlines()
+        headings = self._extract_headings(content)
         start: int | None = None
         start_level: int | None = None
+        resolved_heading: str | None = None
 
-        for index, line in enumerate(lines):
-            match = re.match(r"^(#{1,6})\s+(.+?)\s*$", line)
-            if not match:
-                continue
-            level = len(match.group(1))
-            title = self._normalize(match.group(2))
-            if title == target:
+        # Prefer an exact normalized heading match.
+        for index, title, level in headings:
+            if self._normalize(title) == target:
                 start = index
                 start_level = level
+                resolved_heading = title
                 break
 
+        # If the caller used a partial form, accept a unique token-overlap match.
+        if start is None:
+            target_tokens = set(target.split())
+            candidates: list[tuple[int, int, str, int]] = []
+            for index, title, level in headings:
+                title_tokens = set(self._normalize(title).split())
+                score = len(target_tokens & title_tokens)
+                if score:
+                    candidates.append((score, index, title, level))
+            candidates.sort(key=lambda item: (-item[0], item[2]))
+            if candidates and (len(candidates) == 1 or candidates[0][0] > candidates[1][0]):
+                _, start, resolved_heading, start_level = candidates[0]
+
         if start is None or start_level is None:
-            return f"Section not found: {heading}"
+            available = [title for _, title, _ in headings]
+            available_text = ", ".join(available) if available else "none"
+            return (
+                f"Section not found: {heading}. "
+                f"Available headings in {relative_path}: {available_text}. "
+                "Retry using one of these exact headings, preferably the heading exposed by index.md."
+            )
 
         collected = [lines[start]]
         for line in lines[start + 1 :]:
@@ -98,4 +125,7 @@ class OKFService:
                 break
             collected.append(line)
 
-        return "\n".join(collected)[: self.max_chars_per_file]
+        result = "\n".join(collected)[: self.max_chars_per_file]
+        if resolved_heading and self._normalize(resolved_heading) != target:
+            return f"Resolved heading '{heading}' to '{resolved_heading}'.\n\n{result}"
+        return result
