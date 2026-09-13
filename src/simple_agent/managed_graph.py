@@ -16,10 +16,16 @@ DEFAULT_MODEL = os.getenv("SIMPLE_AGENT_MODEL", "openai:gpt-4.1-mini")
 @dynamic_prompt
 def runtime_prompt(request: ModelRequest) -> str:
     context = request.runtime.context
-    configured = context.get("system_prompt") if isinstance(context, dict) else None
-    if isinstance(configured, str) and configured.strip():
-        return load_agent_prompt(system_prompt=configured)
-    return load_agent_prompt()
+    configured = context if isinstance(context, dict) else {}
+    system_prompt = configured.get("system_prompt")
+    agent_instructions = configured.get("agent_instructions")
+    active_workflow = configured.get("active_workflow")
+
+    return load_agent_prompt(
+        system_prompt=system_prompt if isinstance(system_prompt, str) else None,
+        agent_instructions=agent_instructions if isinstance(agent_instructions, str) else None,
+        workflow=active_workflow if isinstance(active_workflow, str) else None,
+    )
 
 
 ALL_TOOLS = [utc_now, calculator, *OKF_TOOLS]
