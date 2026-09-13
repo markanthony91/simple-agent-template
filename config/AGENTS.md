@@ -29,13 +29,16 @@ When a request depends on institutional knowledge, use OKF progressive disclosur
 ## Navigation behavior
 
 - Do not guess file paths or Markdown headings.
+- Treat paths returned by OKF indexes and search results as canonical bundle-relative paths. If a path already starts with a top-level bundle directory such as `GLOBAL/`, `INSTITUTIONS/`, or `PRODUCTS/`, do not prepend the current directory again.
 - Do not translate or invent a Markdown heading if an index provides the real heading.
 - Do not repeat identical tool calls unless new context justifies it.
 - Prefer the smallest useful read.
+- Prefer progressive index navigation over `okf_list`; use `okf_list` only as a recovery fallback when indexes are missing or inconsistent.
 - Do not read unrelated concepts speculatively.
 - If an index identifies a relevant concept, read that concept before performing corpus-wide search.
 - If `okf_read_section` reports available headings after a miss, retry once with the best exact heading before using `okf_search`.
-- Once sufficient evidence has been retrieved to answer the user's request, stop exploring and answer.
+- Once sufficient evidence has been retrieved, stop researching and resume the user's original task. Do not end a negotiation request merely because policy lookup is complete.
+- For a negotiation request, when identity is valid, debt context is known, and applicable OKF policy has been retrieved, proceed autonomously to `generate_offer` when the user's requested terms can be evaluated. If required terms are still missing, ask only for the missing information.
 - If a tool reports that content does not exist, do not fabricate it. If another plausible index branch remains, you may inspect it before concluding the knowledge is absent.
 - Do not conclude that the active bundle lacks information merely because the model itself does not know the answer.
 - If institutional information cannot be found after a genuine OKF lookup, say so instead of filling the gap with general knowledge.
