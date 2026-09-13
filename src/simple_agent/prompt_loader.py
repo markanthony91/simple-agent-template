@@ -12,7 +12,9 @@ def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
-def load_agent_prompt() -> str:
-    system_prompt = _read_text(CONFIG_ROOT / "system_prompt.md")
+def load_agent_prompt(system_prompt: str | None = None) -> str:
+    base_prompt = (system_prompt or "").strip()
+    if not base_prompt:
+        base_prompt = _read_text(CONFIG_ROOT / "system_prompt.md")
     agent_rules = _read_text(CONFIG_ROOT / "AGENTS.md")
-    return f"{system_prompt}\n\n# Operational Instructions\n\n{agent_rules}"
+    return f"{base_prompt}\n\n# Operational Instructions\n\n{agent_rules}"
