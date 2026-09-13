@@ -14,7 +14,7 @@ from simple_agent.services.okf_validator import validate_okf_files
 
 
 class PersistentOKFStore:
-    """Persistent, fail-closed OKF bundle storage with draft publishing."""
+    """Persistent, fail-closed OKF bundle storage with drafts and immutable versions."""
 
     def __init__(self, root: Path | None = None):
         configured = os.getenv("OKF_DATA_ROOT", "/data/okf")
@@ -100,14 +100,63 @@ class PersistentOKFStore:
         value = self.active_metadata().get("bundle_id")
         return value if isinstance(value, str) and value else None
 
+    def bundle_root(self, bundle_id: str) -> Path:
+        root = (self.bundles_root / self._slug(bundle_id)).resolve()
+        if not root.is_relative_to(self.bundles_root.resolve()) or not root.is_dir():
+            raise FileNotFoundError(f"Bundle not found: {bundle_id}")
+        return root
+
     def active_root(self) -> Path | None:
         bundle_id = self.active_bundle_id()
         if not bundle_id:
             return None
-        root = (self.bundles_root / bundle_id).resolve()
-        if not root.is_relative_to(self.bundles_root.resolve()) or not root.is_dir():
+        try:
+            return self.bundle_root(bundle_id)
+        except FileNotFoundError:
             return None
-        return root
+
+    def _bundle_metadata(self, bundle_id: str) -> dict:
+        root = self.bundle_root(bundle_id)
+        meta_file = root / ".bundle.json"
+        meta: dict = {}
+        if meta_file.exists():
+            try:
+                loaded = json.loads(meta_file.read_text(encoding="utf-8"))
+                meta = loaded if isinstance(loaded, dict) else {}
+            except (json.JSONDecodeError, OSError):
+                meta = {}
+        active = self.active_metadata()
+        if bundle_id == active.get("bundle_id"):
+            for key in ("bundle_name", "bundle_version", "published_at"):
+                if key not in meta and active.get(key) is not None:
+                    meta[key] = active.get(key)
+        stat = root.stat()
+        return {
+            "bundle_id": bundle_id,
+            "bundle_name": meta.get("bundle_name") or bundle_id,
+            "bundle_version": meta.get("bundle_version") or "0.2",
+            "published_at": meta.get("published_at") or datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+            "source_draft_id": meta.get("source_draft_id"),
+            "file_count": len(list(root.rglob("*.md"))),
+            "active": bundle_id == self.active_bundle_id(),
+        }
+
+    def list_versions(self) -> list[dict]:
+        versions = [self._bundle_metadata(path.name) for path in self.bundles_root.iterdir() if path.is_dir() and not path.name.startswith(".")]
+        versions.sort(key=lambda item: str(item.get("published_at") or ""), reverse=True)
+        return versions
+
+    def activate_bundle(self, bundle_id: str) -> dict:
+        meta = self._bundle_metadata(bundle_id)
+        active = {
+            "bundle_id": meta["bundle_id"],
+            "bundle_name": meta["bundle_name"],
+            "bundle_version": meta["bundle_version"],
+            "published_at": meta["published_at"],
+            "activated_at": datetime.now(timezone.utc).isoformat(),
+        }
+        self._write_json_atomic(self.active_file, active)
+        return {**meta, "active": True, "activated_at": active["activated_at"]}
 
     def service(self) -> OKFService | None:
         root = self.active_root()
@@ -125,6 +174,7 @@ class PersistentOKFStore:
             "bundle_name": meta.get("bundle_name"),
             "bundle_version": meta.get("bundle_version"),
             "published_at": meta.get("published_at"),
+            "activated_at": meta.get("activated_at"),
             "file_count": len(files),
             "files": files,
             "storage_root": str(self.root),
@@ -181,6 +231,11 @@ class PersistentOKFStore:
             raise ValueError("Invalid OKF path")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(content, encoding="utf-8")
+        meta_path = root / ".draft.json"
+        if meta_path.exists():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            meta["updated_at"] = datetime.now(timezone.utc).isoformat()
+            self._write_json_atomic(meta_path, meta)
         return {"draft_id": draft_id, "path": relative, "saved": True}
 
     def validate_draft(self, draft_id: str) -> dict:
@@ -199,25 +254,29 @@ class PersistentOKFStore:
             str(meta.get("draft_name") or draft_id),
             str(meta.get("bundle_version") or "0.2"),
             self._root_files(root),
+            source_draft_id=draft_id,
         )
         return {**result, "draft_id": draft_id, "validation": validation}
 
-    def import_bundle(self, name: str, version: str, files: dict[str, str]) -> dict:
+    def import_bundle(self, name: str, version: str, files: dict[str, str], source_draft_id: str | None = None) -> dict:
         normalized = self._normalize_files(files)
         stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
         bundle_id = f"{self._slug(name)}-{stamp}-{uuid.uuid4().hex[:8]}"
         temp_root = self.bundles_root / f".{bundle_id}.tmp"
         final_root = self.bundles_root / bundle_id
         self._write_files_atomic(temp_root, normalized)
-        os.replace(temp_root, final_root)
+        published_at = datetime.now(timezone.utc).isoformat()
         metadata = {
             "bundle_id": bundle_id,
             "bundle_name": name,
             "bundle_version": version,
-            "published_at": datetime.now(timezone.utc).isoformat(),
+            "published_at": published_at,
+            "source_draft_id": source_draft_id,
         }
-        self._write_json_atomic(self.active_file, metadata)
-        return {**metadata, "file_count": len(normalized), "files": sorted(normalized)}
+        self._write_json_atomic(temp_root / ".bundle.json", metadata)
+        os.replace(temp_root, final_root)
+        self._write_json_atomic(self.active_file, {**metadata, "activated_at": published_at})
+        return {**metadata, "file_count": len(normalized), "files": sorted(normalized), "active": True}
 
     def list_files(self) -> list[str]:
         status = self.status()
@@ -230,24 +289,4 @@ class PersistentOKFStore:
         return service.read_file(self._safe_relative(path))
 
     def write_file(self, path: str, content: str) -> dict:
-        root = self.active_root()
-        if root is None:
-            raise FileNotFoundError("No active OKF bundle")
-        relative = self._safe_relative(path)
-        service = OKFService(root)
-        service.validate_edit(relative, content)
-        target = (root / relative).resolve()
-        if not target.is_relative_to(root.resolve()):
-            raise ValueError("Invalid OKF path")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp_name = tempfile.mkstemp(prefix=target.name, suffix=".tmp", dir=target.parent)
-        try:
-            with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                handle.write(content)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(tmp_name, target)
-        finally:
-            if os.path.exists(tmp_name):
-                os.unlink(tmp_name)
-        return {"path": relative, "saved": True}
+        raise PermissionError("Published OKF bundles are immutable. Create a draft, edit it, validate it, and publish a new version.")
