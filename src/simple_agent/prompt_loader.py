@@ -5,6 +5,21 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CONFIG_ROOT = PROJECT_ROOT / "config"
 
+COMMERCIAL_GROUNDING = """# Mandatory Commercial Grounding
+
+Commercial negotiation terms must be grounded in the active OKF knowledge before an offer is generated.
+
+- Treat customer state and institutional policy as separate sources.
+- Before calling `generate_offer`, retrieve the applicable OKF policy for the current institution, product, and negotiation context.
+- This requirement applies to discounts, installment counts, payment type, down payment, fees, interest, penalties, settlement rules, exceptions, and deadlines.
+- Use progressive OKF navigation and choose the relevant path autonomously; this is not a deterministic router.
+- Customer eligibility alone is not institutional authorization for a commercial condition.
+- A proposed condition must satisfy both retrieved OKF policy and customer-specific eligibility.
+- If applicable policy cannot be found or is incomplete/pending definition, do not invent terms and do not call `generate_offer` with guessed conditions.
+- If relevant OKF evidence is already present in the current conversation and still applies to the same context, do not repeat identical lookups unnecessarily.
+- Keep implementation details invisible to the end user unless they explicitly ask about them.
+"""
+
 
 def _read_text(path: Path) -> str:
     if not path.exists():
@@ -23,6 +38,7 @@ def load_agent_prompt(
     sections = [
         base_prompt,
         "# Operational Instructions\n\n" + agent_rules,
+        COMMERCIAL_GROUNDING.strip(),
     ]
     if isinstance(workflow, str) and workflow.strip():
         sections.append(
