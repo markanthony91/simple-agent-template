@@ -26,6 +26,10 @@ class OKFService:
             raise FileNotFoundError(f"OKF file not found: {relative_path}")
         return candidate
 
+    def _validate_override_path(self, relative_path: str) -> str:
+        candidate = self._safe_path(relative_path, require_exists=True)
+        return str(candidate.relative_to(self.root))
+
     @staticmethod
     def _normalize(text: str) -> str:
         normalized = unicodedata.normalize("NFKD", text)
@@ -41,11 +45,20 @@ class OKFService:
                 headings.append((index, match.group(2).strip(), len(match.group(1))))
         return headings
 
-    def read_index(self, directory: str = "") -> str:
+    def _override_content(self, relative_path: str, overrides: dict[str, str] | None) -> str | None:
+        if not overrides:
+            return None
+        safe_relative = self._validate_override_path(relative_path)
+        value = overrides.get(safe_relative)
+        if isinstance(value, str):
+            return value[: self.max_chars_per_file]
+        return None
+
+    def read_index(self, directory: str = "", overrides: dict[str, str] | None = None) -> str:
         cleaned = directory.strip("/")
         relative = f"{cleaned}/index.md" if cleaned else "index.md"
         try:
-            return self.read_file(relative)
+            return self.read_file(relative, overrides=overrides)
         except FileNotFoundError:
             if cleaned:
                 return (
@@ -54,24 +67,38 @@ class OKFService:
                 )
             return "No root index.md found in the OKF bundle. Use okf_list or okf_search as fallback."
 
-    def list_files(self) -> str:
-        files = [str(path.relative_to(self.root)) for path in self._markdown_files()]
-        return "\n".join(files) if files else "No OKF files available."
+    def list_files(self, overrides: dict[str, str] | None = None) -> str:
+        files = {str(path.relative_to(self.root)) for path in self._markdown_files()}
+        if overrides:
+            for relative_path in overrides:
+                try:
+                    files.add(self._validate_override_path(relative_path))
+                except (ValueError, FileNotFoundError):
+                    continue
+        return "\n".join(sorted(files)) if files else "No OKF files available."
 
-    def read_file(self, relative_path: str) -> str:
+    def read_file(self, relative_path: str, overrides: dict[str, str] | None = None) -> str:
+        overridden = self._override_content(relative_path, overrides)
+        if overridden is not None:
+            return overridden
         content = self._safe_path(relative_path).read_text(encoding="utf-8")
         return content[: self.max_chars_per_file]
 
-    def write_file(self, relative_path: str, content: str) -> str:
+    def validate_edit(self, relative_path: str, content: str) -> str:
+        safe_relative = self._validate_override_path(relative_path)
         if not isinstance(content, str):
             raise ValueError("Content must be text")
         if len(content) > 200_000:
             raise ValueError("OKF file exceeds the 200000 character edit limit")
-        target = self._safe_path(relative_path, require_exists=True)
         if not content.strip():
             raise ValueError("OKF file cannot be empty")
-        if target.name != "index.md" and not re.search(r"^type\s*:\s*.+$", content, flags=re.MULTILINE):
+        if Path(safe_relative).name != "index.md" and not re.search(r"^type\s*:\s*.+$", content, flags=re.MULTILINE):
             raise ValueError("OKF concept must contain a 'type:' frontmatter field")
+        return safe_relative
+
+    def write_file(self, relative_path: str, content: str) -> str:
+        safe_relative = self.validate_edit(relative_path, content)
+        target = self._safe_path(safe_relative, require_exists=True)
         target.parent.mkdir(parents=True, exist_ok=True)
         fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", dir=str(target.parent))
         try:
@@ -83,9 +110,9 @@ class OKFService:
         finally:
             if os.path.exists(temp_name):
                 os.unlink(temp_name)
-        return f"Saved OKF file: {relative_path} ({len(content)} characters)"
+        return f"Saved OKF file: {safe_relative} ({len(content)} characters)"
 
-    def search(self, query: str, scope: str = "") -> str:
+    def search(self, query: str, scope: str = "", overrides: dict[str, str] | None = None) -> str:
         query_tokens = set(self._normalize(query).split())
         if not query_tokens:
             raise ValueError("Search query cannot be empty")
@@ -98,20 +125,20 @@ class OKFService:
         for path in sorted(scope_root.rglob("*.md")):
             if path.name in {"index.md", "log.md"}:
                 continue
-            lines = path.read_text(encoding="utf-8").splitlines()
-            for number, line in enumerate(lines, start=1):
+            relative = str(path.relative_to(self.root))
+            content = self.read_file(relative, overrides=overrides)
+            for number, line in enumerate(content.splitlines(), start=1):
                 line_tokens = set(self._normalize(line).split())
                 score = len(query_tokens & line_tokens)
                 if score:
-                    rel = path.relative_to(self.root)
-                    ranked.append((score, f"{rel}:{number}: {line.strip()}"))
+                    ranked.append((score, f"{relative}:{number}: {line.strip()}"))
 
         ranked.sort(key=lambda item: (-item[0], item[1]))
         matches = [text for _, text in ranked[: self.max_results]]
         return "\n".join(matches) if matches else "No OKF matches found."
 
-    def read_section(self, relative_path: str, heading: str) -> str:
-        content = self.read_file(relative_path)
+    def read_section(self, relative_path: str, heading: str, overrides: dict[str, str] | None = None) -> str:
+        content = self.read_file(relative_path, overrides=overrides)
         target = self._normalize(heading)
         if not target:
             raise ValueError("Heading cannot be empty")
