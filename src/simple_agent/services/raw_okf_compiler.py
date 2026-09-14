@@ -10,37 +10,8 @@ from typing import Any
 from simple_agent.llm import create_llm
 from simple_agent.services.okf_store import PersistentOKFStore
 
-
-PLANNER_PROMPT = """You are an OKF 0.2 knowledge compiler.
-Analyze the raw source and propose a conservative ingestion plan for the existing OKF bundle.
-Return ONLY valid JSON with this shape:
-{
-  "summary": "short summary",
-  "institution": "name or null",
-  "product": "name or null",
-  "domain": "GLOBAL|INSTITUTIONS|PRODUCTS",
-  "files": [
-    {
-      "path": "relative/path.md",
-      "title": "title",
-      "type": "Knowledge|Policy|Procedure|Reference",
-      "content": "complete markdown body without yaml frontmatter",
-      "reason": "why this path"
-    }
-  ],
-  "warnings": ["..."],
-  "assumptions": ["..."]
-}
-Rules:
-- Never invent facts absent from the raw source.
-- Prefer INSTITUTIONS/<slug>/... for institution-specific facts.
-- Prefer PRODUCTS/<slug>/... for product-specific facts not tied to one institution.
-- Prefer GLOBAL/... only for cross-cutting rules.
-- Use lowercase snake_case path segments.
-- Create focused concept documents; do not create redundant copies.
-- Do not generate index.md; indexes are maintained by the runtime.
-- If uncertain, include the uncertainty in warnings and keep the plan conservative.
-"""
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_AGENTS_PATH = PROJECT_ROOT / "config" / "RAW_AGENTS.md"
 
 
 class RawOKFCompiler:
@@ -48,11 +19,33 @@ class RawOKFCompiler:
         self.store = store or PersistentOKFStore()
         self.raw_root = self.store.root / "raw"
         self.raw_root.mkdir(parents=True, exist_ok=True)
+        self.agents_path = self.raw_root / "AGENTS.md"
 
     @staticmethod
     def _slug(value: str) -> str:
         clean = re.sub(r"[^a-zA-Z0-9._-]+", "-", value.strip()).strip("-.").lower()
         return clean[:80] or "raw"
+
+    def get_agents(self) -> dict[str, Any]:
+        if self.agents_path.exists():
+            content = self.agents_path.read_text(encoding="utf-8")
+            source = "runtime_override"
+        else:
+            if not DEFAULT_AGENTS_PATH.exists():
+                raise FileNotFoundError("Default RAW compiler AGENTS.md not found")
+            content = DEFAULT_AGENTS_PATH.read_text(encoding="utf-8")
+            source = "default"
+        return {"content": content, "source": source, "editable": True}
+
+    def save_agents(self, content: str) -> dict[str, Any]:
+        cleaned = content.strip()
+        if not cleaned:
+            raise ValueError("RAW AGENTS.md cannot be empty")
+        if len(cleaned) > 50_000:
+            raise ValueError("RAW AGENTS.md exceeds the 50000 character limit")
+        rendered = cleaned + "\n"
+        self.agents_path.write_text(rendered, encoding="utf-8")
+        return {"saved": True, "source": "runtime_override", "content": rendered}
 
     def analyze(self, source_name: str, raw_text: str) -> dict[str, Any]:
         if not raw_text or not raw_text.strip():
@@ -65,9 +58,10 @@ class RawOKFCompiler:
         root.mkdir(parents=True, exist_ok=False)
         (root / "source.txt").write_text(raw_text, encoding="utf-8")
 
+        instructions = str(self.get_agents()["content"])
         llm = create_llm()
         response = llm.invoke([
-            ("system", PLANNER_PROMPT),
+            ("system", instructions),
             ("user", f"SOURCE NAME: {source_name}\n\nRAW SOURCE:\n{raw_text}"),
         ])
         text = response.content if isinstance(response.content, str) else str(response.content)

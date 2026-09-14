@@ -1,18 +1,24 @@
 from __future__ import annotations
 
 from typing import Any, TypedDict
+
 from langgraph.graph import END, START, StateGraph
+
 from simple_agent.services.raw_okf_compiler import RawOKFCompiler
+
 
 class RawCompilerState(TypedDict, total=False):
     operation: str
     source_name: str
     raw_text: str
     ingestion_id: str
+    agents_content: str
     result: dict[str, Any]
     error: str
 
+
 compiler = RawOKFCompiler()
+
 
 def execute(state: RawCompilerState) -> RawCompilerState:
     try:
@@ -27,11 +33,19 @@ def execute(state: RawCompilerState) -> RawCompilerState:
             if not isinstance(ingestion_id, str) or not ingestion_id:
                 raise ValueError("ingestion_id is required")
             result = compiler.create_draft(ingestion_id)
+        elif operation == "get_agents":
+            result = compiler.get_agents()
+        elif operation == "save_agents":
+            content = state.get("agents_content")
+            if not isinstance(content, str):
+                raise ValueError("agents_content is required")
+            result = compiler.save_agents(content)
         else:
             raise ValueError("Unsupported compiler operation")
         return {**state, "result": result, "error": ""}
     except Exception as exc:
         return {**state, "result": {}, "error": str(exc)}
+
 
 builder = StateGraph(RawCompilerState)
 builder.add_node("execute", execute)
