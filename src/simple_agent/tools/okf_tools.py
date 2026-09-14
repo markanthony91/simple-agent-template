@@ -118,7 +118,7 @@ def okf_read(path: str, runtime: ToolRuntime) -> str:
 
 @tool
 def okf_read_section(path: str, heading: str, runtime: ToolRuntime) -> str:
-    """Read one exact Markdown section from an active OKF concept."""
+    """Read an exact section plus its YAML lifecycle, scope and policy metadata."""
     started = perf_counter()
     try:
         service = _service(runtime)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import asyncio
 import logging
+import socket
 from time import perf_counter
 from typing import Awaitable, Callable
 
@@ -15,8 +16,13 @@ from langchain.agents.middleware import (
 from langchain_core.messages import ToolMessage
 
 from simple_agent.services.tool_registry import ToolRegistry
-from simple_agent.tool_observability import sanitize_result, sanitize_tool_args
+from simple_agent.tool_observability import (
+    sanitize_result,
+    sanitize_tool_args,
+    tool_outcome,
+)
 from simple_agent.services.session_store import SessionStore
+from simple_agent.services.response_audit import audit_response
 from langgraph.config import get_config
 
 registry = ToolRegistry()
@@ -44,6 +50,7 @@ def _log_event(
     name, call_id, args = _meta(request)
     payload = {
         "event": "TOOL_CALL",
+        "hostname": socket.gethostname(),
         "tool": name,
         "tool_call_id": call_id,
         "status": status,
@@ -53,10 +60,38 @@ def _log_event(
         payload["duration_ms"] = round(duration_ms, 2)
     if result is not None:
         payload["result"] = sanitize_result(name, result)
+        payload.update(tool_outcome(result))
     if error is not None:
         payload["error_type"] = type(error).__name__
         payload["error_message"] = str(error)[:300]
     logger.info(json.dumps(payload, ensure_ascii=False))
+
+
+def _audit_final(response: ModelResponse) -> ModelResponse:
+    """Evaluate after streaming, annotate the same message without rewriting it."""
+    key = get_config().get("configurable", {}).get("thread_id")
+    with SessionStore().transaction(key) as session:
+        for message in response.result:
+            if (
+                message.type != "ai"
+                or message.tool_calls
+                or not isinstance(message.content, str)
+            ):
+                continue
+            report = audit_response(message.content, session)
+            message.additional_kwargs["response_audit"] = report
+            logger.info(
+                json.dumps(
+                    {
+                        "event": "RESPONSE_AUDIT",
+                        "hostname": socket.gethostname(),
+                        "thread_id": key,
+                        "message_id": message.id,
+                        **report,
+                    }
+                )
+            )
+    return response
 
 
 def _tool_error_message(request: ToolCallRequest, error: Exception) -> ToolMessage:
@@ -107,16 +142,17 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
     def wrap_model_call(
         self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]
     ) -> ModelResponse:
-        return self._completed(handler(self._filtered_request(request)))
+        return _audit_final(self._completed(handler(self._filtered_request(request))))
 
     async def awrap_model_call(
         self,
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
-        return self._completed(
+        response = self._completed(
             await handler(await asyncio.to_thread(self._filtered_request, request))
         )
+        return await asyncio.to_thread(_audit_final, response)
 
     def wrap_tool_call(self, request: ToolCallRequest, handler):
         started = perf_counter()

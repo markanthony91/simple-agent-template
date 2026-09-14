@@ -14,14 +14,19 @@ WhatsApp are unchanged. No production data or published bundles are migrated.
 - [x] Published Qwen battery: 14 browser turns + 1 API probe, 41 tool calls;
   see docs/QWEN_E2E_2026-09-14.md. Identity/action guards passed; financial text
   and autonomous GLOBAL discovery failed. No valid financial closing approved.
-- [ ] Review financial policy status/scope/parameters and supported entry terms.
-- [ ] Correct financial response grounding and conditional-source interpretation.
-- [ ] Correct nested-path/root discovery and redundant OKF navigation.
-- [ ] Distinguish tool execution success from business/lookup/textual outcomes.
-- [ ] Repeat Qwen journeys and validate a complete authorized agreement path.
+- [x] Prepare an isolated synthetic policy with complete scope/terms; separate entry remains unsupported.
+- [x] Candidate: consolidate prompts and add bounded post-stream numeric review (not semantic approval).
+- [x] Candidate: preserve existing nested paths and YAML metadata in section reads; test root conflicts.
+- [x] Candidate: distinguish tool execution from domain outcomes.
+- [x] Repeat isolated Qwen journeys; final iteration creates one simulated agreement with exact schedule.
+- [x] Activate the approved RAW AGENTS root-casing instructions, with verified backup.
+- [ ] Human review/publication of the proposed pilot bundle in the hosted application.
+- [ ] Candidate frontend/backend rollout and published browser E2E.
+- [ ] Broader semantic regression validation; no full-fidelity guarantee from one successful run.
 
 Delivery stages: local tests → branches/PRs → separately approved Railway rollout.
 Passing local checks does not prove publication or real-Qwen E2E.
 The E2E report records the tested financial journeys and current failures;
-successful end-to-end financial acceptance remains pending.
+published end-to-end financial acceptance remains pending. Candidate/isolation
+evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.

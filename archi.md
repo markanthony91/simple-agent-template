@@ -1,4 +1,4 @@
-# Architecture — 0.2.0
+# Architecture — 0.2.1
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →
@@ -31,3 +31,12 @@ dev server a production-grade execution queue.
 
 Text still streams before semantic validation; this release does not implement
 an output Evidence Gate. Backend action validation is not proof of text fidelity.
+
+The existing middleware annotates the final AI message with response_audit:
+explicit BRL/percentage checks against authorized customer/offer results.
+No response rewrite, extra LLM call, or retry. Absence of a numeric mismatch does
+not prove semantic fidelity. Frontend 0.1.1 explains this limitation beside the text.
+System/AGENTS/workflow defaults are composed once, without a duplicate hidden
+commercial prompt in Python. Saved context overrides remain supported.
+The RAW compiler canonicalizes new roots and rejects case collisions; exact
+existing append/noop targets remain unchanged. Published bundles are not migrated.
