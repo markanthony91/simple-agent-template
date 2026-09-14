@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import ast
-import os
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,8 +12,7 @@ from langchain_core.tools import tool
 
 from simple_agent.prompt_loader import load_agent_prompt
 from simple_agent.tools.okf_tools import OKF_TOOLS
-
-DEFAULT_MODEL = os.getenv("SIMPLE_AGENT_MODEL", "openai:gpt-4.1-mini")
+from simple_agent.llm import create_llm
 
 
 @tool
@@ -68,7 +66,7 @@ def runtime_prompt(request: ModelRequest) -> str:
 TOOLS = [utc_now, calculator, *OKF_TOOLS]
 
 graph = create_agent(
-    model=DEFAULT_MODEL,
+    model=create_llm(),
     tools=TOOLS,
     middleware=[runtime_prompt],
     name="simple_agent",

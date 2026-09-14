@@ -6,6 +6,7 @@ import tempfile
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
+from simple_agent.services.simulator_schema import normalize_fixture
 
 
 DEFAULT_FIXTURE: dict[str, Any] = {
@@ -19,15 +20,15 @@ DEFAULT_FIXTURE: dict[str, Any] = {
     "debt": {
         "debt_id": "DEBT-001",
         "contract_id": "CTR-93821",
-        "original_amount": 5000.0,
-        "current_amount": 5873.42,
+        "original_amount": "5000.00",
+        "current_amount": "5873.42",
         "due_date": "2026-04-10",
         "status": "overdue",
     },
     "eligibility": {
         "can_negotiate": True,
         "max_installments": 10,
-        "max_discount_percentage": 20.0,
+        "max_discount_percentage": "20",
     },
 }
 
@@ -58,14 +59,14 @@ class SimulatorStore:
     def load(self) -> dict[str, Any]:
         try:
             payload = json.loads(self.file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            payload = dict(DEFAULT_FIXTURE)
-        return payload if isinstance(payload, dict) else dict(DEFAULT_FIXTURE)
+        except (OSError, json.JSONDecodeError) as exc:
+            raise ValueError("simulator_fixture_unavailable") from exc
+        return normalize_fixture(payload)
 
     def save(self, fixture: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(fixture, dict):
             raise ValueError("fixture must be an object")
-        payload = dict(fixture)
+        payload = normalize_fixture(fixture)
         payload["updated_at"] = datetime.now(timezone.utc).isoformat()
         self._write_atomic(payload)
         return payload
@@ -77,4 +78,4 @@ class SimulatorStore:
             due = date.fromisoformat(due_date)
         except ValueError:
             return None
-        return max(0, (date.today() - due).days)
+        return max(0, (datetime.now(timezone.utc).date() - due).days)
