@@ -5,6 +5,7 @@ The separate `agent-chat-ui` repository provides the Next.js frontend.
 This release does not modify WhatsApp or the original FastAPI console.
 
 Published status and evidence: [Railway release 2026-09-14](docs/RELEASE_2026-09-14.md).
+Real-model results and remaining blockers: [Qwen E2E 2026-09-14](docs/QWEN_E2E_2026-09-14.md).
 
 ## Run
 
