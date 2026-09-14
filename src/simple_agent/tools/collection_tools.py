@@ -30,10 +30,6 @@ def _runtime_state(fixture: dict) -> dict:
 
 
 def _identity_verified(fixture: dict) -> bool:
-    """Return only the runtime verification state.
-
-    Static simulator fixture flags must never bypass the live identity gate.
-    """
     return _runtime_state(fixture).get("identity_verified") is True
 
 
@@ -44,40 +40,43 @@ def _set_identity_verified(fixture: dict, verified: bool) -> dict:
         runtime["verification_id"] = f"VER-{uuid4().hex[:10].upper()}"
     else:
         runtime.pop("verification_id", None)
-        # Offers are session-sensitive and must not survive a failed/revoked identity check.
         runtime["offers"] = {}
     fixture["_runtime"] = runtime
     store.save(fixture)
     return runtime
 
 
+def _validate_policy_evaluation(fixture: dict, evaluation_id: str) -> tuple[dict | None, str | None]:
+    if not evaluation_id.strip():
+        return None, "policy_evaluation_required"
+    runtime = _runtime_state(fixture)
+    evaluations = runtime.get("policy_evaluations") if isinstance(runtime.get("policy_evaluations"), dict) else {}
+    evaluation = evaluations.get(evaluation_id)
+    if not isinstance(evaluation, dict):
+        return None, "policy_evaluation_not_found"
+    if evaluation.get("policy_state") != "POLICY_FOUND_DEFINED":
+        return evaluation, "policy_not_defined"
+    return evaluation, None
+
+
 @tool
 def get_customer(cpf: str) -> str:
-    """Return simulator customer data for a matching document.
-
-    Before identity verification, return only a minimal non-financial envelope.
-    After verification, return the customer's debt context. Negotiation limits are
-    intentionally omitted; institutional terms must come from OKF policy.
-    """
+    """Return simulator customer data for a matching document."""
     fixture = store.load()
     requested = _digits(cpf)
     configured = _digits(str(fixture.get("cpf") or ""))
     if not requested or requested != configured:
         return json.dumps({"found": False, "reason": "customer_not_found"}, ensure_ascii=False)
 
-    verified = _identity_verified(fixture)
-    if not verified:
-        return json.dumps(
-            {
-                "found": True,
-                "customer_id": fixture.get("customer_id"),
-                "cpf": _mask_document(configured),
-                "identity_validated": False,
-                "financial_data_available": False,
-                "reason": "identity_verification_required",
-            },
-            ensure_ascii=False,
-        )
+    if not _identity_verified(fixture):
+        return json.dumps({
+            "found": True,
+            "customer_id": fixture.get("customer_id"),
+            "cpf": _mask_document(configured),
+            "identity_validated": False,
+            "financial_data_available": False,
+            "reason": "identity_verification_required",
+        }, ensure_ascii=False)
 
     debt = fixture.get("debt") if isinstance(fixture.get("debt"), dict) else {}
     payload = {
@@ -111,21 +110,17 @@ def verify_customer_identity(cpf: str, full_name: str = "", birth_date: str = ""
     if not checks:
         _set_identity_verified(fixture, False)
         return json.dumps({"verified": False, "reason": "secondary_factor_required"}, ensure_ascii=False)
-
     if not any(checks):
         _set_identity_verified(fixture, False)
         return json.dumps({"verified": False, "reason": "secondary_factor_not_matched"}, ensure_ascii=False)
 
     runtime = _set_identity_verified(fixture, True)
-    return json.dumps(
-        {
-            "verified": True,
-            "verification_id": runtime["verification_id"],
-            "customer_id": fixture.get("customer_id"),
-            "cpf": _mask_document(configured),
-        },
-        ensure_ascii=False,
-    )
+    return json.dumps({
+        "verified": True,
+        "verification_id": runtime["verification_id"],
+        "customer_id": fixture.get("customer_id"),
+        "cpf": _mask_document(configured),
+    }, ensure_ascii=False)
 
 
 @tool
@@ -133,16 +128,19 @@ def generate_offer(
     payment_type: Literal["cash", "installment"],
     installments: int = 1,
     discount_percentage: float = 0.0,
+    policy_evaluation_id: str = "",
 ) -> str:
-    """Calculate and persist a simulator offer from current debt and eligibility.
-
-    Identity must already be verified. Consult applicable OKF policy before choosing
-    commercial terms. This tool enforces customer eligibility but does not define
-    institutional policy.
-    """
+    """Calculate and persist an offer after identity, policy and eligibility gates."""
     fixture = store.load()
     if not _identity_verified(fixture):
         return json.dumps({"available": False, "reason": "identity_verification_required"}, ensure_ascii=False)
+
+    evaluation, policy_error = _validate_policy_evaluation(fixture, policy_evaluation_id)
+    if policy_error:
+        payload = {"available": False, "reason": policy_error}
+        if isinstance(evaluation, dict):
+            payload["policy_state"] = evaluation.get("policy_state")
+        return json.dumps(payload, ensure_ascii=False)
 
     debt = fixture.get("debt") if isinstance(fixture.get("debt"), dict) else {}
     eligibility = fixture.get("eligibility") if isinstance(fixture.get("eligibility"), dict) else {}
@@ -155,23 +153,17 @@ def generate_offer(
     if payment_type == "cash":
         installments = 1
     if installments < 1 or installments > max_installments:
-        return json.dumps(
-            {
-                "available": False,
-                "reason": "installments_exceed_customer_eligibility",
-                "max_installments": max_installments,
-            },
-            ensure_ascii=False,
-        )
+        return json.dumps({
+            "available": False,
+            "reason": "installments_exceed_customer_eligibility",
+            "max_installments": max_installments,
+        }, ensure_ascii=False)
     if discount < 0 or discount > max_discount:
-        return json.dumps(
-            {
-                "available": False,
-                "reason": "discount_exceeds_customer_eligibility",
-                "max_discount_percentage": float(max_discount),
-            },
-            ensure_ascii=False,
-        )
+        return json.dumps({
+            "available": False,
+            "reason": "discount_exceeds_customer_eligibility",
+            "max_discount_percentage": float(max_discount),
+        }, ensure_ascii=False)
 
     current = Decimal(str(debt.get("current_amount", 0) or 0))
     discount_amount = current * discount / Decimal("100")
@@ -180,6 +172,7 @@ def generate_offer(
     offer = {
         "available": True,
         "offer_id": f"OFF-{uuid4().hex[:8].upper()}",
+        "policy_evaluation_id": policy_evaluation_id,
         "customer_id": fixture.get("customer_id"),
         "debt_id": debt.get("debt_id"),
         "payment_type": payment_type,
