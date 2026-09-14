@@ -9,8 +9,11 @@ WhatsApp are unchanged. No production data or published bundles are migrated.
 - [x] 4. Incremental RAW drafts, conflict detection, indexes and append-only log.
 - [x] 5. One LLM configuration, pinned snapshots and persistent server checkpoints.
 - [x] 6. Three LOCAL synthetic journeys, frontend, streaming and provider cancellation.
-- [ ] Coordinated Railway rollout after backup and explicit approval.
+- [x] Authorized Railway rollout with backup, Qwen tools and restart checks;
+  see docs/RELEASE_2026-09-14.md for deployment IDs and limits.
 - [ ] Real Qwen journeys, latency and review of saved assistant instructions/policies.
 
 Delivery stages: local tests → branches/PRs → separately approved Railway rollout.
 Passing local checks does not prove publication or real-Qwen E2E.
+The release report records published smoke validation; full financial journeys
+remain pending. Coordinate PR integration before another main autodeploy.

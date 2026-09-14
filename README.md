@@ -4,6 +4,8 @@ LangChain/LangGraph runtime, controlled OKF tools and synthetic debt negotiation
 The separate `agent-chat-ui` repository provides the Next.js frontend.
 This release does not modify WhatsApp or the original FastAPI console.
 
+Published status and evidence: [Railway release 2026-09-14](docs/RELEASE_2026-09-14.md).
+
 ## Run
 
 ```bash

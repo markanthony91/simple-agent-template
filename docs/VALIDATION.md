@@ -1,5 +1,8 @@
 # Validation — 2026-09-14
 
+This is the pre-publication local baseline. For the later authorized deployment,
+real Qwen smoke and recovery checks, see [release evidence](RELEASE_2026-09-14.md).
+
 Scope: the new simple-agent-template / agent-chat-ui pair. No changes to the
 existing FastAPI console, WhatsApp, Railway configuration or the live gateway.
 

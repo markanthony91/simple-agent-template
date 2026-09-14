@@ -5,9 +5,18 @@
    before changing the deployment. The old .langgraph_api directory may be ephemeral.
 3. Preserve the Railway Volume at /data and exactly one replica. Configure canonical
    LLM variables securely; do not copy keys into the frontend.
-4. Build the Dockerfile. ENTRYPOINT prepares the persistent checkpoint directory
-   even when Railway overrides CMD. An existing different checkpoint directory
-   causes startup to stop rather than overwrite it; migrate a verified backup explicitly.
+4. Build the Dockerfile. Railway's custom start command can bypass ENTRYPOINT.
+   Explicitly configure `sh -c 'exec python -m simple_agent.startup langgraph dev --host
+   0.0.0.0 --port ${PORT:-2024} --no-browser --no-reload'` and healthcheck `/info`.
+   Set `RAILWAY_DEPLOYMENT_DRAINING_SECONDS=30` so the in-memory runtime has time
+   to flush its checkpoints during graceful shutdown. Do not rely on an outer shell
+   forwarding signals. This does not guarantee crash-safe transactional persistence.
+   Publish a new deployment to apply changed settings: redeploying an earlier
+   deployment can reuse its old start command. Verify the running command and
+   `/app/.langgraph_api` symlink target `/data/langgraph` via SSH.
+   An existing different checkpoint directory causes startup to stop rather than
+   overwrite it; migrate a verified backup explicitly. Export history via the API
+   too: a running in-memory server may not have flushed checkpoint files to disk.
 5. Publish backend and companion frontend together in a controlled maintenance window.
    Old clients cannot publish without the new approved flag. New clients send it
    only after operator confirmation. This is intent capture, not admin authentication.
