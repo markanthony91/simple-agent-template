@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -13,12 +12,12 @@ class RawCompilerState(TypedDict, total=False):
     source_name: str
     raw_text: str
     ingestion_id: str
+    agents_content: str
     result: dict[str, Any]
     error: str
 
 
 compiler = RawOKFCompiler()
-raw_agents_path = Path(__file__).resolve().parents[2] / "config" / "RAW_AGENTS.md"
 
 
 def execute(state: RawCompilerState) -> RawCompilerState:
@@ -35,13 +34,12 @@ def execute(state: RawCompilerState) -> RawCompilerState:
                 raise ValueError("ingestion_id is required")
             result = compiler.create_draft(ingestion_id)
         elif operation == "get_agents":
-            if not raw_agents_path.exists():
-                raise FileNotFoundError("RAW_AGENTS.md not found")
-            result = {
-                "content": raw_agents_path.read_text(encoding="utf-8"),
-                "source": "config/RAW_AGENTS.md",
-                "editable": False,
-            }
+            result = compiler.get_agents()
+        elif operation == "save_agents":
+            content = state.get("agents_content")
+            if not isinstance(content, str):
+                raise ValueError("agents_content is required")
+            result = compiler.save_agents(content)
         else:
             raise ValueError("Unsupported compiler operation")
         return {**state, "result": result, "error": ""}
