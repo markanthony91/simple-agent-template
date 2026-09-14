@@ -6,6 +6,7 @@ from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.services.tool_registry import ToolRegistry
 
+
 class AdminState(TypedDict, total=False):
     operation: str
     bundle_name: str
@@ -21,10 +22,13 @@ class AdminState(TypedDict, total=False):
     fixture: dict[str, Any]
     result: dict[str, Any] | list[dict[str, Any]]
     error: str
+    approved: bool
+
 
 store = PersistentOKFStore()
 simulator = SimulatorStore()
 registry = ToolRegistry()
+
 
 def required_text(state: AdminState, key: str) -> str:
     value = state.get(key)
@@ -32,9 +36,15 @@ def required_text(state: AdminState, key: str) -> str:
         raise ValueError(f"{key} is required")
     return value
 
+
 def execute(state: AdminState) -> AdminState:
     operation = state.get("operation", "status")
     try:
+        if (
+            operation in {"import_bundle", "publish_draft", "activate_bundle"}
+            and state.get("approved") is not True
+        ):
+            raise ValueError("human_approval_required")
         if operation == "status":
             result = store.status()
         elif operation == "list":
@@ -69,7 +79,11 @@ def execute(state: AdminState) -> AdminState:
         elif operation == "draft_list":
             draft_id = required_text(state, "draft_id")
             files = store.draft_files(draft_id)
-            result = {"draft_id": draft_id, "files": sorted(files), "file_count": len(files)}
+            result = {
+                "draft_id": draft_id,
+                "files": sorted(files),
+                "file_count": len(files),
+            }
         elif operation == "draft_read":
             draft_id = required_text(state, "draft_id")
             path = required_text(state, "path")
@@ -112,13 +126,13 @@ def execute(state: AdminState) -> AdminState:
             result = simulator.save(fixture)
         else:
             raise ValueError(f"Unsupported admin operation: {operation}")
-        return {**state, "result": result, "error": ""}
+        return {**state, "result": result, "error": "", "approved": False}
     except Exception as exc:
-        return {**state, "result": {}, "error": str(exc)}
+        return {**state, "result": {}, "error": str(exc), "approved": False}
+
 
 builder = StateGraph(AdminState)
 builder.add_node("execute", execute)
 builder.add_edge(START, "execute")
 builder.add_edge("execute", END)
 graph = builder.compile()
-

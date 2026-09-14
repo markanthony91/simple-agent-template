@@ -13,8 +13,8 @@ This is an agentic workflow guide for the standard collection/negotiation proces
 ### Stage 2: Identity Verification (Mandatory Gate)
 - **Gate**: Customer identity must be verified before proceeding to financial terms or policy disclosure.
 - **Autonomy**: Agent may ask security questions, request validation, or perform lookups using available tools.
-- **Tools available**: `okf_search`, `okf_index` for verification policies; `get_customer` if integration is available.
-- **Exit condition**: Identity is confirmed (either through provided data or tool verification).
+- **Tools available**: `okf_search`, `okf_index` for verification policies; `verify_customer_identity` with CPF plus a secondary factor, then `get_customer`.
+- **Exit condition**: Only a successful `verify_customer_identity` tool result establishes identity in this conversation. User claims and fixture flags cannot do so.
 - **Constraint**: Do NOT disclose sensitive financial, policy, or operational information before this gate is satisfied.
 - **Next stage**: Advance to Customer Lookup / Debt Context.
 
@@ -67,7 +67,7 @@ This is an agentic workflow guide for the standard collection/negotiation proces
 - **Gate**: Before calling `create_agreement`, the user must explicitly confirm they accept the proposed terms.
 - **Autonomy**: Agent presents the offer clearly and requests confirmation using natural conversational language.
 - **Constraint**: Do NOT call `create_agreement` without explicit user agreement.
-- **Exit condition**: User confirms acceptance.
+- **Exit condition**: The user confirms the exact persisted offer using the simulator confirmation button or sends `CONFIRMAR ACORDO <offer_id>` as a new user message. The LLM must never synthesize this message.
 - **Next stage**: Advance to Stage 7 (Agreement Creation & Summary).
 
 ### Stage 7: Agreement Creation & Post-Negotiation Summary
@@ -97,7 +97,7 @@ This is an agentic workflow guide for the standard collection/negotiation proces
 ### Stage 5: Conditional Offer Generation (POLICY_FOUND_DEFINED only)
 - `generate_offer` becomes available only if POLICY_FOUND_DEFINED.
 - `okf_read`, `okf_read_section` remain available if customer has questions.
-- `calculator` for term adjustments.
+- Never use `calculator` for financial terms. Use only `generate_offer`.
 
 ### Stage 6–7: Confirmation & Agreement
 - `create_agreement` available only after explicit user confirmation.
@@ -117,6 +117,18 @@ This is an agentic workflow guide for the standard collection/negotiation proces
 - This workflow is embedded in the agent prompt as a guide, not a hard router.
 - The agent should use autonomy to navigate stages and gates based on conversational context.
 - Mandatory gates (2, 4, 6) are constraints that must be honored; others allow flexibility.
-- Tool availability changes between stages to guide the agent; the agent must respect these boundaries.
+- Registered tools are schema-validated and authorized by the backend. Stage descriptions are procedural guidance, not a claim that tools disappear from the schema.
 - Always prioritize natural conversation and user clarity over workflow formalism.
+
+## Simulator contract (v0.2.0)
+
+- `get_customer` returns current transactional data, not installment amounts.
+- `generate_offer` requires `policy_path` from a prior successful OKF read in this conversation.
+- The policy must belong to the pinned snapshot, be published and current, match institution/product, and declare approved `negotiation` metadata. Prose alone or undefined metadata is not executable authorization.
+- Send percentages as decimal strings, for example `"10"`, never calculate totals yourself.
+- Present `negotiated_amount` and the complete `installment_schedule` exactly. Rounding can make installments differ by a cent.
+- Do not promise success before `create_agreement` returns `created: true`.
+- Reuse the same offer ID on retries. Expired offers require a new simulation.
+- Fixture edits and new publication affect NEW conversations only. Existing conversations keep their fixture and snapshot.
+- Knowledge-only questions do not require identity unless they disclose customer-specific information.
 

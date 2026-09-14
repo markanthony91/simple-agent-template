@@ -1,60 +1,41 @@
-# Simple Agent Template
+# Agent Runtime — OKF simulator (0.2.0)
 
-Minimal deployment template for a LangChain agent built with `create_agent(...)`.
+LangChain/LangGraph runtime, controlled OKF tools and synthetic debt negotiation.
+The separate `agent-chat-ui` repository provides the Next.js frontend.
+This release does not modify WhatsApp or the original FastAPI console.
 
-## What this template gives you
+Published status and evidence: [Railway release 2026-09-14](docs/RELEASE_2026-09-14.md).
 
-- A deployable LangGraph entrypoint at `src/simple_agent/graph.py`.
-- Two small tools (`utc_now`, `calculator`) for predictable local behavior.
-- `langgraph.json` configured for LangSmith/LangGraph deployment.
-- A `uv`-managed local workflow with a small `Makefile` wrapper and starter tests.
-
-## Quickstart
-
-1. Sync the project with `uv`:
+## Run
 
 ```bash
-uv sync --dev
+uv sync --dev --frozen
+# Configure the names in .env.example in your server environment.
+uv run python -m simple_agent.startup
 ```
 
-2. Configure environment:
+Canonical LLM configuration: `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`.
+Chat and RAW ingestion use the same OpenAI-compatible adapter. Legacy
+`OPENAI_BASE_URL`, `OPENAI_API_KEY`, `SIMPLE_AGENT_MODEL` are fallback only.
+Streaming uses the SDK; no automatic retry after partial text. No new inference server or tunnel.
+
+## Tests
 
 ```bash
-cp .env.example .env
+uv run pytest -q
+uv run ruff check src tests
+docker build -t agent-runtime:0.2.0 .
 ```
 
-3. Run locally:
+Tests force synthetic credentials and temporary storage. They do not call Qwen.
+The optional legacy integration test remains skipped; see
+[validation](docs/VALIDATION.md) for full local protocol/browser evidence.
 
-```bash
-uv run langgraph dev
-```
+## Architecture and deployment
 
-Optional `make` wrappers:
+[Architecture](archi.md) · [Deployment and rollback](docs/DEPLOYMENT.md) ·
+[Approved policy contract](docs/POLICY_CONTRACT.md) · [Progress](progress.md).
 
-```bash
-make dev
-make run
-```
-
-## Tests and lint
-
-```bash
-make test
-make integration-tests
-make lint
-make format
-```
-
-Integration tests are skipped unless `ANTHROPIC_API_KEY` is set.
-
-## Deploy to LangSmith
-
-1. Push this template to a Git repository.
-2. In LangSmith, create a new Deployment from that repo.
-3. Set required environment variables (`ANTHROPIC_API_KEY`, optionally `LANGSMITH_API_KEY`).
-4. Deploy using `langgraph.json` defaults.
-
-## Reference docs
-
-- LangChain quickstart: https://docs.langchain.com/oss/python/langchain/quickstart
-- LangChain deployment: https://docs.langchain.com/oss/python/langchain/deploy
+Only a synthetic single-operator laboratory is supported by the current anonymous API.
+An approval checkbox is not administrative authentication. Do not expose customer
+data or real financial actions through this deployment.

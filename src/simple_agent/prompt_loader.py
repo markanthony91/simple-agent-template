@@ -68,4 +68,3 @@ def load_agent_prompt(
     # else: empty string means skip workflow section entirely
     
     return "\n\n".join(sections)
-
