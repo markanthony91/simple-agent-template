@@ -13,7 +13,7 @@ from langchain.agents.middleware import (
     ModelResponse,
     ToolCallRequest,
 )
-from langchain_core.messages import ToolMessage
+from langchain_core.messages import SystemMessage, ToolMessage
 
 from simple_agent.services.tool_registry import ToolRegistry
 from simple_agent.tool_observability import (
@@ -22,6 +22,7 @@ from simple_agent.tool_observability import (
     tool_outcome,
 )
 from simple_agent.services.session_store import SessionStore
+from simple_agent.services.identity_policy import instructions
 from simple_agent.services.response_audit import audit_response
 from langgraph.config import get_config
 
@@ -131,13 +132,22 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         key = get_config().get("configurable", {}).get("thread_id")
         if not key:
             raise ValueError("server_thread_id_required")
-        with SessionStore().transaction(key):
-            pass  # Pin fixture/snapshot on the first turn, including greetings.
+        with SessionStore().transaction(key) as session:
+            contract = instructions(session)
+        message = request.system_message or SystemMessage(content="")
+        content = message.content
+        content = (
+            content + contract
+            if isinstance(content, str)
+            else [*content, {"type": "text", "text": contract}]
+        )
         enabled = registry.enabled_names()
         tools = [
             tool for tool in request.tools if getattr(tool, "name", None) in enabled
         ]
-        return request.override(tools=tools)
+        return request.override(
+            tools=tools, system_message=message.model_copy(update={"content": content})
+        )
 
     def wrap_model_call(
         self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]

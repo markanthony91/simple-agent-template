@@ -1,3 +1,23 @@
+# Configurable identity — 0.2.5
+
+- Published 0.2.5; Qwen validation and preserved histories confirmed. See
+  docs/IDENTITY_RELEASE_2026-09-15.md for exact versions, timings and initial failure.
+
+- 0.2.4 exposed a BlockingError in hosted async execution: reading session policy
+  inside synchronous dynamic_prompt performed IO on the event loop. 0.2.5 moves
+  the contract into the existing off-thread _filtered_request middleware.
+- Regression asserts policy reads occur off the event loop; 126 tests pass,
+  one skipped, 86% coverage, Ruff passes. The initial failed live run is retained.
+
+- Existing fixture and conversation store reused; no new dependency or auth bypass.
+- 125 pytest pass, one legacy integration skipped, 85% coverage; Ruff and Docker pass.
+- Twelve policy combinations, generic failures, attempts/replay, isolation,
+  revocation, pinning, safe context injection and legacy callers validated locally.
+- Updated an old schema test to use invalid cpf type now that get_customer accepts
+  no arguments; no-identity denial remains covered separately.
+- Backup: /data/backups/pre-identity-024-20260915T193619Z, 12 conversations + volume.
+- Publication and real-model acceptance pending; tests above use synthetic inputs.
+
 # Tool usage inspection — 0.2.3
 
 - Expose actual runtime descriptions and public input schemas via list_tools.

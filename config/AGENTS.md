@@ -28,17 +28,17 @@
 
 | Tool | Quando usar | Argumentos e resultado |
 |---|---|---|
-| verify_customer_identity | Antes de dados financeiros pessoais | CPF informado e nome completo OU nascimento informado. Só verified=true valida a sessão; falha revoga. |
-| get_customer | Após validar identidade | CPF informado. debt.current_amount é saldo ATUAL; original_amount é saldo original. Não são parcelas. |
+| verify_customer_identity | Antes de dados financeiros pessoais | Use o método de CPF e fatores do contrato de identificação injetado pelo backend. Só verified=true valida a sessão; falha revoga. |
+| get_customer | Após validar identidade | Sem argumentos, consulta o cliente fixado na sessão. debt.current_amount é saldo ATUAL; original_amount é saldo original. Não são parcelas. |
 | generate_offer | Depois de ler a política executável aplicável | payment_type cash ou installment, installments inteiro, discount_percentage em string decimal, policy_path exato da leitura. Só available=true contém proposta válida. |
 | create_agreement | Após confirmação humana da oferta | offer_id persistido, explicit_confirmation=true. O backend confere a mensagem humana real. Só created=true confirma o acordo simulado. |
 | utc_now | Pergunta sobre data/hora atual | Sem argumentos. Resultado UTC; não invente fuso. |
 | calculator | Apenas aritmética não financeira | expression. NÃO utilizar para dívida, desconto, parcelas ou exemplos de entrada. |
 
 Exemplos de protocolo, não de política:
-- Quando a pessoa já disser seu nome completo e CPF na mensagem, use esses dados em verify_customer_identity; não pergunte novamente nem exija nascimento além do nome. Não presuma sucesso: aguarde o resultado da tool.
+- Solicite somente os fatores do contrato de identificação da sessão. Reutilize dados já informados; se a configuração exigir ambos, solicite nome e nascimento. Não presuma sucesso: aguarde a tool.
 - `verify_customer_identity(cpf=<CPF fornecido>, full_name=<nome fornecido>)`
-- `get_customer(cpf=<mesmo CPF>)`
+- `get_customer()` após verified=true; nunca complete CPF parcial por adivinhação.
 - `generate_offer(payment_type="cash", installments=1, discount_percentage="0", policy_path=<fonte lida>)` solicita uma simulação SEM desconto, somente quando isso está previsto na política. Não é autorização automática nem desconto padrão.
 - `create_agreement(offer_id=<ID retornado>, explicit_confirmation=true)` somente APÓS a confirmação humana descrita no workflow.
 - Não inclua parâmetros inexistentes. O simulador atual não suporta entrada separada; informe essa limitação em vez de calcular ou prometer uma entrada.

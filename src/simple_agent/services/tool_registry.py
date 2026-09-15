@@ -17,7 +17,7 @@ DEFAULT_TOOLS: dict[str, dict[str, Any]] = {
     "okf_read": {"name": "okf_read", "description": "Read a document from the active OKF bundle.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "okf_read_section": {"name": "okf_read_section", "description": "Read one section from an OKF document.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "get_customer": {"name": "get_customer", "description": "Return the configured simulator customer and debt when the document matches.", "category": "collection", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
-    "verify_customer_identity": {"name": "verify_customer_identity", "description": "Verify the simulator customer using document plus a secondary factor.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "verify_customer_identity": {"name": "verify_customer_identity", "description": "Verify the simulator customer using the session's configured CPF method and additional factors.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
     "generate_offer": {"name": "generate_offer", "description": "Calculate and persist a simulator offer from current debt and customer eligibility.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
     "create_agreement": {"name": "create_agreement", "description": "Create a simulated agreement from a valid persisted offer after explicit confirmation.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
 }
