@@ -1,3 +1,11 @@
+# Tool usage inspection — 0.2.3
+
+- Expose actual runtime descriptions and public input schemas via list_tools.
+- Read-only contract inspection; no changes to permissions or execution.
+- Ruff passes; 102 tests pass, one legacy integration skipped, 84% coverage.
+- Contract regression covers all eleven tools and excludes injected runtime data.
+- Publication pending.
+
 # Runtime audit corrections — 0.2.0
 
 Scope: simple-agent-template and agent-chat-ui only. The original console and

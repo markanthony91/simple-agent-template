@@ -55,6 +55,23 @@ def test_admin_tools_and_fixture_contract(admin):
     assert isinstance(result["result"]["debt"]["current_amount"], str)
 
 
+def test_tool_usage_matches_runtime_without_injected_arguments(admin):
+    from simple_agent.managed_graph import ALL_TOOLS
+
+    before = admin.registry.registry_file.read_bytes()
+    response = admin.execute({"operation": "list_tools"})
+    assert response["error"] == ""
+    records = {item["name"]: item for item in response["result"]}
+    assert set(records) == {tool.name for tool in ALL_TOOLS}
+    for tool in ALL_TOOLS:
+        record = records[tool.name]
+        assert record["usage_description"] == tool.description
+        assert record["parameters"] == tool.tool_call_schema.model_json_schema()
+        assert "runtime" not in record["parameters"].get("properties", {})
+    assert "cpf" in records["verify_customer_identity"]["parameters"]["required"]
+    assert admin.registry.registry_file.read_bytes() == before
+
+
 @pytest.mark.parametrize(
     "payload,expected",
     [

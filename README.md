@@ -1,4 +1,8 @@
-# Agent Runtime — OKF simulator (0.2.2)
+# Agent Runtime — OKF simulator (0.2.3)
+
+The read-only `list_tools` result now includes `usage_description` and `parameters`
+from the runtime's actual tools, excluding injected ToolRuntime arguments.
+Registry summaries remain separate; enabling and execution semantics are unchanged.
 
 Published runtime/chat and direct sharing validation: [2026-09-15 release](docs/RELEASE_2026-09-15.md).
 
