@@ -32,6 +32,10 @@ evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.
 ## Authorized rollout — 2026-09-15
 
+- Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy
+  unavailable to the Railway builder. Candidate 0.2.2 excludes proxy variables
+  during bootstrap as well as uv sync, preserving all runtime LLM proxy settings.
+
 - Server-pinned model verified with a request-override regression test: 101 tests
   pass, one skipped, 83% coverage; Ruff passes. No new model selector/dependency.
 - Backup: `/data/backups/pre-runtime-021-20260915T154311Z` (six conversations,

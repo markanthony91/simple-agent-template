@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.2.1)
+# Agent Runtime — OKF simulator (0.2.2)
 
 LangChain/LangGraph runtime, controlled OKF tools and synthetic debt negotiation.
 The separate `agent-chat-ui` repository provides the Next.js frontend.
@@ -33,7 +33,7 @@ Streaming uses the SDK; no automatic retry after partial text. No new inference 
 ```bash
 uv run pytest -q
 uv run ruff check src tests
-docker build -t agent-runtime:0.2.1 .
+docker build -t agent-runtime:0.2.2 .
 ```
 
 Tests force synthetic credentials and temporary storage. They do not call Qwen.
