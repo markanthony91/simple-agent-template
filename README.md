@@ -48,3 +48,10 @@ The optional legacy integration test remains skipped; see
 Only a synthetic single-operator laboratory is supported by the current anonymous API.
 An approval checkbox is not administrative authentication. Do not expose customer
 data or real financial actions through this deployment.
+# Shared pilot chat
+
+The LLM is pinned by server `LLM_MODEL` (legacy fallback `SIMPLE_AGENT_MODEL`).
+Neither message text nor Runnable `configurable.model` selects another model.
+Endpoint/key stay on the backend; changing models is a server configuration and
+rollout operation, not a visitor preference. Use synthetic data in this lab:
+the shared link is not an authenticated, read-only guest role.

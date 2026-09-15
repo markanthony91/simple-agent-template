@@ -30,3 +30,11 @@ The E2E report records the tested financial journeys and current failures;
 published end-to-end financial acceptance remains pending. Candidate/isolation
 evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.
+## Authorized rollout — 2026-09-15
+
+- Server-pinned model verified with a request-override regression test: 101 tests
+  pass, one skipped, 83% coverage; Ruff passes. No new model selector/dependency.
+- Backup: `/data/backups/pre-runtime-021-20260915T154311Z` (six conversations,
+  API exports and volume archive). Deployment and published smoke in progress.
+- Preserve the existing OKF bundle; the separate invented pilot policy is not
+  implicitly approved by a code deployment.
