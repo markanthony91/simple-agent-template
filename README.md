@@ -9,6 +9,9 @@ Catalog inputs are bounded (200 search characters, 2,000 documents, 40 MB encode
 bundle, 200,000 characters/document); symlinks and traversal are rejected.
 Missing/invalid metadata is labeled, never interpreted as approval.
 
+Publication, browser checks and rollback:
+[Dataset search release](docs/DATASET_SEARCH_2026-09-15.md).
+
 Identity policy is configured in Simulator (`identity_policy`): CPF `full`,
 `first4`, or `last4`; secondary `full_name`, `birth_date`, `both`, or legacy `either`;
 1–10 attempts. Backend pins the policy/fixture on the first turn and appends its
