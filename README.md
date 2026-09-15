@@ -1,4 +1,13 @@
-# Agent Runtime — OKF simulator (0.2.5)
+# Agent Runtime — OKF simulator (0.2.6)
+
+The operator Dataset catalog exposes titles, declared types/status, and bounded
+matching excerpts from the complete Markdown text. Search is literal,
+case/accent-insensitive and includes paths, YAML metadata and bodies; no LLM,
+embeddings or document rewrite. Requests pin an immutable bundle ID, including
+full-document preview. Existing collection tools and their limits are unchanged.
+Catalog inputs are bounded (200 search characters, 2,000 documents, 40 MB encoded
+bundle, 200,000 characters/document); symlinks and traversal are rejected.
+Missing/invalid metadata is labeled, never interpreted as approval.
 
 Identity policy is configured in Simulator (`identity_policy`): CPF `full`,
 `first4`, or `last4`; secondary `full_name`, `birth_date`, `both`, or legacy `either`;
