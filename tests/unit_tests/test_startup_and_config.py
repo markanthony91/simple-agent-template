@@ -30,3 +30,52 @@ def test_llm_config_is_shared(monkeypatch):
     assert create_llm() is model
     assert model.streaming is True
     create_llm.cache_clear()
+
+
+def test_request_config_cannot_replace_server_model(monkeypatch):
+    import json
+    import httpx
+
+    calls = []
+
+    def respond(request):
+        calls.append(json.loads(request.content))
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "id": "test",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "server-pinned",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": "ok"},
+                    }
+                ],
+            },
+        )
+
+    monkeypatch.setattr(
+        httpx.Client, "send", lambda self, request, **kwargs: respond(request)
+    )
+    monkeypatch.setenv("LLM_MODEL", "server-pinned")
+    create_llm.cache_clear()
+    try:
+        model = create_llm()
+        model.streaming = False
+        result = model.invoke(
+            "hello",
+            config={
+                "configurable": {
+                    "model": "client-override",
+                    "model_name": "client-override",
+                }
+            },
+        )
+        assert result.content == "ok"
+        assert calls[0]["model"] == "server-pinned"
+    finally:
+        create_llm.cache_clear()

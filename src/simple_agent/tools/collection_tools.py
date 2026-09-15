@@ -54,6 +54,7 @@ def get_customer(cpf: str, runtime: ToolRuntime) -> str:
                 }
             )
         debt = fixture.get("debt", {})
+        state["debt_read"] = True
         return _json(
             {
                 "found": True,
@@ -75,7 +76,12 @@ def get_customer(cpf: str, runtime: ToolRuntime) -> str:
 def verify_customer_identity(
     cpf: str, runtime: ToolRuntime, full_name: str = "", birth_date: str = ""
 ) -> str:
-    """Verify document plus name or birth date. Every failure revokes this session only."""
+    """Verify the supplied CPF plus full_name OR birth_date in this conversation.
+
+    Use the full name already supplied by the user (for example after 'Sou ...').
+    If CPF and name are present, call now; do not ask for birth_date or repeat the
+    name question. Only verified=true establishes identity; failure revokes it.
+    """
     with SessionStore().transaction(thread_id(runtime)) as state:
         fixture = state["fixture"]
         checks = []
@@ -90,6 +96,7 @@ def verify_customer_identity(
         verified = matched and bool(checks) and all(checks)
         state["identity_verified"] = verified
         if not verified:
+            state["debt_read"] = False
             state.pop("verification_id", None)
             state["offers"] = {}
             reason = (
@@ -123,6 +130,8 @@ def generate_offer(
 
     policy_path comes from okf_read/okf_read_section. Decimal values are strings.
     Undefined policy is not authorization. Present the returned schedule exactly.
+    No separate down payment is supported; never calculate or promise an entry.
+    A denied simulation is not proof that an entire payment modality is prohibited.
     """
     with SessionStore().transaction(thread_id(runtime)) as state:
         if not state["identity_verified"]:

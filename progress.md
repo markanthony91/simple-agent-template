@@ -14,14 +14,33 @@ WhatsApp are unchanged. No production data or published bundles are migrated.
 - [x] Published Qwen battery: 14 browser turns + 1 API probe, 41 tool calls;
   see docs/QWEN_E2E_2026-09-14.md. Identity/action guards passed; financial text
   and autonomous GLOBAL discovery failed. No valid financial closing approved.
-- [ ] Review financial policy status/scope/parameters and supported entry terms.
-- [ ] Correct financial response grounding and conditional-source interpretation.
-- [ ] Correct nested-path/root discovery and redundant OKF navigation.
-- [ ] Distinguish tool execution success from business/lookup/textual outcomes.
-- [ ] Repeat Qwen journeys and validate a complete authorized agreement path.
+- [x] Prepare an isolated synthetic policy with complete scope/terms; separate entry remains unsupported.
+- [x] Candidate: consolidate prompts and add bounded post-stream numeric review (not semantic approval).
+- [x] Candidate: preserve existing nested paths and YAML metadata in section reads; test root conflicts.
+- [x] Candidate: distinguish tool execution from domain outcomes.
+- [x] Repeat isolated Qwen journeys; final iteration creates one simulated agreement with exact schedule.
+- [x] Activate the approved RAW AGENTS root-casing instructions, with verified backup.
+- [ ] Human review/publication of the proposed pilot bundle in the hosted application.
+- [x] Frontend 0.1.1 / backend 0.2.2 rollout and published read-only Qwen browser E2E;
+  see docs/RELEASE_2026-09-15.md. Financial live acceptance remains separate.
+- [ ] Broader semantic regression validation; no full-fidelity guarantee from one successful run.
 
 Delivery stages: local tests → branches/PRs → separately approved Railway rollout.
 Passing local checks does not prove publication or real-Qwen E2E.
 The E2E report records the tested financial journeys and current failures;
-successful end-to-end financial acceptance remains pending.
+published end-to-end financial acceptance remains pending. Candidate/isolation
+evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.
+## Authorized rollout — 2026-09-15
+
+- Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy
+  unavailable to the Railway builder. Candidate 0.2.2 excludes proxy variables
+  during bootstrap as well as uv sync, preserving all runtime LLM proxy settings.
+
+- Server-pinned model verified with a request-override regression test: 101 tests
+  pass, one skipped, 83% coverage; Ruff passes. No new model selector/dependency.
+- Backup: `/data/backups/pre-runtime-021-20260915T154311Z` (six conversations,
+  API exports and volume archive). Both deployments and published smoke passed;
+  all previous conversation hashes and 3,228 data-file hashes preserved.
+- Preserve the existing OKF bundle; the separate invented pilot policy is not
+  implicitly approved by a code deployment.

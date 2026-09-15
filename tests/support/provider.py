@@ -13,6 +13,8 @@ def decide(messages):
     raw = messages[last_user]["content"]
     query = raw if isinstance(raw, str) else " ".join(x.get("text", "") for x in raw)
     results = [m for m in messages[last_user + 1 :] if m["role"] == "tool"]
+    if "BAD_AMOUNT" in query:
+        return "Proposta inventada de R$ 999,99.", None
     if "LONG" in query:
         return (
             "STREAM_START " + "Synthetic explanatory text. " * 60 + "STREAM_END",
