@@ -1,4 +1,10 @@
-# Configurable identity — 0.2.4
+# Configurable identity — 0.2.5
+
+- 0.2.4 exposed a BlockingError in hosted async execution: reading session policy
+  inside synchronous dynamic_prompt performed IO on the event loop. 0.2.5 moves
+  the contract into the existing off-thread _filtered_request middleware.
+- Regression asserts policy reads occur off the event loop; 126 tests pass,
+  one skipped, 86% coverage, Ruff passes. The initial failed live run is retained.
 
 - Existing fixture and conversation store reused; no new dependency or auth bypass.
 - 125 pytest pass, one legacy integration skipped, 85% coverage; Ruff and Docker pass.

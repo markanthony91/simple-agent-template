@@ -133,10 +133,10 @@ def test_selected_factors_and_revocation(isolated):
 def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monkeypatch):
     from langchain.agents.middleware import ModelRequest
     from langgraph.runtime import Runtime
-    from simple_agent import managed_graph
+    from simple_agent import managed_graph, tool_middleware
 
     monkeypatch.setattr(
-        managed_graph,
+        tool_middleware,
         "get_config",
         lambda: {"configurable": {"thread_id": "prompt-test"}},
     )
@@ -153,7 +153,12 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
         state={"messages": []},
     )
     text = managed_graph.runtime_prompt.wrap_model_call(
-        request, lambda req: req.system_message.content
+        request,
+        lambda req: (
+            tool_middleware.filter_enabled_tools._filtered_request(
+                req
+            ).system_message.content
+        ),
     )
     assert all(
         s in text
@@ -165,6 +170,48 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
             "Tentativas restantes: 3",
         )
     )
-    monkeypatch.setattr(managed_graph, "get_config", lambda: {})
+    monkeypatch.setattr(tool_middleware, "get_config", lambda: {})
     with pytest.raises(ValueError, match="server_thread_id_required"):
-        managed_graph.runtime_prompt.wrap_model_call(request, lambda _: None)
+        tool_middleware.filter_enabled_tools._filtered_request(request)
+
+
+@pytest.mark.anyio
+async def test_policy_io_is_off_event_loop(isolated, monkeypatch):
+    import threading
+    from langchain.agents.middleware import ModelRequest, ModelResponse
+    from langchain_core.messages import AIMessage
+    from langgraph.runtime import Runtime
+    from simple_agent import tool_middleware
+    from simple_agent.llm import create_llm
+
+    original = tool_middleware.instructions
+
+    def check_thread(state):
+        assert threading.current_thread() is not threading.main_thread()
+        return original(state)
+
+    monkeypatch.setattr(tool_middleware, "instructions", check_thread)
+    monkeypatch.setattr(
+        tool_middleware,
+        "get_config",
+        lambda: {"configurable": {"thread_id": "async-policy"}},
+    )
+    request = ModelRequest(
+        model=create_llm(),
+        messages=[],
+        runtime=Runtime(context={}),
+        state={"messages": []},
+    )
+
+    async def handler(req):
+        assert "CPF completo" in req.system_message.content
+        return ModelResponse(
+            result=[
+                AIMessage(content="ok", response_metadata={"finish_reason": "stop"})
+            ]
+        )
+
+    response = await tool_middleware.filter_enabled_tools.awrap_model_call(
+        request, handler
+    )
+    assert response.result[0].content == "ok"

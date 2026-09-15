@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.2.4)
+# Agent Runtime — OKF simulator (0.2.5)
 
 Identity policy is configured in Simulator (`identity_policy`): CPF `full`,
 `first4`, or `last4`; secondary `full_name`, `birth_date`, `both`, or legacy `either`;
