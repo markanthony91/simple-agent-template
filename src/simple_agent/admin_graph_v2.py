@@ -109,7 +109,20 @@ def execute(state: AdminState) -> AdminState:
         elif operation == "activate_bundle":
             result = store.activate_bundle(required_text(state, "bundle_id"))
         elif operation == "list_tools":
+            from simple_agent.managed_graph import ALL_TOOLS
+
+            contracts = {tool.name: tool for tool in ALL_TOOLS}
             result = registry.list_tools()
+            for item in result:
+                tool = contracts.get(item["name"])
+                if tool is not None:
+                    schema = tool.tool_call_schema
+                    item["usage_description"] = tool.description
+                    item["parameters"] = (
+                        schema
+                        if isinstance(schema, dict)
+                        else schema.model_json_schema()
+                    )
         elif operation == "set_tool_enabled":
             value = state.get("enabled")
             if not isinstance(value, bool):

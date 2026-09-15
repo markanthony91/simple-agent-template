@@ -1,3 +1,18 @@
+# Tool usage inspection — 0.2.3
+
+- Expose actual runtime descriptions and public input schemas via list_tools.
+- Read-only contract inspection; no changes to permissions or execution.
+- Ruff passes; 102 tests pass, one legacy integration skipped, 84% coverage.
+- Contract regression covers all eleven tools and excludes injected runtime data.
+- Published source fa3c8cc / runtime 0.2.3, Railway deployment
+  a946629d-aba7-4f5f-9234-5b551a837d54 (SUCCESS).
+- Eleven live contracts verified; nine prior conversation histories, active OKF
+  snapshot and tool settings preserved. Backup:
+  /data/backups/pre-tool-usage-20260915T171435Z (private, on-volume).
+- Docker build passed on retry after the first local process exited 143.
+- Local browser against published backend passes all eleven schemas, zero page
+  errors, only list_tools; no provider call or business operation.
+
 # Runtime audit corrections — 0.2.0
 
 Scope: simple-agent-template and agent-chat-ui only. The original console and
