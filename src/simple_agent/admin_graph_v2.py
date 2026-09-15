@@ -5,6 +5,7 @@ from langgraph.graph import END, START, StateGraph
 from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.services.tool_registry import ToolRegistry
+from simple_agent.services.dataset_catalog import catalog, read_document
 
 
 class AdminState(TypedDict, total=False):
@@ -23,6 +24,7 @@ class AdminState(TypedDict, total=False):
     result: dict[str, Any] | list[dict[str, Any]]
     error: str
     approved: bool
+    query: str
 
 
 store = PersistentOKFStore()
@@ -47,6 +49,8 @@ def execute(state: AdminState) -> AdminState:
             raise ValueError("human_approval_required")
         if operation == "status":
             result = store.status()
+        elif operation == "catalog":
+            result = catalog(store, state.get("query", ""), state.get("bundle_id", ""))
         elif operation == "list":
             status = store.status()
             result = {
@@ -58,7 +62,12 @@ def execute(state: AdminState) -> AdminState:
             }
         elif operation == "read":
             path = required_text(state, "path")
-            result = {"path": path, "content": store.read_file(path)}
+            content = (
+                read_document(store, required_text(state, "bundle_id"), path)
+                if state.get("bundle_id")
+                else store.read_file(path)
+            )
+            result = {"path": path, "content": content}
         elif operation == "import_bundle":
             files = state.get("files")
             if not isinstance(files, dict):
