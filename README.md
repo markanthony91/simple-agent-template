@@ -1,5 +1,7 @@
 # Agent Runtime — OKF simulator (0.2.2)
 
+Published runtime/chat and direct sharing validation: [2026-09-15 release](docs/RELEASE_2026-09-15.md).
+
 LangChain/LangGraph runtime, controlled OKF tools and synthetic debt negotiation.
 The separate `agent-chat-ui` repository provides the Next.js frontend.
 This release does not modify WhatsApp or the original FastAPI console.

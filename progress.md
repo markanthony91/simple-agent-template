@@ -21,7 +21,8 @@ WhatsApp are unchanged. No production data or published bundles are migrated.
 - [x] Repeat isolated Qwen journeys; final iteration creates one simulated agreement with exact schedule.
 - [x] Activate the approved RAW AGENTS root-casing instructions, with verified backup.
 - [ ] Human review/publication of the proposed pilot bundle in the hosted application.
-- [ ] Candidate frontend/backend rollout and published browser E2E.
+- [x] Frontend 0.1.1 / backend 0.2.2 rollout and published read-only Qwen browser E2E;
+  see docs/RELEASE_2026-09-15.md. Financial live acceptance remains separate.
 - [ ] Broader semantic regression validation; no full-fidelity guarantee from one successful run.
 
 Delivery stages: local tests → branches/PRs → separately approved Railway rollout.
@@ -39,6 +40,7 @@ Coordinate PR integration before another main autodeploy.
 - Server-pinned model verified with a request-override regression test: 101 tests
   pass, one skipped, 83% coverage; Ruff passes. No new model selector/dependency.
 - Backup: `/data/backups/pre-runtime-021-20260915T154311Z` (six conversations,
-  API exports and volume archive). Deployment and published smoke in progress.
+  API exports and volume archive). Both deployments and published smoke passed;
+  all previous conversation hashes and 3,228 data-file hashes preserved.
 - Preserve the existing OKF bundle; the separate invented pilot policy is not
   implicitly approved by a code deployment.
