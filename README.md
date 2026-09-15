@@ -1,4 +1,15 @@
-# Agent Runtime — OKF simulator (0.2.3)
+# Agent Runtime — OKF simulator (0.2.4)
+
+Identity policy is configured in Simulator (`identity_policy`): CPF `full`,
+`first4`, or `last4`; secondary `full_name`, `birth_date`, `both`, or legacy `either`;
+1–10 attempts. Backend pins the policy/fixture on the first turn and appends its
+contract to the existing prompts without exposing expected values. Failed checks
+revoke debt/offer access and expose only a generic error; the limit requires human
+review. Existing fixtures default to full CPF + either secondary, three attempts.
+After verification, `get_customer()` reads only the pinned customer, without asking
+the model to reconstruct a partial CPF. Full-CPF legacy callers remain supported.
+Names normalize case, spaces and accents, never fuzzy matching. Birth dates use ISO.
+This is a synthetic lab, not strong authentication for real customer data.
 
 The read-only `list_tools` result now includes `usage_description` and `parameters`
 from the runtime's actual tools, excluding injected ToolRuntime arguments.

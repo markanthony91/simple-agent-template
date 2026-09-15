@@ -1,7 +1,7 @@
 """Validate synthetic fixtures without retaining legacy authorization state."""
 
 from decimal import Decimal
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
 
@@ -24,6 +24,13 @@ class Eligibility(BaseModel):
     ] = Decimal(0)
 
 
+class IdentityPolicy(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    cpf_mode: Literal["full", "first4", "last4"] = "full"
+    secondary: Literal["full_name", "birth_date", "both", "either"] = "either"
+    max_attempts: Annotated[StrictInt, Field(ge=1, le=10)] = 3
+
+
 class Fixture(BaseModel):
     model_config = ConfigDict(extra="ignore")
     customer_id: str
@@ -34,6 +41,7 @@ class Fixture(BaseModel):
     product: str
     debt: Debt
     eligibility: Eligibility
+    identity_policy: IdentityPolicy = Field(default_factory=IdentityPolicy)
 
 
 def normalize_fixture(value: dict) -> dict:

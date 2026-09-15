@@ -24,7 +24,9 @@ def test_invalid_tool_arguments_do_not_read_customer(isolated):
             "messages": [
                 AIMessage(
                     content="",
-                    tool_calls=[{"id": "bad", "name": "get_customer", "args": {}}],
+                    tool_calls=[
+                        {"id": "bad", "name": "get_customer", "args": {"cpf": []}}
+                    ],
                 )
             ]
         },

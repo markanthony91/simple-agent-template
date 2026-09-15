@@ -1,3 +1,14 @@
+# Configurable identity — 0.2.4
+
+- Existing fixture and conversation store reused; no new dependency or auth bypass.
+- 125 pytest pass, one legacy integration skipped, 85% coverage; Ruff and Docker pass.
+- Twelve policy combinations, generic failures, attempts/replay, isolation,
+  revocation, pinning, safe context injection and legacy callers validated locally.
+- Updated an old schema test to use invalid cpf type now that get_customer accepts
+  no arguments; no-identity denial remains covered separately.
+- Backup: /data/backups/pre-identity-024-20260915T193619Z, 12 conversations + volume.
+- Publication and real-model acceptance pending; tests above use synthetic inputs.
+
 # Tool usage inspection — 0.2.3
 
 - Expose actual runtime descriptions and public input schemas via list_tools.

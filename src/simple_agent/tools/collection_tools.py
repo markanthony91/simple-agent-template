@@ -18,6 +18,7 @@ from simple_agent.services.session_store import (
     thread_id,
 )
 from simple_agent.services.simulator_store import SimulatorStore
+from simple_agent.services.identity_policy import matches, policy_for
 
 
 def _digits(value: str) -> str:
@@ -37,19 +38,22 @@ def _amount(value: Decimal) -> str:
 
 
 @tool
-def get_customer(cpf: str, runtime: ToolRuntime) -> str:
-    """Read synthetic debt only after identity verification in this conversation."""
+def get_customer(runtime: ToolRuntime, cpf: str = "") -> str:
+    """Read the pinned session's synthetic debt only after identity verification.
+
+    After verified=true, call with no arguments. Never guess the rest of a CPF.
+    Optional cpf is for legacy full-CPF callers; it cannot select another customer.
+    """
     with SessionStore().transaction(thread_id(runtime)) as state:
         fixture = state["fixture"]
-        if not _digits(cpf) or _digits(cpf) != _digits(fixture["cpf"]):
+        if cpf and _digits(cpf) != _digits(fixture["cpf"]):
             return _json({"found": False, "reason": "customer_not_found"})
         if not state["identity_verified"]:
             return _json(
                 {
-                    "found": True,
+                    "found": False,
                     "identity_validated": False,
                     "financial_data_available": False,
-                    "cpf": _mask_document(cpf),
                     "reason": "identity_verification_required",
                 }
             )
@@ -61,7 +65,7 @@ def get_customer(cpf: str, runtime: ToolRuntime) -> str:
                 "identity_validated": True,
                 "customer_id": fixture["customer_id"],
                 "full_name": fixture["full_name"],
-                "cpf": _mask_document(cpf),
+                "cpf": _mask_document(fixture["cpf"]),
                 "institution": fixture.get("institution"),
                 "product": fixture.get("product"),
                 "debt": {
@@ -76,37 +80,42 @@ def get_customer(cpf: str, runtime: ToolRuntime) -> str:
 def verify_customer_identity(
     cpf: str, runtime: ToolRuntime, full_name: str = "", birth_date: str = ""
 ) -> str:
-    """Verify the supplied CPF plus full_name OR birth_date in this conversation.
+    """Verify identity using the backend's pinned session policy.
 
-    Use the full name already supplied by the user (for example after 'Sou ...').
-    If CPF and name are present, call now; do not ask for birth_date or repeat the
-    name question. Only verified=true establishes identity; failure revokes it.
+    The session instructions specify full CPF, first4 or last4, plus full_name,
+    birth_date (YYYY-MM-DD), both, or either. Use only user-supplied data.
+    Do not choose the method or guess missing digits. Only verified=true establishes
+    identity. On requires_human=true stop attempts; never disclose expected values.
     """
     with SessionStore().transaction(thread_id(runtime)) as state:
         fixture = state["fixture"]
-        checks = []
-        if full_name.strip():
-            checks.append(
-                full_name.strip().casefold()
-                == fixture.get("full_name", "").strip().casefold()
-            )
-        if birth_date.strip():
-            checks.append(birth_date == fixture.get("birth_date"))
-        matched = bool(_digits(cpf)) and _digits(cpf) == _digits(fixture["cpf"])
-        verified = matched and bool(checks) and all(checks)
+        policy = policy_for(state)
+        attempts = state.get("identity_attempts", 0)
+        verified = attempts < policy.max_attempts and matches(
+            state, cpf, full_name, birth_date
+        )
         state["identity_verified"] = verified
         if not verified:
             state["debt_read"] = False
             state.pop("verification_id", None)
             state["offers"] = {}
-            reason = (
-                "identity_not_matched"
-                if not matched
-                else "secondary_factor_not_matched"
-                if checks
-                else "secondary_factor_required"
+            # Retransmission of the same tool call cannot consume another attempt.
+            seen = state.setdefault("identity_failed_calls", [])
+            call_id = runtime.tool_call_id
+            if attempts < policy.max_attempts and (not call_id or call_id not in seen):
+                attempts += 1
+                state["identity_attempts"] = attempts
+                if call_id:
+                    seen.append(call_id)
+            locked = attempts >= policy.max_attempts
+            return _json(
+                {
+                    "verified": False,
+                    "reason": "identity_validation_failed",
+                    "attempts_remaining": max(0, policy.max_attempts - attempts),
+                    "requires_human": locked,
+                }
             )
-            return _json({"verified": False, "reason": reason})
         state["verification_id"] = state.get("verification_id") or f"VER-{uuid4().hex}"
         return _json(
             {
