@@ -1,5 +1,8 @@
 # Configurable identity — 0.2.5
 
+- Published 0.2.5; Qwen validation and preserved histories confirmed. See
+  docs/IDENTITY_RELEASE_2026-09-15.md for exact versions, timings and initial failure.
+
 - 0.2.4 exposed a BlockingError in hosted async execution: reading session policy
   inside synchronous dynamic_prompt performed IO on the event loop. 0.2.5 moves
   the contract into the existing off-thread _filtered_request middleware.
