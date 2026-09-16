@@ -106,3 +106,12 @@ Private pre-rollout backup: `/data/backups/pre-instruction-versions-20260916T194
 hashes matched after deployment. The published frontend save/history/reload check
 passed with identical RAW content. Full evidence and rollback details:
 [frontend release notes](https://github.com/markanthony91/agent-chat-ui/blob/feat/instruction-versions/docs/INSTRUCTION_VERSIONS.md).
+
+## System Prompt candidato para teste
+
+[Prompt Zerai v3](docs/prompts/zerai-system-prompt-v3.md) e
+[roteiro de aplicação e aceite](docs/ZERAI_PROMPT_TEST.md): revisão documental dos
+oito passos, baseada nas falhas observadas na LLM. Não é carregada automaticamente
+nem substitui o prompt ativo. A [comparação das camadas de instruções](docs/PROMPT_COMPOSITION_2026-09-16.md)
+mostra interferência do contexto e os limites da avaliação inicial; a candidata
+ainda precisa passar pelo roteiro completo de aceite.
