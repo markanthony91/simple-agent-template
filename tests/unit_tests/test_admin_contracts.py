@@ -131,6 +131,11 @@ def test_raw_graph_dispatches_exact_inputs(monkeypatch):
         ({"operation": "create_draft", "ingestion_id": "id"}, "create_draft", ("id",)),
         ({"operation": "get_agents"}, "get_agents", ()),
         (
+            {"operation": "get_agents_versions", "limit": 10, "offset": 2},
+            "get_agents_versions",
+            (10, 2),
+        ),
+        (
             {"operation": "save_agents", "agents_content": "instructions"},
             "save_agents",
             ("instructions",),

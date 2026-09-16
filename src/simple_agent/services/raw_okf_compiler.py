@@ -22,6 +22,7 @@ class RawOKFCompiler:
         self.raw_root = self.store.root / "raw"
         self.raw_root.mkdir(parents=True, exist_ok=True)
         self.agents_path = self.raw_root / "AGENTS.md"
+        self.agents_history_path = self.raw_root / "agents_versions.json"
 
     @staticmethod
     def _slug(value: str) -> str:
@@ -29,6 +30,11 @@ class RawOKFCompiler:
         return clean[:80] or "raw"
 
     def get_agents(self) -> dict[str, Any]:
+        if self.agents_history_path.exists():
+            versions = json.loads(self.agents_history_path.read_text(encoding="utf-8"))[
+                "versions"
+            ]
+            return {**versions[-1], "editable": True}
         if self.agents_path.exists():
             content = self.agents_path.read_text(encoding="utf-8")
             source = "runtime_override"
@@ -39,6 +45,7 @@ class RawOKFCompiler:
             source = "default"
         return {"content": content, "source": source, "editable": True}
 
+    @serialized
     def save_agents(self, content: str) -> dict[str, Any]:
         cleaned = content.strip()
         if not cleaned:
@@ -46,8 +53,45 @@ class RawOKFCompiler:
         if len(cleaned) > 50_000:
             raise ValueError("RAW AGENTS.md exceeds the 50000 character limit")
         rendered = cleaned + "\n"
-        self.agents_path.write_text(rendered, encoding="utf-8")
-        return {"saved": True, "source": "runtime_override", "content": rendered}
+        if self.agents_history_path.exists():
+            versions = json.loads(self.agents_history_path.read_text(encoding="utf-8"))[
+                "versions"
+            ]
+        else:
+            # Preserve the legacy content exactly before the first versioned save.
+            versions = [
+                {
+                    **self.get_agents(),
+                    "version": 1,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                }
+            ]
+        current = {
+            "version": versions[-1]["version"] + 1,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "content": rendered,
+            "source": "runtime_override",
+        }
+        # ponytail: atomic full history rewrite; use SQLite if revision volume grows.
+        self.store._write_json_atomic(
+            self.agents_history_path, {"versions": [*versions, current]}
+        )
+        return {"saved": True, **current}
+
+    def get_agents_versions(self, limit: int = 20, offset: int = 0) -> dict[str, Any]:
+        if (
+            type(limit) is not int
+            or not 1 <= limit <= 100
+            or type(offset) is not int
+            or offset < 0
+        ):
+            raise ValueError("Invalid history pagination")
+        if not self.agents_history_path.exists():
+            return {"versions": []}
+        versions = json.loads(self.agents_history_path.read_text(encoding="utf-8"))[
+            "versions"
+        ]
+        return {"versions": list(reversed(versions))[offset : offset + limit]}
 
     @serialized
     def analyze(self, source_name: str, raw_text: str) -> dict[str, Any]:

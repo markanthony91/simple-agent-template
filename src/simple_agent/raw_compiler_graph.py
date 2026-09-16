@@ -13,6 +13,8 @@ class RawCompilerState(TypedDict, total=False):
     raw_text: str
     ingestion_id: str
     agents_content: str
+    limit: int
+    offset: int
     result: dict[str, Any]
     error: str
 
@@ -27,7 +29,9 @@ def execute(state: RawCompilerState) -> RawCompilerState:
             text = state.get("raw_text")
             if not isinstance(text, str) or not text.strip():
                 raise ValueError("raw_text is required")
-            result = compiler.analyze(str(state.get("source_name") or "raw-source.txt"), text)
+            result = compiler.analyze(
+                str(state.get("source_name") or "raw-source.txt"), text
+            )
         elif operation == "create_draft":
             ingestion_id = state.get("ingestion_id")
             if not isinstance(ingestion_id, str) or not ingestion_id:
@@ -35,6 +39,10 @@ def execute(state: RawCompilerState) -> RawCompilerState:
             result = compiler.create_draft(ingestion_id)
         elif operation == "get_agents":
             result = compiler.get_agents()
+        elif operation == "get_agents_versions":
+            result = compiler.get_agents_versions(
+                state.get("limit", 20), state.get("offset", 0)
+            )
         elif operation == "save_agents":
             content = state.get("agents_content")
             if not isinstance(content, str):
