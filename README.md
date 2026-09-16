@@ -98,3 +98,11 @@ The canonical file is `raw/agents_versions.json` under `OKF_DATA_ROOT`; the old
 Rollback to an older backend requires exporting the chosen history content to
 legacy `raw/AGENTS.md` before switching images; retain history and backups.
 The frontend 0.2.0 displays revisions and restores by creating a new save.
+
+Published on 2026-09-16: backend deployment
+`7eb7e7ab-4907-4e58-8d5e-ee601e33fd20` (source `c5e99c9`) verified at 0.2.7.
+Private pre-rollout backup: `/data/backups/pre-instruction-versions-20260916T194309Z`.
+31 conversation states, the managed Assistant configuration and 4148 Markdown
+hashes matched after deployment. The published frontend save/history/reload check
+passed with identical RAW content. Full evidence and rollback details:
+[frontend release notes](https://github.com/markanthony91/agent-chat-ui/blob/feat/instruction-versions/docs/INSTRUCTION_VERSIONS.md).

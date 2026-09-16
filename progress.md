@@ -85,4 +85,6 @@ Coordinate PR integration before another main autodeploy.
 - [x] Preserve legacy instructions; atomic version history with serialized saves.
 - [x] Newest-first paginated history and active version exposed by compiler graph.
 - [x] 135 unit tests passed, 86% coverage overall and 90% compiler coverage.
-- [ ] Railway publication and data-preservation validation.
+- [x] Railway 0.2.7 published: `7eb7e7ab-4907-4e58-8d5e-ee601e33fd20`.
+- [x] 31 conversation states, managed Assistant context/version and 4148 Markdown hashes preserved.
+- [x] Published UI saved unchanged RAW content into v2, retained v1 and reloaded it.
