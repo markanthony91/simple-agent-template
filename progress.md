@@ -79,3 +79,10 @@ Coordinate PR integration before another main autodeploy.
   all previous conversation hashes and 3,228 data-file hashes preserved.
 - Preserve the existing OKF bundle; the separate invented pilot policy is not
   implicitly approved by a code deployment.
+
+## RAW instruction versions (0.2.7)
+
+- [x] Preserve legacy instructions; atomic version history with serialized saves.
+- [x] Newest-first paginated history and active version exposed by compiler graph.
+- [x] 135 unit tests passed, 86% coverage overall and 90% compiler coverage.
+- [ ] Railway publication and data-preservation validation.

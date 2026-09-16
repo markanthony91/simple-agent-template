@@ -84,3 +84,17 @@ Neither message text nor Runnable `configurable.model` selects another model.
 Endpoint/key stay on the backend; changing models is a server configuration and
 rollout operation, not a visitor preference. Use synthetic data in this lab:
 the shared link is not an authenticated, read-only guest role.
+
+## RAW instruction history (0.2.7)
+
+`save_agents` creates a sequential version with UTC timestamp and content, and
+`get_agents_versions` returns newest first (`limit` 1-100, default 20; `offset`
+>= 0). `get_agents` returns the active version. Existing legacy/default content
+is retained as v1 when the first versioned save creates v2. History and active
+content are committed together using the existing atomic writer and volume lock.
+The canonical file is `raw/agents_versions.json` under `OKF_DATA_ROOT`; the old
+`raw/AGENTS.md` is kept intact for recovery. No model call is required for saves.
+
+Rollback to an older backend requires exporting the chosen history content to
+legacy `raw/AGENTS.md` before switching images; retain history and backups.
+The frontend 0.2.0 displays revisions and restores by creating a new save.
