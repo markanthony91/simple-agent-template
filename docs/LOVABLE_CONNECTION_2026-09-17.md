@@ -42,3 +42,24 @@ function/verifier after stopping its traffic, retaining the volume and backups.
   oversized payload, upstream errors and preservation of prompt/tools/zero/SSE.
 - Edge deployment, live Gemini tool check, Railway registration and UI availability
   are in progress. Fallback stays off and the managed Assistant is untouched.
+
+## Streaming compatibility correction (0.3.2)
+
+The initial real tool check on 0.3.1 failed with `provider_response_incomplete`.
+Inspection of the original SSE showed two identical `tool_calls` finish markers
+across three chunks. LangChain concatenated them into `tool_callstool_calls`.
+The shared completion check now canonicalizes only repetitions of the same
+accepted marker (`stop` or `tool_calls`); missing, mixed, truncated and filtered
+reasons still fail. No response text, tool payload or prompt is rewritten.
+
+181 Python tests pass with 87% overall coverage, including actual graph/HTTP
+streams with duplicated finishes before and after tool execution, and rejection
+of `stoplength`, `tool_callsstop`, `length`, missing/unknown reasons. Ruff passes.
+An isolated process on Railway with this exact correction completed the live
+Gemini loop: two model calls, one utc_now, all system/AGENTS/workflow/profile
+markers observed by the callback, temperature zero on both calls. Persistent
+Assistant and fallback settings were never edited. Deployment of 0.3.2 follows.
+
+The SDK also concatenated the repeated provider `model_name` metadata. The
+`llm_route.model` field retains the registered model identifier; no assertion of
+a different model is made from the duplicated SDK string.

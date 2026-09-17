@@ -49,7 +49,7 @@ def test_connections_validate_and_never_expose_credentials(connections, monkeypa
         LLMIntegration.model_validate({"fallback": "external"})
 
 
-def sse(payload, tool=False):
+def sse(payload, tool=False, repeat_finish=1):
     delta = (
         {"content": "Synthetic answer"}
         if not tool
@@ -81,7 +81,9 @@ def sse(payload, tool=False):
         )
 
     return (
-        chunk(delta) + chunk({}, "tool_calls" if tool else "stop") + "data: [DONE]\n\n"
+        chunk(delta)
+        + chunk({}, "tool_calls" if tool else "stop") * repeat_finish
+        + "data: [DONE]\n\n"
     ).encode()
 
 
@@ -113,7 +115,11 @@ async def test_real_graph_fallback_after_tool_does_not_repeat_tool_or_change_con
             200,
             request=request,
             headers={"Content-Type": "text/event-stream"},
-            content=sse(payload, tool=not final),
+            content=sse(
+                payload,
+                tool=not final,
+                repeat_finish=2 if request.url.host == "lovable.invalid" else 1,
+            ),
         )
 
     monkeypatch.setattr(httpx.AsyncClient, "send", send)
@@ -256,3 +262,49 @@ def test_sync_fallback_and_primary_selection(connections):
     response = LLMFallbackMiddleware().wrap_model_call(Request(), handler)
     assert calls == ["synthetic-external", "synthetic-lovable"]
     assert response.result[0].additional_kwargs["llm_route"]["fallback_used"]
+
+
+@pytest.mark.parametrize(
+    "reason,canonical",
+    [
+        ("stop", "stop"),
+        ("stopstop", "stop"),
+        ("tool_calls", "tool_calls"),
+        ("tool_callstool_calls", "tool_calls"),
+        ("tool_callstool_callstool_calls", "tool_calls"),
+    ],
+)
+def test_identical_finish_markers_are_normalized(reason, canonical):
+    from simple_agent.tool_middleware import FilterEnabledToolsMiddleware
+
+    response = ModelResponse(
+        result=[
+            AIMessage(content="synthetic", response_metadata={"finish_reason": reason})
+        ]
+    )
+    result = FilterEnabledToolsMiddleware._completed(response)
+    assert result.result[0].response_metadata["finish_reason"] == canonical
+
+
+@pytest.mark.parametrize(
+    "reason",
+    [
+        None,
+        "",
+        "length",
+        "lengthlength",
+        "content_filter",
+        "stoplength",
+        "tool_callsstop",
+    ],
+)
+def test_incomplete_or_mixed_finish_markers_are_rejected(reason):
+    from simple_agent.tool_middleware import FilterEnabledToolsMiddleware
+
+    response = ModelResponse(
+        result=[
+            AIMessage(content="synthetic", response_metadata={"finish_reason": reason})
+        ]
+    )
+    with pytest.raises(RuntimeError, match="provider_response_incomplete"):
+        FilterEnabledToolsMiddleware._completed(response)

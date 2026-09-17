@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import asyncio
 import logging
 import socket
@@ -122,11 +123,17 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
     @staticmethod
     def _completed(response: ModelResponse) -> ModelResponse:
         for message in response.result:
-            if message.response_metadata.get("finish_reason") not in {
-                "stop",
-                "tool_calls",
-            }:
+            reason = message.response_metadata.get("finish_reason")
+            # Some gateways repeat finish markers; LangChain concatenates strings.
+            # Accept only identical complete markers, never mixed/truncated reasons.
+            match = (
+                re.fullmatch(r"(stop|tool_calls)\1*", reason)
+                if isinstance(reason, str)
+                else None
+            )
+            if not match:
                 raise RuntimeError("provider_response_incomplete")
+            message.response_metadata["finish_reason"] = match.group(1)
         return response
 
     def _filtered_request(self, request: ModelRequest) -> ModelRequest:
