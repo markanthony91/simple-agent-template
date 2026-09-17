@@ -1,6 +1,6 @@
 # LLM integration, fallback and agent profile - 2026-09-17
 
-Published version 0.3.0 extends the existing instruction-versioning deployment
+Published backend version 0.3.2 extends the existing instruction-versioning deployment
 branches; do not replace them with the older main branches. Companion frontend:
 agent-chat-ui `feat/llm-agent-settings`, also 0.3.0. No new dependencies/migrations.
 
@@ -37,8 +37,8 @@ that it adds its own system directives/RAG/portfolio context, uses
 would change the behavior being tested. The dedicated bridge forwards payloads
 and SSE to the fixed Lovable gateway with a separate server token; the Lovable
 key stays in the Lovable environment. Gemini or GPT is selected by the registered
-model ID and bridge allowlist. Model availability, parameter support, quota and
-live tool compatibility remain to be verified after deployment. Some models
+model ID and bridge allowlist. Gemini tool compatibility and zero temperature were verified live on 0.3.2;
+GPT and other parameter/model combinations remain untested. Some models
 reject temperature/top-p; clear these overrides when required, never silently
 remove an explicitly saved parameter.
 
@@ -61,20 +61,23 @@ remove an explicitly saved parameter.
   confirmation and failed saves. TypeScript, production webpack build and ESLint
   pass (25 existing warnings, zero errors). UI coverage percentage not measured.
 
-These are local protocol tests, not live inference or prompt-adherence benchmarks.
-The bridge has not been deployed/validated in Supabase Deno or against live
-Gemini/GPT: activation is reserved exclusively to Marcelo. Published Qwen/UI
+The original 0.3.0 results above are local protocol tests. Subsequent 0.3.2
+validation passed 181 Python tests (87% coverage), Edge Deno, live Gemini and
+Qwen tool loops and a published read-only availability check; see
+[connection evidence](LOVABLE_CONNECTION_2026-09-17.md). These are not
+prompt-adherence benchmarks. Fallback activation is exclusively Marcelo's action. Published Qwen/UI
 checks and the spontaneous-presentation limitation are recorded in
 [rollout evidence](RELEASE_LLM_SETTINGS_2026-09-17.md). Fallback improves
 availability, not instruction obedience.
 
 ## Publication and rollback
 
-Release status: backend and frontend 0.3.0 published on 2026-09-17 after explicit
-deployment-only approval. [Evidence and rollback](RELEASE_LLM_SETTINGS_2026-09-17.md).
-Current Assistant settings and conversations were preserved. No optional provider
-was activated/configured; no Lovable bridge was deployed. Activation remains
-Marcelo's action. For later deployments, follow DEPLOYMENT.md and progress.md.
+Initial release: backend and frontend 0.3.0 published on 2026-09-17 after explicit
+deployment-only approval. Backend 0.3.2 subsequently published after separate
+connection-preparation authorization; frontend bundle remains 0.3.0. [Evidence and rollback](RELEASE_LLM_SETTINGS_2026-09-17.md).
+Current Assistant settings and conversations were preserved. The dedicated
+Lovable bridge and Gemini connection are now deployed and tested. Qwen remains
+primary and fallback stays off; activation remains Marcelo's action. For later deployments, follow DEPLOYMENT.md and progress.md.
 Deploy backend before frontend. Use a disposable Assistant for published checks:
 save/reload both tabs, synthetic greeting, read-only tool round and a controlled
 primary failure. Keep the operator's current Assistant/prompts unchanged.
