@@ -1,6 +1,6 @@
 # LLM integration, fallback and agent profile - 2026-09-17
 
-Unreleased version 0.3.0 extends the existing instruction-versioning deployment
+Published version 0.3.0 extends the existing instruction-versioning deployment
 branches; do not replace them with the older main branches. Companion frontend:
 agent-chat-ui `feat/llm-agent-settings`, also 0.3.0. No new dependencies/migrations.
 
@@ -62,14 +62,19 @@ remove an explicitly saved parameter.
   pass (25 existing warnings, zero errors). UI coverage percentage not measured.
 
 These are local protocol tests, not live inference or prompt-adherence benchmarks.
-The bridge has not yet been deployed/validated in Supabase Deno or against live
-Gemini/GPT. Fallback improves availability, not instruction obedience.
+The bridge has not been deployed/validated in Supabase Deno or against live
+Gemini/GPT: activation is reserved exclusively to Marcelo. Published Qwen/UI
+checks and the spontaneous-presentation limitation are recorded in
+[rollout evidence](RELEASE_LLM_SETTINGS_2026-09-17.md). Fallback improves
+availability, not instruction obedience.
 
 ## Publication and rollback
 
-Release status: PRs prepared; not published. Follow DEPLOYMENT.md and progress.md
-for separately approved rollout, backups and preservation of current Assistant
-context/conversations. Configure/deploy the optional bridge using its guide.
+Release status: backend and frontend 0.3.0 published on 2026-09-17 after explicit
+deployment-only approval. [Evidence and rollback](RELEASE_LLM_SETTINGS_2026-09-17.md).
+Current Assistant settings and conversations were preserved. No optional provider
+was activated/configured; no Lovable bridge was deployed. Activation remains
+Marcelo's action. For later deployments, follow DEPLOYMENT.md and progress.md.
 Deploy backend before frontend. Use a disposable Assistant for published checks:
 save/reload both tabs, synthetic greeting, read-only tool round and a controlled
 primary failure. Keep the operator's current Assistant/prompts unchanged.
