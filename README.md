@@ -87,6 +87,9 @@ The managed `agent` graph reads optional Assistant context fields:
   1-32768). Missing/null values leave the existing server/provider defaults in
   effect; they do not silently select a temperature. Parameters apply to each
   model call, including tool rounds, without changing the shared model instance.
+- `llm_integration`: `primary` (default `default`) and optional `fallback`.
+  Values select server-registered `default`, `lovable` or `external` connections.
+  The UI cannot inject an endpoint, model name or API key.
 - `agent_profile`: `name` (80 characters), `role` (500), `tone` (200).
   Nonempty fields append the current identity/style to the composed prompt.
   Empty fields preserve existing behavior. The profile instructs the model to
@@ -96,7 +99,8 @@ The managed `agent` graph reads optional Assistant context fields:
 
 `okf_admin` operations `get_llm_config` and `validate_runtime_settings` expose
 safe model metadata/defaults and validate changes before the UI saves native
-Assistant versions. No endpoint or credential is returned. Runtime validation
+Assistant versions. Sanitized endpoints, models, timeouts, proxy/credential status
+are returned; credential values are never returned. Runtime validation
 also rejects unknown settings, non-finite/out-of-range numbers and model/URL
 overrides. The UI shows provider-default sampling values as unspecified, since
 the server cannot report the provider's effective default. Output limits remain
@@ -105,12 +109,23 @@ subject to the provider's context window; small limits can truncate responses.
 Settings affect subsequent runs; use a new conversation for comparisons so
 existing messages do not carry the previous persona. Saving preserves unrelated
 Assistant context and confirms persistence/version before showing success.
-Delivery evidence: [LLM/profile settings](docs/LLM_AGENT_SETTINGS.md).
+Fallback retries one failed inference on the selected backup only for connection
+errors, timeouts, HTTP 408/429/5xx, before any streamed chunk. It preserves the
+same history, tools and parameters and never reruns the graph or an executed tool.
+Partial streams, cancellations, invalid parameters, authorization/billing errors
+and refusals are not retried. It starts with the primary again on the next model
+call. The final message records `additional_kwargs.llm_route`; logs include
+connection IDs/error type/status, not provider error bodies or credentials.
+RAW compilation still uses only the default connection.
 
-The LLM is pinned by server `LLM_MODEL` (legacy fallback `SIMPLE_AGENT_MODEL`).
-Neither message text nor Runnable `configurable.model` selects another model.
-Endpoint/key stay on the backend; changing models is a server configuration and
-rollout operation, not a visitor preference. Use synthetic data in this lab:
+Delivery evidence: [LLM/profile settings](docs/LLM_AGENT_SETTINGS.md).
+Lovable setup: [dedicated authenticated bridge](integrations/lovable/README.md).
+
+The default LLM is pinned by server `LLM_MODEL` (legacy fallback `SIMPLE_AGENT_MODEL`).
+Optional connections use `LLM_LOVABLE_*` and `LLM_EXTERNAL_*` variables shown in
+`.env.example`. Each connection pins its own model and key. Neither message text
+nor Runnable `configurable.model` can inject a model. Operators select configured
+connections through versioned Assistant context. Credential values stay on the backend. Use synthetic data in this lab:
 the shared link is not an authenticated, read-only guest role.
 
 ## RAW instruction history (0.2.7)

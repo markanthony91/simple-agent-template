@@ -91,6 +91,8 @@ Coordinate PR integration before another main autodeploy.
 # LLM and agent profile settings (0.3.0)
 
 - [x] Per-request temperature, top-p and output limit; optional agent identity/style.
-- [x] Admin metadata and validation; pinned model and existing safety gates retained.
-- [x] 151 unit tests, 87% overall coverage, 100% new settings module coverage; Ruff passes.
+- [x] Admin metadata and validation; server-defined connections and existing safety gates retained.
+- [x] Sampling/profile and provider-fallback protocol tests; see docs/LLM_AGENT_SETTINGS.md for current results.
+- [x] Versioned principal/fallback selection, sanitized integration metadata and dedicated Lovable bridge source.
+- [ ] Deploy/authenticate Lovable bridge and configure the optional connection; real-provider tool E2E pending.
 - [ ] Separately approved Railway rollout and published configuration/browser checks.

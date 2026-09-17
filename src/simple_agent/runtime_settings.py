@@ -3,9 +3,9 @@
 import json
 import socket
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from simple_agent.llm import create_llm
+from simple_agent.llm import CONNECTIONS, connection_info, create_llm
 
 
 class LLMSettings(BaseModel):
@@ -13,6 +13,23 @@ class LLMSettings(BaseModel):
     temperature: float | None = Field(default=None, ge=0, le=2)
     top_p: float | None = Field(default=None, gt=0, le=1)
     max_tokens: int | None = Field(default=None, ge=1, le=32768)
+
+
+class LLMIntegration(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+    primary: str = "default"
+    fallback: str | None = None
+
+    @model_validator(mode="after")
+    def validate_connections(self):
+        if self.fallback == self.primary:
+            raise ValueError("O fallback deve usar outra conexão")
+        for connection in (self.primary, self.fallback):
+            if connection is not None and not connection_info(connection)["configured"]:
+                raise ValueError(
+                    f"Conexão {connection} pendente de configuração no servidor"
+                )
+        return self
 
 
 class AgentProfile(BaseModel):
@@ -41,9 +58,16 @@ def validate_settings(settings: dict) -> dict:
     if not isinstance(settings, dict) or set(settings) - {
         "llm_settings",
         "agent_profile",
+        "llm_integration",
     }:
-        raise ValueError("Configurações inválidas: use llm_settings ou agent_profile.")
-    schemas = {"llm_settings": LLMSettings, "agent_profile": AgentProfile}
+        raise ValueError(
+            "Configurações inválidas: use llm_settings, llm_integration ou agent_profile."
+        )
+    schemas = {
+        "llm_settings": LLMSettings,
+        "agent_profile": AgentProfile,
+        "llm_integration": LLMIntegration,
+    }
     return {
         key: schemas[key].model_validate(value).model_dump(exclude_none=True)
         for key, value in settings.items()
@@ -54,6 +78,7 @@ def llm_configuration() -> dict:
     model = create_llm()
     return {
         "hostname": socket.gethostname(),
+        "connections": [connection_info(key) for key in CONNECTIONS],
         "provider": "API compatível com OpenAI",
         "model": model.model_name,
         "defaults": {key: getattr(model, key) for key in LLMSettings.model_fields},

@@ -10,6 +10,7 @@ from simple_agent.tool_middleware import filter_enabled_tools
 from simple_agent.tools.okf_tools import OKF_TOOLS
 from simple_agent.tools.collection_tools import COLLECTION_TOOLS
 from simple_agent.llm import create_llm
+from simple_agent.llm_fallback import LLMFallbackMiddleware
 from simple_agent.runtime_settings import AgentProfile
 
 
@@ -40,6 +41,6 @@ ALL_TOOLS = [utc_now, calculator, *OKF_TOOLS, *COLLECTION_TOOLS]
 graph = create_agent(
     model=create_llm(),
     tools=ALL_TOOLS,
-    middleware=[runtime_prompt, filter_enabled_tools],
+    middleware=[runtime_prompt, filter_enabled_tools, LLMFallbackMiddleware()],
     name="simple_agent",
 )

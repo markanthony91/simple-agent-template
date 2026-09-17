@@ -61,7 +61,14 @@ def test_defaults_profile_and_admin_contract():
         "top_p": None,
         "max_tokens": None,
     }
-    assert set(config) == {"hostname", "provider", "model", "defaults", "limits"}
+    assert set(config) == {
+        "hostname",
+        "provider",
+        "model",
+        "defaults",
+        "limits",
+        "connections",
+    }
 
 
 @pytest.mark.anyio
