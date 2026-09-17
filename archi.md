@@ -40,3 +40,11 @@ System/AGENTS/workflow defaults are composed once, without a duplicate hidden
 commercial prompt in Python. Saved context overrides remain supported.
 The RAW compiler canonicalizes new roots and rejects case collisions; exact
 existing append/noop targets remain unchanged. Published bundles are not migrated.
+# Agent profile and sampling configuration
+
+Assistant context stores `agent_profile` and `llm_settings` with native versioning.
+The managed graph appends profile instructions after the operator prompt,
+AGENTS and workflow; the existing middleware then appends the identity contract
+and supplies validated sampling parameters per model request. No global model
+mutation or new persistence service is introduced. `okf_admin` reports only safe
+server defaults and validates operator edits. RAW compilation is unchanged.

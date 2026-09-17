@@ -79,6 +79,34 @@ An approval checkbox is not administrative authentication. Do not expose custome
 data or real financial actions through this deployment.
 # Shared pilot chat
 
+## Agent profile and LLM settings (0.3.0)
+
+The managed `agent` graph reads optional Assistant context fields:
+
+- `llm_settings`: `temperature` (0-2), `top_p` (>0-1), `max_tokens` (integer,
+  1-32768). Missing/null values leave the existing server/provider defaults in
+  effect; they do not silently select a temperature. Parameters apply to each
+  model call, including tool rounds, without changing the shared model instance.
+- `agent_profile`: `name` (80 characters), `role` (500), `tone` (200).
+  Nonempty fields append the current identity/style to the composed prompt.
+  Empty fields preserve existing behavior. The profile instructs the model to
+  prefer the configured identity/style over conflicting prose, but does not
+  replace backend identity, policy or consent guards. This is model guidance,
+  not a guarantee of literal output. RAW compilation retains its own defaults.
+
+`okf_admin` operations `get_llm_config` and `validate_runtime_settings` expose
+safe model metadata/defaults and validate changes before the UI saves native
+Assistant versions. No endpoint or credential is returned. Runtime validation
+also rejects unknown settings, non-finite/out-of-range numbers and model/URL
+overrides. The UI shows provider-default sampling values as unspecified, since
+the server cannot report the provider's effective default. Output limits remain
+subject to the provider's context window; small limits can truncate responses.
+
+Settings affect subsequent runs; use a new conversation for comparisons so
+existing messages do not carry the previous persona. Saving preserves unrelated
+Assistant context and confirms persistence/version before showing success.
+Delivery evidence: [LLM/profile settings](docs/LLM_AGENT_SETTINGS.md).
+
 The LLM is pinned by server `LLM_MODEL` (legacy fallback `SIMPLE_AGENT_MODEL`).
 Neither message text nor Runnable `configurable.model` selects another model.
 Endpoint/key stay on the backend; changing models is a server configuration and

@@ -25,6 +25,7 @@ from simple_agent.services.session_store import SessionStore
 from simple_agent.services.identity_policy import instructions
 from simple_agent.services.response_audit import audit_response
 from langgraph.config import get_config
+from simple_agent.runtime_settings import LLMSettings
 
 registry = ToolRegistry()
 logger = logging.getLogger("simple_agent.tools")
@@ -129,6 +130,9 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         return response
 
     def _filtered_request(self, request: ModelRequest) -> ModelRequest:
+        context = request.runtime.context
+        configured = context if isinstance(context, dict) else {}
+        settings = LLMSettings.model_validate(configured.get("llm_settings", {}))
         key = get_config().get("configurable", {}).get("thread_id")
         if not key:
             raise ValueError("server_thread_id_required")
@@ -146,7 +150,12 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             tool for tool in request.tools if getattr(tool, "name", None) in enabled
         ]
         return request.override(
-            tools=tools, system_message=message.model_copy(update={"content": content})
+            tools=tools,
+            system_message=message.model_copy(update={"content": content}),
+            model_settings={
+                **request.model_settings,
+                **settings.model_dump(exclude_none=True),
+            },
         )
 
     def wrap_model_call(

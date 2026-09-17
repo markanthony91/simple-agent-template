@@ -88,3 +88,9 @@ Coordinate PR integration before another main autodeploy.
 - [x] Railway 0.2.7 published: `7eb7e7ab-4907-4e58-8d5e-ee601e33fd20`.
 - [x] 31 conversation states, managed Assistant context/version and 4148 Markdown hashes preserved.
 - [x] Published UI saved unchanged RAW content into v2, retained v1 and reloaded it.
+# LLM and agent profile settings (0.3.0)
+
+- [x] Per-request temperature, top-p and output limit; optional agent identity/style.
+- [x] Admin metadata and validation; pinned model and existing safety gates retained.
+- [x] 151 unit tests, 87% overall coverage, 100% new settings module coverage; Ruff passes.
+- [ ] Separately approved Railway rollout and published configuration/browser checks.
