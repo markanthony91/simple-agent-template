@@ -94,7 +94,7 @@ Coordinate PR integration before another main autodeploy.
 - [x] Admin metadata and validation; server-defined connections and existing safety gates retained.
 - [x] Sampling/profile and provider-fallback protocol tests; see docs/LLM_AGENT_SETTINGS.md for current results.
 - [x] Versioned principal/fallback selection, sanitized integration metadata and dedicated Lovable bridge source.
-- [ ] Operator-only: Marcelo owns optional provider/bridge configuration and activation; Gemini/GPT E2E follows his activation.
+- [ ] Connection preparation now authorized separately: publish bridge, register Gemini and run an isolated connection check. Enabling fallback in the managed Assistant remains exclusively Marcelo's action.
 - [x] Authorized deployment-only Railway rollout, both services 0.3.0; published settings and Qwen tool/profile check passed.
 - [x] Original conversations, managed Assistant settings and all 25 previous session rows preserved; 4170 file hashes unchanged after canaries, with two new synthetic SQLite sessions.
 - [ ] Known model limitation: spontaneous self-introduction was omitted in the time-query probe; explicit name query passed. See docs/RELEASE_LLM_SETTINGS_2026-09-17.md.

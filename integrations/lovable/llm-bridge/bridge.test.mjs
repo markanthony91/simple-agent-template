@@ -1,13 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { createHash } from "node:crypto";
+const bridgeToken = "synthetic-bridge";
 const env = {
-  LLM_BRIDGE_TOKEN: "synthetic-bridge",
+  LLM_BRIDGE_TOKEN_SHA256: createHash("sha256")
+    .update(bridgeToken)
+    .digest("hex"),
   LOVABLE_API_KEY: "synthetic-gateway",
   LLM_BRIDGE_MODELS: "google/gemini-test,openai/gpt-test",
 };
 globalThis.Deno = { env: { get: (name) => env[name] }, serve() {} };
 const { handle } = await import("./index.ts");
-const request = (payload, token = env.LLM_BRIDGE_TOKEN) =>
+const request = (payload, token = bridgeToken) =>
   new Request("https://bridge.invalid/v1/chat/completions", {
     method: "POST",
     headers: { authorization: `Bearer ${token}` },
@@ -53,6 +57,14 @@ test("authenticated bridge preserves prompt, zero, tools, results and SSE; rejec
   };
   try {
     assert.equal((await handle(request(payload, "wrong"))).status, 401);
+    assert.equal(
+      (await handle(request(payload, env.LLM_BRIDGE_TOKEN_SHA256))).status,
+      401,
+    );
+    const verifier = env.LLM_BRIDGE_TOKEN_SHA256;
+    env.LLM_BRIDGE_TOKEN_SHA256 = "";
+    assert.equal((await handle(request(payload))).status, 503);
+    env.LLM_BRIDGE_TOKEN_SHA256 = verifier;
     assert.equal(
       (await handle(request({ ...payload, model: "arbitrary" }))).status,
       400,

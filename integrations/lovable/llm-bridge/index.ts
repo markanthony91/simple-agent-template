@@ -1,25 +1,29 @@
 // Dedicated server-to-server bridge: no prompts, business rules or tool execution.
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
+import { Buffer } from "node:buffer";
+import { BRIDGE_CONFIG } from "./config.ts";
 
 const error = (status: number, message: string) =>
   Response.json({ error: { message, type: "bridge_error" } }, { status });
 
 export async function handle(request: Request): Promise<Response> {
   if (request.method !== "POST") return error(405, "POST required");
-  const token = Deno.env.get("LLM_BRIDGE_TOKEN");
+  const tokenHash =
+    Deno.env.get("LLM_BRIDGE_TOKEN_SHA256") || BRIDGE_CONFIG.token_sha256;
   const key = Deno.env.get("LOVABLE_API_KEY");
-  const models = (Deno.env.get("LLM_BRIDGE_MODELS") || "")
+  const models = (
+    Deno.env.get("LLM_BRIDGE_MODELS") || BRIDGE_CONFIG.models.join(",")
+  )
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean);
-  if (!token || !key || !models.length)
+  if (!/^[a-f0-9]{64}$/i.test(tokenHash) || !key || !models.length)
     return error(503, "Bridge not configured");
-  const expected = new TextEncoder().encode(`Bearer ${token}`);
-  const received = new TextEncoder().encode(
-    request.headers.get("authorization") || "",
-  );
+  const authorization = request.headers.get("authorization") || "";
+  const expected = Buffer.from(tokenHash, "hex");
+  const received = createHash("sha256").update(authorization.slice(7)).digest();
   if (
-    expected.length !== received.length ||
+    !authorization.startsWith("Bearer ") ||
     !timingSafeEqual(expected, received)
   )
     return error(401, "Unauthorized");

@@ -1,14 +1,17 @@
-# Dedicated Lovable bridge (prepared; not deployed)
+# Dedicated Lovable bridge
 
 `llm-bridge/index.ts` is an independent Supabase Edge Function for the Agent Chat
 runtime. It forwards the OpenAI Chat Completions payload and SSE unchanged to
 Lovable's gateway. It does not use the existing playground, portfolio router,
 RAG, boleto, prompt augmentation, or business tools. The runtime executes tools.
 
-After separate rollout approval:
+Connection preparation was authorized on 2026-09-17; selecting/enabling fallback
+remains exclusively Marcelo's action. Registration is not activation.
 
-1. Copy `llm-bridge/index.ts` to `supabase/functions/llm-bridge/index.ts` in the
-   existing Lovable project. Add only this function to its Supabase config:
+Deployment procedure:
+
+1. Copy `llm-bridge/index.ts` and `llm-bridge/config.ts` into
+   `supabase/functions/llm-bridge/` in the existing Lovable project. Add only this function to its Supabase config:
    ```toml
    [functions.llm-bridge]
    verify_jwt = false
@@ -16,11 +19,16 @@ After separate rollout approval:
    The function authenticates every POST with its own bearer token. Disabling
    Supabase JWT validation here does not make it anonymous. Do not change other
    functions or their authentication.
-2. In the Edge Function secrets manager, set `LLM_BRIDGE_TOKEN` to a newly
-   generated random server secret (at least 32 random bytes), and set
-   `LLM_BRIDGE_MODELS` to a comma-separated allowlist of the desired currently
-   available Gemini/GPT model IDs. Use the existing `LOVABLE_API_KEY` in that
-   environment; do not export it to Railway or the browser. Deploy the function.
+2. Generate a random bridge bearer token (at least 32 random bytes) and store it
+   directly in the Railway secret variable `LLM_LOVABLE_API_KEY`, using stdin
+   and `--skip-deploys`. Never include its value in a chat, source or shell argument.
+   Configure only its SHA-256 verifier and the allowed model IDs in the deployed
+   `config.ts`. The committed template is empty and fails closed. The verifier
+   cannot be used as a bearer token; the contract test checks this explicitly.
+   Alternatively the bridge supports `LLM_BRIDGE_TOKEN_SHA256` and comma-separated
+   `LLM_BRIDGE_MODELS` environment overrides. Keep the existing `LOVABLE_API_KEY`
+   in the Lovable environment; never export it to Railway/browser. Deploy only
+   this function. Token rotation replaces the Railway token and bridge verifier.
 3. In Railway backend variables, set:
    - `LLM_LOVABLE_BASE_URL=https://<project>.supabase.co/functions/v1/llm-bridge/v1`
    - `LLM_LOVABLE_MODEL=<one allowed model ID>`
@@ -28,7 +36,9 @@ After separate rollout approval:
    - Optional `LLM_LOVABLE_READ_TIMEOUT_SECONDS` (default 120).
    Keep `LLM_LOVABLE_PROXY_URL` empty for normal public HTTPS. The private Qwen
    proxy is not inherited by this connection.
-4. After backend/frontend rollout, select Lovable in the LLM tab and save.
+4. After backend rollout and isolated connection checks, leave the current
+   Assistant unchanged. Marcelo can select Lovable in the LLM tab and save when
+   he decides to activate fallback.
    Validate a disposable Assistant with a synthetic greeting, a read-only tool
    round and a controlled primary outage before operational use. Confirm the
    effective model and `additional_kwargs.llm_route`. Keep current real prompts
@@ -49,7 +59,8 @@ Local contract test (Node 24; native TypeScript stripping, no dependency install
 node --test integrations/lovable/llm-bridge/bridge.test.mjs
 ```
 
-The test intercepts fetch; it does not validate Deno deployment, current Lovable
-credits or live model output. No live bridge has been deployed by these changes.
+The local test intercepts fetch; live preparation/deployment evidence is recorded
+in `docs/LOVABLE_CONNECTION_2026-09-17.md`. It does not imply activation of fallback
+in the current Assistant.
 Rollback: disable fallback in Assistant settings, restore runtime deployments
 if needed and remove only the dedicated function/bridge secret after traffic stops.

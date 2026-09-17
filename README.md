@@ -149,3 +149,11 @@ Private pre-rollout backup: `/data/backups/pre-instruction-versions-20260916T194
 hashes matched after deployment. The published frontend save/history/reload check
 passed with identical RAW content. Full evidence and rollback details:
 [frontend release notes](https://github.com/markanthony91/agent-chat-ui/blob/feat/instruction-versions/docs/INSTRUCTION_VERSIONS.md).
+
+## Lovable connection preparation (0.3.1)
+
+The dedicated bridge supports a public SHA-256 verifier of a separate Railway
+bearer token, so no provider credential needs to be copied into a chat or source.
+Connection registration and enabling fallback are separate operations. Marcelo
+retains control of activation in the LLM tab; preparing the connection does not
+change the current Qwen selection. See [connection evidence](docs/LOVABLE_CONNECTION_2026-09-17.md).
