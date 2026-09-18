@@ -39,6 +39,7 @@ class Fixture(BaseModel):
     phone: str | None = None
     birth_date: str
     institution: str
+    creditor_name: str | None = None
     product: str
     debt: Debt
     eligibility: Eligibility

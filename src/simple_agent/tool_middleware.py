@@ -145,8 +145,17 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             raise ValueError("server_thread_id_required")
         with SessionStore().transaction(key) as session:
             contract = instructions(session)
+            creditor = str(session["fixture"].get("creditor_name") or "").strip()
         message = request.system_message or SystemMessage(content="")
+        profile = configured.get("agent_profile", {})
+        agent_name = (
+            str(profile.get("name") or "").strip() if isinstance(profile, dict) else ""
+        )
         content = message.content
+        if creditor and isinstance(content, str):
+            content = content.replace("{{credor}}", creditor)
+            if agent_name:
+                content = content.replace("{{nome_agente}}", agent_name)
         content = (
             content + contract
             if isinstance(content, str)

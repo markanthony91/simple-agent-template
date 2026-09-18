@@ -62,6 +62,7 @@ def test_form_creates_isolated_tool_session_without_changing_playground(
         assert fixture["full_name"] == FORM["full_name"]
         assert fixture["phone"] == FORM["phone"]
         assert fixture["institution"] == "Credor cadastrado em Canais"
+        assert fixture["creditor_name"] == "Credor cadastrado em Canais"
         assert fixture["debt"]["current_amount"] == "850.00"
         assert fixture["debt"]["days_overdue"] == 42
         assert fixture["identity_policy"] == {

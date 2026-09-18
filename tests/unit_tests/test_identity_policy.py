@@ -79,6 +79,7 @@ def test_failure_generic_lock_and_replay(isolated):
 def test_policy_pin_and_prompt_no_expected_values(isolated):
     with SessionStore().transaction("old") as old:
         assert "CPF completo" in instructions(old)
+        assert "Contexto de apresentação" not in instructions(old)
     store = SimulatorStore()
     fixture = store.load()
     fixture["identity_policy"] = {"cpf_mode": "first4", "secondary": "full_name"}
@@ -148,14 +149,18 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
         "get_config",
         lambda: {"configurable": {"thread_id": "prompt-test"}},
     )
+    fixture = SimulatorStore().load()
+    fixture["creditor_name"] = "Fastpay"
+    SessionStore().create("prompt-test", fixture)
     request = ModelRequest(
         model=managed_graph.create_llm(),
         messages=[],
         runtime=Runtime(
             context={
-                "system_prompt": "CUSTOM_SYSTEM",
+                "system_prompt": "CUSTOM_SYSTEM {{credor}} {{nome_agente}}",
                 "agent_instructions": "CUSTOM_AGENTS",
                 "active_workflow": "CUSTOM_WORKFLOW",
+                "agent_profile": {"name": "Sophia"},
             }
         ),
         state={"messages": []},
@@ -174,10 +179,14 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
             "CUSTOM_SYSTEM",
             "CUSTOM_AGENTS",
             "CUSTOM_WORKFLOW",
+            "Sophia",
+            '"creditor": "Fastpay"',
             "CPF completo",
             "Tentativas restantes: 3",
         )
     )
+    assert "{{credor}}" not in text
+    assert "{{nome_agente}}" not in text
     monkeypatch.setattr(tool_middleware, "get_config", lambda: {})
     with pytest.raises(ValueError, match="server_thread_id_required"):
         tool_middleware.filter_enabled_tools._filtered_request(request)
