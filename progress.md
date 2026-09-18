@@ -12,7 +12,13 @@
 - [x] Playground fixture and current frontend remain unchanged.
 - [x] `/reset-demo` resets only future Demo sessions before LLM/tools, keeps the
   pinned fixture/snapshot and cuts previous messages from active context.
-- [ ] Publish and validate backend 0.4.2 on Railway with a synthetic Demo thread.
+- [x] Railway backend 0.4.2 published: `c50fbdf9-9ade-40f1-96a3-adcd14e8a670`.
+  Synthetic thread `f1887e35-7650-471a-b738-d61465dda21b` returned the reset
+  receipt with one active message and three retained checkpoints; the state had
+  identity false, zero offers/agreements/receipts and `reset_count=1`. The 29
+  prior session rows, Playground fixture and 4,170 stable data files retained
+  their pre-rollout hashes. Backup:
+  `/data/backups/pre-reset-demo-042-20260918-163254`.
 - [x] Railway backend 0.4.0 published: `1c727670-b324-46ca-b719-17c6009eee1a`;
   creditor catalog and unchanged Playground/session hashes verified. Backup:
   `/data/backups/pre-future-demo-040-20260918-143027`.
