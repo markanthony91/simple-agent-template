@@ -157,7 +157,7 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
         messages=[],
         runtime=Runtime(
             context={
-                "system_prompt": "CUSTOM_SYSTEM",
+                "system_prompt": "CUSTOM_SYSTEM {{credor}} {{nome_agente}}",
                 "agent_instructions": "CUSTOM_AGENTS",
                 "active_workflow": "CUSTOM_WORKFLOW",
                 "agent_profile": {"name": "Sophia"},
@@ -185,6 +185,8 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
             "Tentativas restantes: 3",
         )
     )
+    assert "{{credor}}" not in text
+    assert "{{nome_agente}}" not in text
     monkeypatch.setattr(tool_middleware, "get_config", lambda: {})
     with pytest.raises(ValueError, match="server_thread_id_required"):
         tool_middleware.filter_enabled_tools._filtered_request(request)

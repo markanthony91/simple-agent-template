@@ -41,6 +41,10 @@ pinned name, masked CPF/phone, creditor, amount and the submitted days overdue.
   in the current profile). It is already injected into the model context and is
   not copied into the form payload or SQLite session.
 
+For future-form sessions, the backend replaces only the literal placeholders
+`{{credor}}` and `{{nome_agente}}` before the prompt reaches the model. Other
+System Prompt placeholders are not inferred or rendered by this contract.
+
 Both are temporary sources. When portfolio configuration owns these fields, the
 authenticated future route must resolve them from the selected portfolio instead.
 
