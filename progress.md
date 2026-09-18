@@ -5,8 +5,11 @@
 - [x] Create-only session pinned to the future form's LangGraph thread.
 - [x] Existing collection tools read the pinned form data after CPF-first-3 verification.
 - [x] Playground fixture and current frontend remain unchanged.
+- [x] Railway backend 0.4.0 published: `1c727670-b324-46ca-b719-17c6009eee1a`;
+  creditor catalog and unchanged Playground/session hashes verified. Backup:
+  `/data/backups/pre-future-demo-040-20260918-143027`.
 - [ ] Wire the future authenticated form; do not call this contract directly from a browser.
-- [ ] Controlled Railway publication and synthetic end-to-end validation.
+- [ ] Run the synthetic end-to-end through that future authenticated form.
 
 # Configurable identity — 0.2.5
 
