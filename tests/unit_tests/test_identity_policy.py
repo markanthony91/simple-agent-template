@@ -79,6 +79,7 @@ def test_failure_generic_lock_and_replay(isolated):
 def test_policy_pin_and_prompt_no_expected_values(isolated):
     with SessionStore().transaction("old") as old:
         assert "CPF completo" in instructions(old)
+        assert "Contexto de apresentação" not in instructions(old)
     store = SimulatorStore()
     fixture = store.load()
     fixture["identity_policy"] = {"cpf_mode": "first4", "secondary": "full_name"}
@@ -148,6 +149,9 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
         "get_config",
         lambda: {"configurable": {"thread_id": "prompt-test"}},
     )
+    fixture = SimulatorStore().load()
+    fixture["creditor_name"] = "Fastpay"
+    SessionStore().create("prompt-test", fixture)
     request = ModelRequest(
         model=managed_graph.create_llm(),
         messages=[],
@@ -156,6 +160,7 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
                 "system_prompt": "CUSTOM_SYSTEM",
                 "agent_instructions": "CUSTOM_AGENTS",
                 "active_workflow": "CUSTOM_WORKFLOW",
+                "agent_profile": {"name": "Sophia"},
             }
         ),
         state={"messages": []},
@@ -174,6 +179,8 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
             "CUSTOM_SYSTEM",
             "CUSTOM_AGENTS",
             "CUSTOM_WORKFLOW",
+            "Sophia",
+            '"creditor": "Fastpay"',
             "CPF completo",
             "Tentativas restantes: 3",
         )

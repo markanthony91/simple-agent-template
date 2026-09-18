@@ -127,6 +127,7 @@ def create_future_demo_session(
             "phone": form.phone,
             "birth_date": "",
             "institution": creditor,
+            "creditor_name": creditor,
             "product": defaults.get("product", "cobranca"),
             "debt": {
                 "debt_id": f"DEBT-{uuid4().hex[:12].upper()}",

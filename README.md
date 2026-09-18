@@ -1,9 +1,11 @@
-# Agent Runtime — OKF simulator (0.4.0)
+# Agent Runtime — OKF simulator (0.4.1)
 
 The backend now has a create-only contract for a future Demo form. It accepts
 full name, CPF, E.164 phone, debt amount and days overdue, resolves the creditor
 server-side from Zerai Canais and pins the resulting fixture to one new LangGraph
 thread. Existing Playground fixture editing and existing conversations are unchanged.
+For future-form sessions, the presentation uses the Canais **Cedente** as creditor
+and the selected Assistant's `agent_profile.name` as the agent name.
 See [future Demo form](docs/FUTURE_DEMO_FORM.md). This remains a synthetic lab;
 the operation is not a public customer-data endpoint.
 

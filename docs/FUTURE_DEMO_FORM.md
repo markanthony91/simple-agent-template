@@ -33,6 +33,17 @@ three attempts, no secondary factor. Before verification, collection tools do
 not expose financial fields. After `verified=true`, `get_customer()` returns the
 pinned name, masked CPF/phone, creditor, amount and the submitted days overdue.
 
+## Temporary presentation mapping
+
+- `creditor`: the `creditor_name` returned by Canais, which is the **Cedente**
+  field in the current screen (`Fastpay` in the validated configuration).
+- Agent name: `agent_profile.name` from the selected managed Assistant (`Sophia`
+  in the current profile). It is already injected into the model context and is
+  not copied into the form payload or SQLite session.
+
+Both are temporary sources. When portfolio configuration owns these fields, the
+authenticated future route must resolve them from the selected portfolio instead.
+
 ## Railway configuration
 
 Set only on `langgraph-simple-agent-clean`:
