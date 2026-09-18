@@ -5,6 +5,10 @@
 - [x] Create-only session pinned to the future form's LangGraph thread.
 - [x] Existing collection tools read the pinned form data after CPF-first-3 verification.
 - [x] Presentation maps Canais Cedente to creditor and managed Assistant profile to agent name.
+- [x] Railway backend 0.4.1 published: `26c57dc6-af67-4454-b718-bf445ed9c998`;
+  live prompt smoke rendered `Fastpay / Sophia`, profile version 15, and unchanged
+  Playground/session hashes were verified. Backup:
+  `/data/backups/pre-future-demo-041-20260918-161510`.
 - [x] Playground fixture and current frontend remain unchanged.
 - [x] Railway backend 0.4.0 published: `1c727670-b324-46ca-b719-17c6009eee1a`;
   creditor catalog and unchanged Playground/session hashes verified. Backup:
