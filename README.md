@@ -1,4 +1,11 @@
-# Agent Runtime — OKF simulator (0.2.6)
+# Agent Runtime — OKF simulator (0.4.0)
+
+The backend now has a create-only contract for a future Demo form. It accepts
+full name, CPF, E.164 phone, debt amount and days overdue, resolves the creditor
+server-side from Zerai Canais and pins the resulting fixture to one new LangGraph
+thread. Existing Playground fixture editing and existing conversations are unchanged.
+See [future Demo form](docs/FUTURE_DEMO_FORM.md). This remains a synthetic lab;
+the operation is not a public customer-data endpoint.
 
 The operator Dataset catalog exposes titles, declared types/status, and bounded
 matching excerpts from the complete Markdown text. Search is literal,

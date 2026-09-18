@@ -55,6 +55,37 @@ def test_admin_tools_and_fixture_contract(admin):
     assert isinstance(result["result"]["debt"]["current_amount"], str)
 
 
+def test_future_form_requires_approval_and_passes_exact_contract(admin, monkeypatch):
+    captured = {}
+
+    def create(thread_id, form):
+        captured.update(thread_id=thread_id, form=form)
+        return {"created": True, "thread_id": thread_id}
+
+    monkeypatch.setattr(admin, "create_future_demo_session", create)
+    payload = {
+        "operation": "create_future_demo_session",
+        "thread_id": "thread-1",
+        "demo_form": {
+            "full_name": "Teste",
+            "cpf": "52998224725",
+            "phone": "+5511949994528",
+            "amount": "850.00",
+            "days_overdue": 42,
+        },
+    }
+    denied = admin.execute(payload)
+    assert denied["error"] == "human_approval_required"
+    assert captured == {}
+    allowed = admin.execute({**payload, "approved": True})
+    assert allowed["error"] == ""
+    assert allowed["result"] == {"created": True, "thread_id": "thread-1"}
+    assert captured == {
+        "thread_id": "thread-1",
+        "form": payload["demo_form"],
+    }
+
+
 def test_tool_usage_matches_runtime_without_injected_arguments(admin):
     from simple_agent.managed_graph import ALL_TOOLS
 
@@ -83,6 +114,10 @@ def test_tool_usage_matches_runtime_without_injected_arguments(admin):
             "enabled must be boolean",
         ),
         ({"operation": "save_simulator_fixture"}, "fixture must be an object"),
+        (
+            {"operation": "create_future_demo_session", "approved": True},
+            "demo_form must be an object",
+        ),
         ({"operation": "unknown"}, "Unsupported admin operation"),
     ],
 )

@@ -18,6 +18,11 @@ Snapshot and fixture are pinned at the first inference; publication does not
 silently change an ongoing conversation. SQLite transactions serialize short
 state operations only; no transaction holds a network LLM call.
 
+The future Demo form uses the existing admin graph only as a server-side contract:
+it resolves `creditor_name` from Zerai Canais, then creates one new row keyed by
+the target `thread_id` in the same sessions SQLite database. It never updates the
+global Playground fixture and never overwrites an existing session.
+
 RAW → immutable source/hash → lexical manifest + selected concepts → create,
 append or noop → incomplete draft → index/log → validation → human review →
 atomic immutable publication. Conflicts do not auto-resolve. Failed partial

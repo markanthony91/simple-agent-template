@@ -13,11 +13,15 @@ from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.simulator_store import SimulatorStore
 
 
+def validate_thread_id(value: str) -> str:
+    if not isinstance(value, str) or not value.strip() or len(value) > 200:
+        raise ValueError("server_thread_id_required")
+    return value.strip()
+
+
 def thread_id(runtime) -> str:
     value = runtime.config.get("configurable", {}).get("thread_id")
-    if not isinstance(value, str) or not value or len(value) > 200:
-        raise ValueError("server_thread_id_required")
-    return value
+    return validate_thread_id(value)
 
 
 class SessionStore:
@@ -29,6 +33,27 @@ class SessionStore:
             db.execute(
                 "CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, data TEXT NOT NULL)"
             )
+
+    def create(self, key: str, fixture: dict) -> None:
+        """Create one form-backed session without changing the playground fixture."""
+        key = validate_thread_id(key)
+        state = {
+            "fixture": fixture,
+            "identity_verified": False,
+            "offers": {},
+            "agreements": {},
+            "receipts": {},
+            "snapshot_id": PersistentOKFStore().active_bundle_id(),
+        }
+        try:
+            with sqlite3.connect(self.database, timeout=10) as db:
+                db.execute("BEGIN IMMEDIATE")
+                db.execute(
+                    "INSERT INTO sessions(id, data) VALUES (?, ?)",
+                    (key, json.dumps(state)),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("session_already_exists") from exc
 
     @contextmanager
     def transaction(self, key: str) -> Iterator[dict]:

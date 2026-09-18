@@ -26,8 +26,8 @@ class Eligibility(BaseModel):
 
 class IdentityPolicy(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    cpf_mode: Literal["full", "first4", "last4"] = "full"
-    secondary: Literal["full_name", "birth_date", "both", "either"] = "either"
+    cpf_mode: Literal["full", "first3", "first4", "last4"] = "full"
+    secondary: Literal["none", "full_name", "birth_date", "both", "either"] = "either"
     max_attempts: Annotated[StrictInt, Field(ge=1, le=10)] = 3
 
 
@@ -36,6 +36,7 @@ class Fixture(BaseModel):
     customer_id: str
     full_name: str
     cpf: str
+    phone: str | None = None
     birth_date: str
     institution: str
     product: str
