@@ -18,7 +18,13 @@ def runtime(key="identity", call="call-1"):
 
 
 @pytest.mark.parametrize(
-    "mode,cpf", [("full", "123.456.789-00"), ("first4", "1234"), ("last4", "8900")]
+    "mode,cpf",
+    [
+        ("full", "123.456.789-00"),
+        ("first3", "123"),
+        ("first4", "1234"),
+        ("last4", "8900"),
+    ],
 )
 @pytest.mark.parametrize(
     "secondary,args",
@@ -27,6 +33,7 @@ def runtime(key="identity", call="call-1"):
         ("birth_date", {"birth_date": "1985-04-17"}),
         ("both", {"full_name": "João da Silva", "birth_date": "1985-04-17"}),
         ("either", {"full_name": "João da Silva"}),
+        ("none", {}),
     ],
 )
 def test_methods_and_authorized_debt(isolated, mode, cpf, secondary, args):
@@ -42,7 +49,9 @@ def test_methods_and_authorized_debt(isolated, mode, cpf, secondary, args):
     assert "debt" not in json.loads(get_customer.func(runtime=rt))
     result = json.loads(verify_customer_identity.func(runtime=rt, cpf=cpf, **args))
     assert result["verified"] is True
-    assert "debt" in json.loads(get_customer.func(runtime=rt))
+    authorized = json.loads(get_customer.func(runtime=rt))
+    assert "debt" in authorized
+    assert "phone" not in authorized  # Existing Playground contract is unchanged.
     assert "debt" not in json.loads(get_customer.func(runtime=runtime("other")))
     assert "debt" not in json.loads(get_customer.func(runtime=rt, cpf="99999999999"))
 
@@ -70,6 +79,7 @@ def test_failure_generic_lock_and_replay(isolated):
 def test_policy_pin_and_prompt_no_expected_values(isolated):
     with SessionStore().transaction("old") as old:
         assert "CPF completo" in instructions(old)
+        assert "Contexto de apresentação" not in instructions(old)
     store = SimulatorStore()
     fixture = store.load()
     fixture["identity_policy"] = {"cpf_mode": "first4", "secondary": "full_name"}
@@ -91,7 +101,6 @@ def test_policy_pin_and_prompt_no_expected_values(isolated):
     "invalid",
     [
         {"cpf_mode": "none"},
-        {"secondary": "none"},
         {"max_attempts": 0},
         {"max_attempts": 11},
         {"max_attempts": True},
@@ -140,14 +149,18 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
         "get_config",
         lambda: {"configurable": {"thread_id": "prompt-test"}},
     )
+    fixture = SimulatorStore().load()
+    fixture["creditor_name"] = "Fastpay"
+    SessionStore().create("prompt-test", fixture)
     request = ModelRequest(
         model=managed_graph.create_llm(),
         messages=[],
         runtime=Runtime(
             context={
-                "system_prompt": "CUSTOM_SYSTEM",
+                "system_prompt": "CUSTOM_SYSTEM {{credor}} {{nome_agente}}",
                 "agent_instructions": "CUSTOM_AGENTS",
                 "active_workflow": "CUSTOM_WORKFLOW",
+                "agent_profile": {"name": "Sophia"},
             }
         ),
         state={"messages": []},
@@ -166,10 +179,14 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
             "CUSTOM_SYSTEM",
             "CUSTOM_AGENTS",
             "CUSTOM_WORKFLOW",
+            "Sophia",
+            '"creditor": "Fastpay"',
             "CPF completo",
             "Tentativas restantes: 3",
         )
     )
+    assert "{{credor}}" not in text
+    assert "{{nome_agente}}" not in text
     monkeypatch.setattr(tool_middleware, "get_config", lambda: {})
     with pytest.raises(ValueError, match="server_thread_id_required"):
         tool_middleware.filter_enabled_tools._filtered_request(request)

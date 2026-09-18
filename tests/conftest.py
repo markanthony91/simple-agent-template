@@ -14,6 +14,9 @@ os.environ["LLM_API_KEY"] = "synthetic-test-only"
 os.environ["LLM_MODEL"] = "synthetic"
 os.environ["LANGSMITH_TRACING"] = "false"
 os.environ.pop("LLM_PROXY_URL", None)
+for _connection in ("LOVABLE", "EXTERNAL"):
+    for _field in ("BASE_URL", "API_KEY", "MODEL", "PROXY_URL", "READ_TIMEOUT_SECONDS"):
+        os.environ.pop(f"LLM_{_connection}_{_field}", None)
 
 
 @pytest.fixture

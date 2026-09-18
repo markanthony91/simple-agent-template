@@ -1,3 +1,32 @@
+# Future Demo form backend — 0.4.2
+
+- [x] Five-field server contract: full name, CPF, phone, amount and days overdue.
+- [x] Creditor resolved from Zerai Canais with a server-only token.
+- [x] Create-only session pinned to the future form's LangGraph thread.
+- [x] Existing collection tools read the pinned form data after CPF-first-3 verification.
+- [x] Presentation maps Canais Cedente to creditor and managed Assistant profile to agent name.
+- [x] Railway backend 0.4.1 published: `26c57dc6-af67-4454-b718-bf445ed9c998`;
+  live prompt smoke rendered `Fastpay / Sophia`, profile version 15, and unchanged
+  Playground/session hashes were verified. Backup:
+  `/data/backups/pre-future-demo-041-20260918-161510`.
+- [x] Playground fixture and current frontend remain unchanged.
+- [x] `/reset-demo` resets only future Demo sessions before LLM/tools, keeps the
+  pinned fixture/snapshot and cuts previous messages from active context.
+- [x] Railway backend 0.4.2 published: `c50fbdf9-9ade-40f1-96a3-adcd14e8a670`.
+  Synthetic thread `f1887e35-7650-471a-b738-d61465dda21b` returned the reset
+  receipt with one active message and three retained checkpoints; the state had
+  identity false, zero offers/agreements/receipts and `reset_count=1`. The 29
+  prior session rows, Playground fixture and 4,170 stable data files retained
+  their pre-rollout hashes. Backup:
+  `/data/backups/pre-reset-demo-042-20260918-163254`.
+- [x] Railway backend 0.4.0 published: `1c727670-b324-46ca-b719-17c6009eee1a`;
+  creditor catalog and unchanged Playground/session hashes verified. Backup:
+  `/data/backups/pre-future-demo-040-20260918-143027`.
+- [ ] Wire the future authenticated form; do not call this contract directly from a browser.
+- [ ] Run the synthetic end-to-end through that future authenticated form.
+- [ ] Map future-session data to each channel catalog entry's required template values.
+- [ ] Move creditor and agent-name ownership into the selected portfolio configuration.
+
 # Configurable identity — 0.2.5
 
 - Published 0.2.5; Qwen validation and preserved histories confirmed. See
@@ -88,3 +117,13 @@ Coordinate PR integration before another main autodeploy.
 - [x] Railway 0.2.7 published: `7eb7e7ab-4907-4e58-8d5e-ee601e33fd20`.
 - [x] 31 conversation states, managed Assistant context/version and 4148 Markdown hashes preserved.
 - [x] Published UI saved unchanged RAW content into v2, retained v1 and reloaded it.
+# LLM and agent profile settings (0.3.0)
+
+- [x] Per-request temperature, top-p and output limit; optional agent identity/style.
+- [x] Admin metadata and validation; server-defined connections and existing safety gates retained.
+- [x] Sampling/profile and provider-fallback protocol tests; see docs/LLM_AGENT_SETTINGS.md for current results.
+- [x] Versioned principal/fallback selection, sanitized integration metadata and dedicated Lovable bridge source.
+- [x] Authorized connection preparation: bridge deployed, Gemini registered, live Gemini/Qwen tools and published availability verified on backend 0.3.2; see docs/LOVABLE_CONNECTION_2026-09-17.md. Fallback remains off; activation is exclusively Marcelo's action.
+- [x] Authorized deployment-only Railway rollout, both services 0.3.0; published settings and Qwen tool/profile check passed.
+- [x] Original conversations, managed Assistant settings and all 25 previous session rows preserved; 4170 file hashes unchanged after canaries, with two new synthetic SQLite sessions.
+- [ ] Known model limitation: spontaneous self-introduction was omitted in the time-query probe; explicit name query passed. See docs/RELEASE_LLM_SETTINGS_2026-09-17.md.

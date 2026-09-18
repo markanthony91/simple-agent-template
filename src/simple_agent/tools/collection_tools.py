@@ -29,6 +29,11 @@ def _mask_document(value: str) -> str:
     return f"***.***.***-{_digits(value)[-2:]}"
 
 
+def _mask_phone(value: str) -> str:
+    digits = _digits(value)
+    return f"***{digits[-4:]}" if len(digits) >= 4 else "***"
+
+
 def _json(payload: dict) -> str:
     return json.dumps(payload, ensure_ascii=False)
 
@@ -59,21 +64,24 @@ def get_customer(runtime: ToolRuntime, cpf: str = "") -> str:
             )
         debt = fixture.get("debt", {})
         state["debt_read"] = True
-        return _json(
-            {
-                "found": True,
-                "identity_validated": True,
-                "customer_id": fixture["customer_id"],
-                "full_name": fixture["full_name"],
-                "cpf": _mask_document(fixture["cpf"]),
-                "institution": fixture.get("institution"),
-                "product": fixture.get("product"),
-                "debt": {
-                    **debt,
-                    "days_overdue": SimulatorStore().days_overdue(debt.get("due_date")),
-                },
-            }
-        )
+        payload = {
+            "found": True,
+            "identity_validated": True,
+            "customer_id": fixture["customer_id"],
+            "full_name": fixture["full_name"],
+            "cpf": _mask_document(fixture["cpf"]),
+            "institution": fixture.get("institution"),
+            "product": fixture.get("product"),
+            "debt": {
+                **debt,
+                "days_overdue": debt.get("days_overdue")
+                if isinstance(debt.get("days_overdue"), int)
+                else SimulatorStore().days_overdue(debt.get("due_date")),
+            },
+        }
+        if fixture.get("phone"):
+            payload["phone"] = _mask_phone(fixture["phone"])
+        return _json(payload)
 
 
 @tool
@@ -82,8 +90,8 @@ def verify_customer_identity(
 ) -> str:
     """Verify identity using the backend's pinned session policy.
 
-    The session instructions specify full CPF, first4 or last4, plus full_name,
-    birth_date (YYYY-MM-DD), both, or either. Use only user-supplied data.
+    The session instructions specify full CPF, first3, first4 or last4, plus the
+    configured optional secondary factors. Use only user-supplied data.
     Do not choose the method or guess missing digits. Only verified=true establishes
     identity. On requires_human=true stop attempts; never disclose expected values.
     """
