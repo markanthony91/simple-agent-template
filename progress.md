@@ -1,4 +1,4 @@
-# Future Demo form backend — 0.4.1
+# Future Demo form backend — 0.4.2
 
 - [x] Five-field server contract: full name, CPF, phone, amount and days overdue.
 - [x] Creditor resolved from Zerai Canais with a server-only token.
@@ -10,6 +10,9 @@
   Playground/session hashes were verified. Backup:
   `/data/backups/pre-future-demo-041-20260918-161510`.
 - [x] Playground fixture and current frontend remain unchanged.
+- [x] `/reset-demo` resets only future Demo sessions before LLM/tools, keeps the
+  pinned fixture/snapshot and cuts previous messages from active context.
+- [ ] Publish and validate backend 0.4.2 on Railway with a synthetic Demo thread.
 - [x] Railway backend 0.4.0 published: `1c727670-b324-46ca-b719-17c6009eee1a`;
   creditor catalog and unchanged Playground/session hashes verified. Backup:
   `/data/backups/pre-future-demo-040-20260918-143027`.

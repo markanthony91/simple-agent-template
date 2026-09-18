@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.4.1)
+# Agent Runtime — OKF simulator (0.4.2)
 
 The backend now has a create-only contract for a future Demo form. It accepts
 full name, CPF, E.164 phone, debt amount and days overdue, resolves the creditor
@@ -9,6 +9,13 @@ and the selected Assistant's `agent_profile.name` as the agent name. The backend
 renders only `{{credor}}` and `{{nome_agente}}`; this is not delegated to the LLM.
 See [future Demo form](docs/FUTURE_DEMO_FORM.md). This remains a synthetic lab;
 the operation is not a public customer-data endpoint.
+
+In a future-form Demo conversation, the exact command `/reset-demo` resets the
+same session: it retains the pinned form/creditor and OKF snapshot, clears
+identity, offers, agreements and transient state, and excludes prior messages
+from subsequent model context. Earlier checkpoints remain available for audit.
+The command does not call the LLM or any channel; Playground sessions return
+`Comando indisponível nesta sessão.`
 
 The operator Dataset catalog exposes titles, declared types/status, and bounded
 matching excerpts from the complete Markdown text. Search is literal,

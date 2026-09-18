@@ -6,15 +6,17 @@ import asyncio
 import logging
 import socket
 from time import perf_counter
-from typing import Awaitable, Callable
+from typing import Any, Awaitable, Callable
 
 from langchain.agents.middleware import (
     AgentMiddleware,
     ModelRequest,
     ModelResponse,
     ToolCallRequest,
+    hook_config,
 )
-from langchain_core.messages import SystemMessage, ToolMessage
+from langchain_core.messages import AIMessage, RemoveMessage, SystemMessage, ToolMessage
+from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from simple_agent.services.tool_registry import ToolRegistry
 from simple_agent.tool_observability import (
@@ -32,6 +34,61 @@ registry = ToolRegistry()
 logger = logging.getLogger("simple_agent.tools")
 
 RECOVERABLE_TOOL_ERRORS = (FileNotFoundError, ValueError, KeyError, PermissionError)
+RESET_DEMO_REPLY = (
+    "Conversa Demo reiniciada. O histórico foi preservado para auditoria e o "
+    "estado operacional foi limpo."
+)
+RESET_DEMO_UNAVAILABLE = "Comando indisponível nesta sessão."
+
+
+def is_reset_demo_command(content: Any) -> bool:
+    if isinstance(content, list):
+        content = " ".join(
+            part.get("text", "")
+            for part in content
+            if isinstance(part, dict) and part.get("type") == "text"
+        )
+    return isinstance(content, str) and content.strip().casefold() == "/reset-demo"
+
+
+class DemoResetMiddleware(AgentMiddleware):
+    """Handle the exact Demo reset command without invoking tools or a model."""
+
+    @hook_config(can_jump_to=["end"])
+    def before_model(self, state, runtime) -> dict[str, Any] | None:
+        messages = state.get("messages", [])
+        if not messages or getattr(messages[-1], "type", None) != "human":
+            return None
+        if not is_reset_demo_command(messages[-1].content):
+            return None
+        key = get_config().get("configurable", {}).get("thread_id")
+        if not key:
+            raise ValueError("server_thread_id_required")
+        if not SessionStore().reset_demo(key):
+            return {
+                "jump_to": "end",
+                "messages": [AIMessage(content=RESET_DEMO_UNAVAILABLE)],
+            }
+        logger.info(
+            json.dumps(
+                {
+                    "event": "DEMO_RESET",
+                    "hostname": socket.gethostname(),
+                    "thread_id": key,
+                    "status": "success",
+                }
+            )
+        )
+        return {
+            "jump_to": "end",
+            "messages": [
+                RemoveMessage(id=REMOVE_ALL_MESSAGES),
+                AIMessage(content=RESET_DEMO_REPLY),
+            ],
+        }
+
+    async def abefore_model(self, state, runtime) -> dict[str, Any] | None:
+        return await asyncio.to_thread(self.before_model, state, runtime)
 
 
 def _meta(request: ToolCallRequest) -> tuple[str, str, dict]:
@@ -229,3 +286,4 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
 
 
 filter_enabled_tools = FilterEnabledToolsMiddleware()
+demo_reset = DemoResetMiddleware()

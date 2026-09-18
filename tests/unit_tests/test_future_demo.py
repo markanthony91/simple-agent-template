@@ -3,6 +3,8 @@ from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.graph.message import add_messages
 
 from simple_agent.services.future_demo import (
     channel_creditor,
@@ -10,6 +12,12 @@ from simple_agent.services.future_demo import (
 )
 from simple_agent.services.session_store import SessionStore
 from simple_agent.services.simulator_store import SimulatorStore
+from simple_agent.tool_middleware import (
+    RESET_DEMO_REPLY,
+    RESET_DEMO_UNAVAILABLE,
+    demo_reset,
+    is_reset_demo_command,
+)
 from simple_agent.tools.collection_tools import get_customer, verify_customer_identity
 
 
@@ -141,3 +149,92 @@ def test_channel_creditor_uses_server_configuration(monkeypatch):
         "url": "https://channels.example.test/api/engine/v1/channels",
         "timeout": 5,
     }
+
+
+def test_reset_demo_clears_operational_state_and_active_history(
+    isolated, monkeypatch, tmp_path
+):
+    session_root = tmp_path / "sessions"
+    monkeypatch.setenv("SESSION_ROOT", str(session_root))
+    sessions = SessionStore(session_root)
+    create_future_demo_session(
+        "demo-reset-thread",
+        FORM,
+        creditor_loader=lambda: "Credor",
+        session_store=sessions,
+        simulator_store=SimulatorStore(tmp_path / "simulator"),
+    )
+    with sessions.transaction("demo-reset-thread") as state:
+        fixture = state["fixture"]
+        snapshot = state["snapshot_id"]
+        state.update(
+            identity_verified=True,
+            identity_attempts=2,
+            debt_read=True,
+            offers={"offer": {"value": "100.00"}},
+            agreements={"agreement": {"status": "created"}},
+            receipts={"policy.md": {"hash": "synthetic"}},
+        )
+
+    monkeypatch.setattr(
+        "simple_agent.tool_middleware.get_config",
+        lambda: {"configurable": {"thread_id": "demo-reset-thread"}},
+    )
+    history = [
+        HumanMessage(content="mensagem anterior", id="old-human"),
+        AIMessage(content="resposta anterior", id="old-ai"),
+        HumanMessage(content=" /RESET-DEMO\n", id="reset-command"),
+    ]
+    update = demo_reset.before_model({"messages": history}, None)
+
+    assert update["jump_to"] == "end"
+    messages = add_messages(history, update["messages"])
+    assert len(messages) == 1
+    assert messages[0].content == RESET_DEMO_REPLY
+    with sessions.transaction("demo-reset-thread") as state:
+        assert state["fixture"] == fixture
+        assert state["snapshot_id"] == snapshot
+        assert state["demo_session"] is True
+        assert state["identity_verified"] is False
+        assert state["offers"] == state["agreements"] == state["receipts"] == {}
+        assert state["reset_count"] == 1
+        assert state["last_reset_at"]
+        assert "identity_attempts" not in state
+        assert "debt_read" not in state
+
+
+def test_reset_demo_is_unavailable_outside_future_demo(isolated, monkeypatch, tmp_path):
+    session_root = tmp_path / "sessions"
+    monkeypatch.setenv("SESSION_ROOT", str(session_root))
+    sessions = SessionStore(session_root)
+    sessions.create("playground-thread", SimulatorStore(tmp_path / "simulator").load())
+    monkeypatch.setattr(
+        "simple_agent.tool_middleware.get_config",
+        lambda: {"configurable": {"thread_id": "playground-thread"}},
+    )
+    history = [HumanMessage(content="/reset-demo", id="reset-command")]
+
+    update = demo_reset.before_model({"messages": history}, None)
+
+    assert update == {
+        "jump_to": "end",
+        "messages": [AIMessage(content=RESET_DEMO_UNAVAILABLE)],
+    }
+    assert len(add_messages(history, update["messages"])) == 2
+    with sessions.transaction("playground-thread") as state:
+        assert "demo_session" not in state
+        assert "reset_count" not in state
+
+
+@pytest.mark.parametrize(
+    ("content", "expected"),
+    [
+        ("/reset-demo", True),
+        (" /RESET-DEMO\n", True),
+        ("reset-demo", False),
+        ("quero /reset-demo agora", False),
+        ([{"type": "text", "text": "/reset-demo"}], True),
+    ],
+)
+def test_reset_demo_requires_exact_command(content, expected):
+    assert is_reset_demo_command(content) is expected

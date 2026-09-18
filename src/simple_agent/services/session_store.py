@@ -6,6 +6,7 @@ import json
 import os
 import sqlite3
 from contextlib import contextmanager
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
@@ -34,7 +35,7 @@ class SessionStore:
                 "CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, data TEXT NOT NULL)"
             )
 
-    def create(self, key: str, fixture: dict) -> None:
+    def create(self, key: str, fixture: dict, *, demo: bool = False) -> None:
         """Create one form-backed session without changing the playground fixture."""
         key = validate_thread_id(key)
         state = {
@@ -45,6 +46,8 @@ class SessionStore:
             "receipts": {},
             "snapshot_id": PersistentOKFStore().active_bundle_id(),
         }
+        if demo:
+            state["demo_session"] = True
         try:
             with sqlite3.connect(self.database, timeout=10) as db:
                 db.execute("BEGIN IMMEDIATE")
@@ -54,6 +57,36 @@ class SessionStore:
                 )
         except sqlite3.IntegrityError as exc:
             raise ValueError("session_already_exists") from exc
+
+    def reset_demo(self, key: str) -> bool:
+        """Reset an existing Demo session in place; never create or reset Playground."""
+        key = validate_thread_id(key)
+        with sqlite3.connect(self.database, timeout=10) as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT data FROM sessions WHERE id = ?", (key,)
+            ).fetchone()
+            if not row:
+                return False
+            state = json.loads(row[0])
+            if state.get("demo_session") is not True:
+                return False
+            reset = {
+                "fixture": state["fixture"],
+                "identity_verified": False,
+                "offers": {},
+                "agreements": {},
+                "receipts": {},
+                "snapshot_id": state["snapshot_id"],
+                "demo_session": True,
+                "reset_count": int(state.get("reset_count", 0)) + 1,
+                "last_reset_at": datetime.now(timezone.utc).isoformat(),
+            }
+            db.execute(
+                "UPDATE sessions SET data = ? WHERE id = ?",
+                (json.dumps(reset), key),
+            )
+        return True
 
     @contextmanager
     def transaction(self, key: str) -> Iterator[dict]:
