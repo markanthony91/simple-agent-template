@@ -18,7 +18,13 @@ def runtime(key="identity", call="call-1"):
 
 
 @pytest.mark.parametrize(
-    "mode,cpf", [("full", "123.456.789-00"), ("first4", "1234"), ("last4", "8900")]
+    "mode,cpf",
+    [
+        ("full", "123.456.789-00"),
+        ("first3", "123"),
+        ("first4", "1234"),
+        ("last4", "8900"),
+    ],
 )
 @pytest.mark.parametrize(
     "secondary,args",
@@ -27,6 +33,7 @@ def runtime(key="identity", call="call-1"):
         ("birth_date", {"birth_date": "1985-04-17"}),
         ("both", {"full_name": "João da Silva", "birth_date": "1985-04-17"}),
         ("either", {"full_name": "João da Silva"}),
+        ("none", {}),
     ],
 )
 def test_methods_and_authorized_debt(isolated, mode, cpf, secondary, args):
@@ -42,7 +49,9 @@ def test_methods_and_authorized_debt(isolated, mode, cpf, secondary, args):
     assert "debt" not in json.loads(get_customer.func(runtime=rt))
     result = json.loads(verify_customer_identity.func(runtime=rt, cpf=cpf, **args))
     assert result["verified"] is True
-    assert "debt" in json.loads(get_customer.func(runtime=rt))
+    authorized = json.loads(get_customer.func(runtime=rt))
+    assert "debt" in authorized
+    assert "phone" not in authorized  # Existing Playground contract is unchanged.
     assert "debt" not in json.loads(get_customer.func(runtime=runtime("other")))
     assert "debt" not in json.loads(get_customer.func(runtime=rt, cpf="99999999999"))
 
@@ -91,7 +100,6 @@ def test_policy_pin_and_prompt_no_expected_values(isolated):
     "invalid",
     [
         {"cpf_mode": "none"},
-        {"secondary": "none"},
         {"max_attempts": 0},
         {"max_attempts": 11},
         {"max_attempts": True},

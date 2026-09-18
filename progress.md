@@ -1,3 +1,13 @@
+# Future Demo form backend — 0.4.0
+
+- [x] Five-field server contract: full name, CPF, phone, amount and days overdue.
+- [x] Creditor resolved from Zerai Canais with a server-only token.
+- [x] Create-only session pinned to the future form's LangGraph thread.
+- [x] Existing collection tools read the pinned form data after CPF-first-3 verification.
+- [x] Playground fixture and current frontend remain unchanged.
+- [ ] Wire the future authenticated form; do not call this contract directly from a browser.
+- [ ] Controlled Railway publication and synthetic end-to-end validation.
+
 # Configurable identity — 0.2.5
 
 - Published 0.2.5; Qwen validation and preserved histories confirmed. See
