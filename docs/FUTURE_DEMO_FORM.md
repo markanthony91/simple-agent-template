@@ -1,6 +1,6 @@
 # Future Demo form backend
 
-Version 0.4.0 prepares the current Railway agent runtime for a separate future
+Version 0.4.2 prepares the current Railway agent runtime for a separate future
 interface. It does not change the existing Playground or its Simulator panel.
 
 ## Contract
@@ -71,8 +71,12 @@ Do not place the token in Next.js public variables, graph input, logs or tickets
   browser JavaScript. `approved=true` records intent; it is not authentication.
 - The creditor is snapshotted at creation. Later Canais edits do not rewrite an
   existing conversation.
-- Reset is intentionally not added here: safely cutting LangGraph message history
-  belongs to the future interface/session lifecycle, not the data-ingestion contract.
+- The exact command `/reset-demo` is handled before any model/tool call and only
+  for a session created by this contract. It preserves the fixture, creditor and
+  pinned OKF snapshot; clears identity, attempts, offers, agreements, receipts and
+  transient state; and replaces the active message context with a reset receipt.
+  Historical LangGraph checkpoints remain available for audit. Playground or
+  unknown sessions receive `Comando indisponível nesta sessão.` and are unchanged.
 - No WhatsApp, SMS, call, offer or agreement is triggered by creating the session.
 
 ## Validation
@@ -80,3 +84,5 @@ Do not place the token in Next.js public variables, graph input, logs or tickets
 Tests use only temporary SQLite databases, a fake Canais response and synthetic
 identities. They verify validation, non-overwrite, Playground preservation,
 CPF-first-3 identity and tool reads without external calls.
+They also verify exact-command matching, Demo-only isolation, operational reset
+and removal of prior messages from the active model context.

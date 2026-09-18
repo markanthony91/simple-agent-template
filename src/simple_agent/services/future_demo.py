@@ -146,7 +146,7 @@ def create_future_demo_session(
             },
         }
     )
-    (session_store or SessionStore()).create(thread, fixture)
+    (session_store or SessionStore()).create(thread, fixture, demo=True)
     return {
         "thread_id": thread,
         "creditor": creditor,
