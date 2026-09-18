@@ -11,6 +11,7 @@
   `/data/backups/pre-future-demo-040-20260918-143027`.
 - [ ] Wire the future authenticated form; do not call this contract directly from a browser.
 - [ ] Run the synthetic end-to-end through that future authenticated form.
+- [ ] Map future-session data to each channel catalog entry's required template values.
 - [ ] Move creditor and agent-name ownership into the selected portfolio configuration.
 
 # Configurable identity — 0.2.5

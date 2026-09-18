@@ -48,6 +48,11 @@ System Prompt placeholders are not inferred or rendered by this contract.
 Both are temporary sources. When portfolio configuration owns these fields, the
 authenticated future route must resolve them from the selected portfolio instead.
 
+Channel template rendering is already enforced by Zerai Canais: SMS is rendered
+before transport, Meta receives approved template parameters, and ElevenLabs
+receives `dynamic_variables`. The future route still must map session fields into
+each catalog entry's exact `required` keys before requesting a dispatch.
+
 ## Railway configuration
 
 Set only on `langgraph-simple-agent-clean`:
