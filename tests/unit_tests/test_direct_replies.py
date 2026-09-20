@@ -63,6 +63,10 @@ def test_transactional_result_is_rendered_without_second_model_call(isolated):
 
     assert model.calls == 1
     assert result["messages"][-1].additional_kwargs["deterministic_reply"] is True
+    audit = result["messages"][-1].additional_kwargs["response_audit"]
+    assert audit["mode"] == "deterministic_backend"
+    assert audit["semantic_fidelity"] == "backend_template"
+    assert audit["pre_display_protection"] is True
     assert "1ª R$ 1.957,81" in result["messages"][-1].content
     assert "3ª R$ 1.957,80" in result["messages"][-1].content
 

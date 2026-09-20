@@ -1,4 +1,4 @@
-# Architecture — 0.9.0
+# Architecture — 0.9.1
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →

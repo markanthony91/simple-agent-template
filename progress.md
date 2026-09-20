@@ -132,7 +132,7 @@ Coordinate PR integration before another main autodeploy.
 - [x] Complete published happy and unhappy conversations; negotiation fell from 10.81 s to 7.14 s.
 - [x] Remove four synthetic conversations and return persistent sessions to the 52-row baseline.
 
-## Atomic identity and deterministic replies — 0.9.0
+## Atomic identity and deterministic replies — 0.9.1
 
 - [x] Verify identity and return the pinned customer in one backend transaction.
 - [x] Remove the legacy two-tool identity route from the model's tool catalog.

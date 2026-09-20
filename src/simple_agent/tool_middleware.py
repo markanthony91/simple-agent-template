@@ -196,6 +196,11 @@ class DirectReplyMiddleware(AgentMiddleware):
         key = get_config().get("configurable", {}).get("thread_id")
         with SessionStore().transaction(key) as session:
             report = audit_response(reply, session)
+        report.update(
+            mode="deterministic_backend",
+            semantic_fidelity="backend_template",
+            pre_display_protection=True,
+        )
         logger.info(
             json.dumps(
                 {
