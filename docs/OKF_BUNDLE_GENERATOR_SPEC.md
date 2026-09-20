@@ -1,44 +1,49 @@
-# Instruções para geração de bundles OKF aptos à negociação
+# Especificação para o Lovable — gerador de bundle OKF apto à negociação
 
-Este documento define como o gerador deve montar, validar e publicar um ZIP OKF
-0.2 que possa ser consultado pelo agente e, quando houver aprovação operacional,
-autorizar a geração determinística de ofertas.
+## Solicitação
 
-## Escopo e evidência analisada
+Corrigir o gerador/exportador de bundles OKF 0.2 do projeto Lovable para produzir
+um ZIP estruturalmente válido e informar, de forma explícita, se o resultado está:
 
-A auditoria comparou estes arquivos, sem alterá-los:
+1. **Apto à consulta**: pode ser navegado e lido pelas tools OKF.
+2. **Apto à negociação**: contém política comercial aprovada e pode autorizar a
+   geração determinística de ofertas.
 
-- `C:\Users\Marcelo Silva\Downloads\okf_wiki_2026-09-18.zip`
-- `C:\Users\Marcelo Silva\Downloads\okf_wiki_2026-09-18_paths-corrigidos.zip`
-- `C:\Users\Marcelo Silva\Downloads\okf_wiki_2026-09-18_paths-corrigidos-yaml-corrigido.zip`
+Não considerar um ZIP apto à negociação apenas porque foi criado, importado ou
+ativado. Ativar o bundle seleciona o snapshot consultado; não aprova documentos.
 
-Resultado do validador usado pelo runtime:
+## Fonte única desta análise
 
-| Arquivo | Markdown | Erros | Avisos | Resultado |
-|---|---:|---:|---:|---|
-| Original | 475 | 1 | 128 | Reprovado |
-| Paths corrigidos | 467 | 1 | 128 | Reprovado |
-| Paths e YAML corrigidos | 467 | 0 | 128 | Válido com avisos |
+Use somente este arquivo como fixture de regressão:
 
-O último ZIP pode ser importado porque não possui erro estrutural. Os 128 avisos
-continuam relevantes e devem ser eliminados pelo gerador.
+```text
+C:\Users\Marcelo Silva\Downloads\okf_wiki_2026-09-18.zip
+```
 
-## Dois níveis de prontidão
+Não use versões corrigidas anteriormente para implementar ou validar esta tarefa.
+O gerador deve corrigir os problemas a partir do ZIP original e das regras abaixo.
 
-O gerador deve distinguir explicitamente estes resultados:
+## Diagnóstico do ZIP original
 
-1. **Apto à consulta**: estrutura, YAML, índices e links válidos. Documentos
-   `draft` podem ser pesquisados como conhecimento não aprovado.
-2. **Apto à negociação**: além de apto à consulta, possui política executável,
-   aprovada, vigente e compatível com a instituição e o produto da sessão.
+| Verificação | Resultado |
+|---|---:|
+| Arquivos Markdown | 475 |
+| Erros de validação | 1 |
+| Avisos de links quebrados | 128 |
+| Documentos `draft` | 403 |
+| Documentos `stable` | 1 |
+| Documentos sem `status` | 71 |
+| Documentos com `A DEFINIR PELA OPERAÇÃO` | 307 |
+| Documentos com frontmatter `negotiation` | 0 |
 
-Ativar um bundle apenas seleciona o snapshot consultado pelas tools. Essa ação
-não promove documentos `draft` e não aprova condições comerciais.
+O ZIP original está reprovado para importação por YAML inválido. Mesmo após a
+correção estrutural, continuará inapto à negociação enquanto não existirem
+políticas executáveis e aprovadas.
 
-## Estrutura canônica do ZIP
+## Estrutura esperada
 
-O ZIP deve abrir diretamente nesta estrutura, sem uma pasta externa envolvendo
-o conteúdo:
+O ZIP deve abrir diretamente na raiz OKF, sem uma pasta externa envolvendo o
+conteúdo:
 
 ```text
 index.md
@@ -62,33 +67,42 @@ COMPANIES/
           agente/
           knowledge/
           policies/
+  zerai/
+    index.md
+    INSTITUTIONS/
+      index.md
+      usedigi/
+        index.md
+        institution.md
+        agente/
+        knowledge/
+        policies/
 PRODUCTS/
   ...
 ```
 
-Regras obrigatórias para paths:
+Regras obrigatórias:
 
 - Usar `/` como separador dentro do ZIP.
-- Não usar path absoluto, `..`, barra invertida ou componente vazio.
-- Escrever cada raiz lógica (`GLOBAL`, `COMPANIES`, `PRODUCTS`) uma única vez.
+- Não aceitar path absoluto, `..`, barra invertida ou componente vazio.
+- Escrever `GLOBAL`, `COMPANIES` e `PRODUCTS` no máximo uma vez em cada path.
 - Usar `will-bank` de forma consistente; não alternar com `will_bank`.
-- Tratar o path do arquivo e os IDs do frontmatter como contratos diferentes.
-  Por exemplo, o diretório pode ser `CARTAO_DE_CREDITO`, enquanto o identificador
-  consumido pelo simulador é `cartao_de_credito`.
-- Gerar cada `index.md` a partir do manifesto final de arquivos. Não copiar um
-  índice intermediário de uma árvore aninhada.
-- Reprovar colisões. O gerador não pode escolher silenciosamente qual conteúdo
-  manter quando dois arquivos resultam no mesmo path canônico.
+- Gerar cada `index.md` a partir do manifesto final de arquivos.
+- Reprovar colisões em vez de sobrescrever silenciosamente um arquivo.
+- Manter paths como identidades bundle-relative; não concatenar um path já
+  completo ao diretório atual.
 
-## Correções exigidas para os defeitos encontrados
+## Correção 1 — árvore `COMPANIES` repetida
 
-### 1. Raiz `COMPANIES` repetida
+O ZIP original contém 70 paths sob duas áreas problemáticas:
 
-O ZIP original inseriu uma segunda árvore completa dentro de diretórios de
-instituição. Foram encontrados 69 paths removidos na correção:
+| Prefixo | Total | Com raiz `COMPANIES` repetida | Índice local |
+|---|---:|---:|---:|
+| `COMPANIES/fastpay/INSTITUTIONS/will_bank/` | 37 | 36 | 1 |
+| `COMPANIES/zerai/INSTITUTIONS/usedigi/` | 33 | 32 | 1 |
 
-- 37 sob `COMPANIES/fastpay/INSTITUTIONS/will_bank/`;
-- 32 sob `COMPANIES/zerai/INSTITUTIONS/usedigi/`.
+São 68 arquivos em que uma segunda árvore `COMPANIES/...` foi gravada dentro da
+instituição.
 
 Exemplo Will Bank:
 
@@ -110,9 +124,13 @@ COMPANIES/zerai/INSTITUTIONS/usedigi/COMPANIES/zerai/INSTITUTIONS/usedigi/polici
 COMPANIES/zerai/INSTITUTIONS/usedigi/policies/parcelamento.md
 ```
 
-A transformação recuperou 61 novos paths canônicos. Sete arquivos aninhados
-apontavam para seis destinos que já existiam, portanto uma remoção automática de
-prefixo teria causado colisões. Os destinos foram:
+Ao remover o prefixo repetido dos 68 arquivos, surgem 67 destinos canônicos:
+
+- 61 destinos ainda não existem no ZIP original;
+- 7 arquivos de origem convergem para 6 destinos que já existem;
+- dois arquivos diferentes convergem para `COMPANIES/index.md`.
+
+Destinos com colisão:
 
 ```text
 COMPANIES/index.md
@@ -123,42 +141,52 @@ COMPANIES/zerai/INSTITUTIONS/index.md
 COMPANIES/zerai/INSTITUTIONS/usedigi/index.md
 ```
 
-Nesses casos, o gerador deve reconstruir o índice a partir dos filhos reais. Não
-deve sobrescrever o arquivo existente. A correção observada também precisou:
+Não escolher uma versão arbitrariamente. Para todos esses destinos, reconstruir
+o `index.md` usando os filhos existentes no manifesto final.
 
-- trocar o link `will_bank/` por `will-bank/` em
-  `COMPANIES/fastpay/INSTITUTIONS/index.md`;
-- reconstruir `COMPANIES/zerai/INSTITUTIONS/usedigi/index.md` para apontar para
-  `agente/`, `knowledge/`, `policies/` e `institution.md`;
-- remover o índice intermediário órfão
-  `COMPANIES/fastpay/INSTITUTIONS/will_bank/index.md`.
+Tratamento dos dois índices locais:
 
-### 2. YAML inválido
+- remover `COMPANIES/fastpay/INSTITUTIONS/will_bank/index.md`, pois ele representa
+  o wrapper incorreto `will_bank`;
+- manter e reconstruir `COMPANIES/zerai/INSTITUTIONS/usedigi/index.md`, pois esse é
+  o path canônico da UseDigi, mas seu conteúdo atual aponta para `COMPANIES/` como
+  filho e não para os conceitos reais da instituição.
 
-O arquivo quebrado era:
+O índice `COMPANIES/fastpay/INSTITUTIONS/index.md` deve apontar para `will-bank/`,
+sem underscore.
+
+## Correção 2 — YAML inválido
+
+O erro está neste path do ZIP original:
 
 ```text
-COMPANIES/fastpay/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/policies/negativacao-spc.md
+COMPANIES/fastpay/INSTITUTIONS/will_bank/COMPANIES/fastpay/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/policies/negativacao-spc.md
 ```
 
-Correção:
+Conteúdo incorreto:
 
 ```yaml
-# Incorreto: o valor iniciado por hífen é interpretado como estrutura YAML.
 description: - A DEFINIR PELA OPERAÇÃO
+```
 
-# Correto
+Conteúdo válido:
+
+```yaml
 description: "A DEFINIR PELA OPERAÇÃO"
 ```
 
-O gerador deve serializar frontmatter com uma biblioteca YAML e validar o texto
-serializado. Não deve montar YAML por concatenação de strings.
+Implementação exigida no Lovable:
 
-### 3. Links quebrados no `log.md`
+- usar um serializador YAML para produzir o frontmatter;
+- validar novamente o YAML serializado;
+- rejeitar aliases e chaves duplicadas;
+- não montar frontmatter por concatenação manual de strings.
 
-Os três ZIPs possuem 128 links iniciados por `/` no `log.md`. Os arquivos de
-destino existem, mas o validador OKF interpreta esses links como paths relativos
-ao bundle e reporta `broken_relative_link`.
+## Correção 3 — links do `log.md`
+
+O `log.md` possui 128 links locais iniciados por `/`. Todos os destinos existem
+no ZIP original quando essa barra inicial é removida. Como os paths OKF são
+bundle-relative, a barra inicial deve ser eliminada na geração.
 
 ```markdown
 <!-- Incorreto -->
@@ -168,15 +196,16 @@ ao bundle e reporta `broken_relative_link`.
 [Desconto](GLOBAL/04_NEGOCIACAO/desconto.md)
 ```
 
-O gerador deve criar links relativos ao arquivo de origem, sem `/` inicial, e
-validar cada destino contra o manifesto final antes de fechar o ZIP.
+Para arquivos localizados em subdiretórios, calcular o link relativo a partir do
+arquivo de origem. Validar todos os destinos contra o manifesto final antes de
+gerar o ZIP.
 
 ## Política executável de negociação
 
-Texto explicativo sobre desconto ou parcelamento não autoriza uma oferta. A tool
-`generate_offer` exige frontmatter declarativo no documento de política lido.
+Texto livre sobre desconto, entrada ou parcelamento não autoriza uma oferta. Uma
+política executável precisa de frontmatter declarativo, completo e aprovado.
 
-Exemplo sintético completo:
+Exemplo exclusivamente sintético:
 
 ```yaml
 ---
@@ -201,38 +230,29 @@ verified:
 ---
 ```
 
-Os nomes e valores acima são apenas exemplos sintéticos. Não representam uma
-política aprovada para Will Bank, UseDigi ou qualquer operação real.
+Os nomes e valores desse exemplo não representam condições aprovadas para Will
+Bank, UseDigi ou qualquer operação real.
 
-Para ser executável, a política deve cumprir todos estes requisitos:
+Uma política só pode ser classificada como executável quando:
 
-- `status` igual a `published`, `stable` ou `active`;
-- `institution` exatamente igual ao valor retornado pela tool transacional;
-- `product` exatamente igual ao valor retornado pela tool transacional;
-- vigência válida quando `effective_from`, `effective_until` ou `stale_after`
-  forem informados;
-- `negotiation.payment_types` como lista contendo somente modalidades suportadas;
-- `negotiation.max_installments` como inteiro entre 1 e 360;
-- `negotiation.max_discount_percentage` como decimal entre 0 e 100;
-- revisão humana registrada antes da promoção de status.
+- `status` for `published`, `stable` ou `active`;
+- `institution` for exatamente igual ao ID retornado pela fonte transacional;
+- `product` for exatamente igual ao ID retornado pela fonte transacional;
+- a política estiver vigente;
+- `negotiation.payment_types` for uma lista de modalidades suportadas;
+- `negotiation.max_installments` for um inteiro entre 1 e 360;
+- `negotiation.max_discount_percentage` for um decimal entre 0 e 100;
+- não houver `A DEFINIR PELA OPERAÇÃO` em nenhum termo necessário;
+- houver aprovação humana registrada.
 
-O ZIP analisado ainda não atende a esse contrato:
+O path e os IDs do frontmatter são contratos diferentes. Por exemplo, o diretório
+pode continuar como `CARTAO_DE_CREDITO`, enquanto o produto transacional pode ser
+`cartao_de_credito`. O gerador não deve deduzir um ID a partir do nome de exibição.
 
-- não há nenhum bloco `negotiation:` nos 467 documentos do ZIP corrigido;
-- 403 documentos estão em `draft`, 63 não declaram status e apenas um está
-  `stable`;
-- 307 documentos ainda contêm `A DEFINIR PELA OPERAÇÃO`;
-- documentos da Will Bank alternam `Will Bank` e `will-bank`;
-- o produto aparece como `Cartão de crédito`, enquanto o simulador atual usa
-  `cartao_de_credito`.
+## Conteúdo ainda não aprovado
 
-Alguns números aparecem no corpo dos documentos, mas texto livre não substitui o
-contrato declarativo nem a aprovação humana.
-
-## Como representar conteúdo ainda não aprovado
-
-Enquanto houver qualquer condição comercial pendente, o documento deve permanecer
-em `draft` e não deve conter um bloco `negotiation` parcialmente preenchido:
+Quando faltar qualquer condição comercial, manter o documento como `draft` e não
+gerar um bloco `negotiation` parcial:
 
 ```yaml
 ---
@@ -244,11 +264,11 @@ product: cartao_de_credito
 ---
 ```
 
-O corpo pode registrar pendências para revisão, mas a interface e o relatório de
-build devem classificar essa política como não executável. Nunca converter
-`A DEFINIR PELA OPERAÇÃO` em zero, lista vazia ou valor presumido.
+Nunca converter `A DEFINIR PELA OPERAÇÃO` em zero, lista vazia, valor padrão ou
+estimativa. O Lovable deve mostrar que a política não está pronta para negociação
+e quais campos ainda precisam de definição.
 
-## Fluxo obrigatório do gerador
+## Fluxo esperado no Lovable
 
 ```text
 Dados de origem e onboarding
@@ -260,54 +280,65 @@ Normalizar IDs e paths em memória
 Detectar colisões e referências ausentes
             |
             v
-Gerar documentos e índices a partir do manifesto final
+Gerar documentos e índices pelo manifesto final
             |
             v
-Serializar e validar YAML
+Serializar e validar o YAML
             |
             v
-Classificar políticas como draft ou executáveis
+Classificar consulta e negociação separadamente
             |
             v
-Revisão e aprovação humana das condições comerciais
+Revisão humana das condições comerciais
             |
             v
 Promover somente as políticas aprovadas
             |
             v
-Validar novamente e criar o ZIP imutável
+Validar o artefato final e gerar o ZIP imutável
 ```
 
-O gerador deve interromper a criação de um bundle declarado como apto à negociação
-quando ocorrer qualquer uma destas condições:
+Na interface do gerador, apresentar antes do download:
 
-- erro ou aviso `broken_relative_link`;
-- path duplicado ou raiz lógica repetida;
-- YAML inválido, aliases ou chaves duplicadas;
-- índice ausente ou apontando para destino inexistente;
-- política publicada com placeholder pendente;
-- política publicada sem `negotiation` completo;
-- instituição ou produto sem correspondência com os IDs transacionais;
-- ausência de revisão humana.
+- quantidade de arquivos;
+- erros e avisos de validação;
+- colisões de paths;
+- links sem destino;
+- políticas em `draft`;
+- políticas executáveis;
+- placeholders pendentes;
+- resultado separado: `Apto à consulta` e `Apto à negociação`.
 
-Um bundle apenas consultivo pode conter drafts, mas o relatório de build deve
-informar claramente que ele não está apto a gerar ofertas.
+O botão que declara o bundle apto à negociação deve ficar indisponível enquanto
+houver erro comercial ou ausência de aprovação. A exportação de um bundle apenas
+consultivo pode continuar disponível, desde que essa limitação esteja visível.
 
-## Checklist de aceite
+## Critérios de aceite
 
-Antes de disponibilizar o ZIP:
+Usando somente `okf_wiki_2026-09-18.zip` como entrada de regressão:
 
-- [ ] O ZIP possui `index.md` na raiz.
-- [ ] Existem somente as raízes esperadas e nenhum prefixo repetido.
-- [ ] Todos os paths são únicos e bundle-relative.
-- [ ] Todos os `index.md` foram reconstruídos do manifesto final.
-- [ ] Todo frontmatter é YAML válido e possui `type` quando exigido.
-- [ ] Todos os links relativos resolvem para arquivos presentes no ZIP.
-- [ ] Não existem placeholders em políticas publicadas.
-- [ ] Toda política executável possui `negotiation` completo.
-- [ ] Instituição e produto usam os IDs exatos do runtime.
-- [ ] Toda política executável possui aprovação e vigência verificáveis.
-- [ ] O relatório separa “apto à consulta” de “apto à negociação”.
-- [ ] Uma validação final foi executada sobre o ZIP pronto, não apenas sobre os
-      arquivos intermediários.
+- [ ] A saída possui `index.md` diretamente na raiz.
+- [ ] A saída possui 467 arquivos Markdown após a normalização descrita.
+- [ ] Nenhum path contém uma segunda raiz `COMPANIES`.
+- [ ] Não existe o wrapper `will_bank`; a instituição usa `will-bank`.
+- [ ] Os seis índices com colisão foram reconstruídos pelo manifesto final.
+- [ ] `COMPANIES/zerai/INSTITUTIONS/usedigi/index.md` lista seus filhos reais.
+- [ ] O YAML de `negativacao-spc.md` é válido.
+- [ ] Nenhum link do `log.md` começa com `/`.
+- [ ] Todos os links locais resolvem para arquivos presentes no ZIP.
+- [ ] O validador final retorna zero erros e zero `broken_relative_link`.
+- [ ] O relatório informa que o bundle está apto à consulta.
+- [ ] O relatório não informa aptidão à negociação enquanto não houver política
+      executável e aprovação humana.
+- [ ] Políticas publicadas possuem `negotiation` completo e IDs transacionais
+      exatos.
+- [ ] A validação é executada sobre o ZIP final, não apenas sobre objetos
+      intermediários da interface.
+
+## Fora do escopo desta correção
+
+- Definir percentuais, parcelas, juros, entrada ou alçada da operação.
+- Aprovar automaticamente documentos `draft`.
+- Alterar tools de consulta, geração de oferta ou formalização de acordo.
+- Usar valores do simulador como substitutos para política aprovada.
 
