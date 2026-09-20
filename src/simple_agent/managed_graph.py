@@ -6,7 +6,7 @@ from langchain.agents.middleware import ModelRequest, dynamic_prompt
 
 from simple_agent.graph import calculator, utc_now
 from simple_agent.prompt_loader import load_agent_prompt
-from simple_agent.tool_middleware import filter_enabled_tools
+from simple_agent.tool_middleware import filter_enabled_tools, general_query_identity_guard
 from simple_agent.tools.okf_tools import OKF_TOOLS
 from simple_agent.tools.collection_tools import COLLECTION_TOOLS
 from simple_agent.llm import create_llm
@@ -34,6 +34,6 @@ ALL_TOOLS = [utc_now, calculator, *OKF_TOOLS, *COLLECTION_TOOLS]
 graph = create_agent(
     model=create_llm(),
     tools=ALL_TOOLS,
-    middleware=[runtime_prompt, filter_enabled_tools],
+    middleware=[runtime_prompt, filter_enabled_tools, general_query_identity_guard],
     name="simple_agent",
 )
