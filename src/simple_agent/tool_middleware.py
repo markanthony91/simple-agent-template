@@ -48,9 +48,14 @@ PERSONAL_CONTEXT = re.compile(
 PERSONAL_ACTION = re.compile(
     r"\b(?:quero|desejo|preciso)\s+(?:consultar|negociar|pagar|regularizar|quitar|gerar|emitir|receber|registrar)\b"
 )
-IDENTITY_FIELD = re.compile(r"\bcpf\b|nome completo|data de nascimento")
+GENERAL_CONTEXT = re.compile(
+    r"\b(?:pergunta|duvida|consulta|informacao) (?:e )?(?:apenas )?geral\b|\b(?:de forma|em termos) gerais?\b"
+)
+IDENTITY_FIELD = re.compile(
+    r"\bcpf\b|nome completo|data de nascimento|4 primeiros digitos|quatro primeiros digitos|numero do documento"
+)
 IDENTITY_REQUEST = re.compile(
-    r"informe|forneca|envie|digite|preciso|necessario|por favor|solicito"
+    r"informe|forneca|envie|digite|mande|compartilhe|confirme|preciso|necessario|por favor|solicito"
 )
 GENERAL_SCOPE_INSTRUCTION = """# Current turn scope: general information
 
@@ -308,6 +313,8 @@ def _last_human_text(request: ModelRequest) -> str:
 
 def _requests_personal_action(text: str) -> bool:
     normalized = _normalize(text)
+    if GENERAL_CONTEXT.search(normalized):
+        return False
     return bool(
         PERSONAL_CONTEXT.search(normalized) or PERSONAL_ACTION.search(normalized)
     )
