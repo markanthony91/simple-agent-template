@@ -40,12 +40,13 @@ para outras políticas nem transforma entradas opcionais em obrigatórias.
 Saldo, cliente e dívida não ficam neste documento. Devem ser consultados nas tools
 transacionais após a validação da identidade na conversa.
 Todo valor de proposta, inclusive pagamento à vista sem desconto, deve vir de
-`generate_offer`. Não calcular exemplos financeiros na resposta.
+`generate_payment_offer`. Não calcular exemplos financeiros na resposta.
 Apresentar o total e o cronograma retornados; parcelas podem diferir por centavos.
 
 ## Confirmação
 
-Somente uma oferta válida retornada pelo motor pode ser apresentada para aceite.
-O cliente confirma o ID exato como nova mensagem antes de `create_agreement`.
+Somente um resultado `created=true` retornado pelo motor pode ser apresentado.
+O pedido atual do cliente deve conter os termos e PIX ou boleto; a tool gera
+proposta, acordo e pagamento juntos, sem aprovação humana adicional.
 O fechamento permanece simulado. PIX, boleto e entrega por e-mail geram apenas
 registros dummy locais, com códigos deliberadamente inválidos e sem ação externa.

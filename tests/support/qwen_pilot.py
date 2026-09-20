@@ -121,14 +121,14 @@ def run() -> None:
     scenarios = {
         "happy": [
             "Sou João da Silva, CPF 12345678900. Qual é o saldo atual da minha dívida?",
-            "Eu prefiro parcelar.",
-            "E consigo parcelar em 3x?",
+            "Eu prefiro parcelar no boleto.",
+            "E consigo parcelar em 3x no boleto?",
         ],
         # Frases anonimizadas dos replays de Marcelo Barbosa no Smart Debt.
         "cash_reference": [
             "Sou João da Silva, CPF 12345678900. Qual é o saldo atual da minha dívida?",
-            "A vista",
             "Se eu pagar a vista tem desconto?",
+            "A vista por PIX",
             "Quanto fica à vista?",
         ],
         "negative": [
@@ -147,10 +147,8 @@ def run() -> None:
             history = turn(key, history, query)
         if scenario == "happy":
             with SessionStore().transaction(key) as session:
-                offer = next(iter(session["offers"].values()), None)
-            if offer:
-                history = turn(key, history, "CONFIRMAR ACORDO " + offer["offer_id"])
-                history = turn(key, history, "Boleto")
+                payment = next(iter(session["payments"].values()), None)
+            if payment:
                 history = turn(key, history, "Envie para cliente_b@exemplo.test")
                 history = turn(key, history, "Me manda aqui o código então")
                 history = turn(key, history, "Já paguei")

@@ -24,15 +24,6 @@ def decide(messages):
         return ("CANCEL_START " + "Waiting for cancellation. " * 200, None)
     if "ERROR" in query:
         return ("ERROR_START partial response ", "disconnect")
-    if "CONFIRMAR ACORDO " in query:
-        if not results:
-            return None, (
-                "create_agreement",
-                {"offer_id": query.split()[-1], "explicit_confirmation": True},
-            )
-        return "Agreement confirmed." if json.loads(results[-1]["content"]).get(
-            "created"
-        ) else "Agreement refused.", None
     if "VERIFY" in query:
         if not results:
             return None, (
@@ -47,15 +38,20 @@ def decide(messages):
         return (
             "Debt total " + data["debt"]["current_amount"]
         ) if "debt" in data else "Identity verification required. Debt withheld.", None
-    if "OFFER" in query:
+    if "OFFER BOLETO" in query:
         if not results:
             return None, ("okf_read", {"path": PATH})
         if len(results) == 1:
             return None, (
-                "generate_offer",
-                {"payment_type": "installment", "installments": 3, "policy_path": PATH},
+                "generate_payment_offer",
+                {
+                    "payment_type": "installment",
+                    "method": "boleto",
+                    "installments": 3,
+                    "policy_path": PATH,
+                },
             )
-        return "Review the simulated offer and confirm using its button.", None
+        return "Synthetic offer, agreement and boleto created.", None
     if "POLICY" in query:
         if not results:
             return None, ("okf_index", {})
@@ -73,7 +69,12 @@ class Handler(BaseHTTPRequestHandler):
         pass  # No prompts or credentials in logs.
 
     def do_GET(self):
-        body = json.dumps({"data": [{"id": "synthetic-protocol"}], "cancellations": Handler.cancellations}).encode()
+        body = json.dumps(
+            {
+                "data": [{"id": "synthetic-protocol"}],
+                "cancellations": Handler.cancellations,
+            }
+        ).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))

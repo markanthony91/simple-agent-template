@@ -96,18 +96,20 @@ published end-to-end financial acceptance remains pending. Candidate/isolation
 evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.
 
-## Dummy payment pilot — 0.5.0
+## Dummy payment pilot — 0.6.0
 
 - [x] Normalize the synthetic test scope to `Will Bank` / `cartao_de_credito`.
 - [x] Revalidate the agreement policy before creating invalid dummy PIX/boleto.
 - [x] Capture explicit e-mail in a local outbox without external delivery.
-- [x] Keep simulated settlement behind an approved admin operation.
+- [x] Keep simulated settlement behind an authenticated admin operation.
+- [x] Replace separate offer confirmation with one transactional offer/agreement/payment tool after the customer requests complete terms.
 - [x] Validate happy, negative and neutral journeys locally.
 - [x] Create and validate isolated Railway draft `will-bank-negotiation-pilot-20260920-185ae54d`.
-- [ ] Publish/activate the draft only after operator review.
+- [x] Publish/activate the reviewed draft as `will-bank-negotiation-pilot-20260920-20260920T144839Z-d1e9d7be`.
 - [x] Deploy backend 0.5.0 and run isolated Gemini conversations based on the
   anonymized Marcelo Barbosa replay; Qwen timed out before response.
-- [ ] Activate the reviewed draft and repeat the same conversation through the UI.
+- [x] Activate the reviewed draft.
+- [ ] Deploy 0.6.0 and repeat the same complete conversation through the managed Assistant.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy

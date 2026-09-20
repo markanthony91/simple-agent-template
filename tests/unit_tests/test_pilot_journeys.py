@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from .test_collection_identity_gates import runtime, call, verify
 from simple_agent.services.session_store import SessionStore
 from simple_agent.services.simulator_store import SimulatorStore
@@ -26,9 +28,11 @@ def seed(store, approve=False):
     SimulatorStore().save(fixture)
 
 
-def test_happy_pilot_full_simulation_and_confirmation(isolated):
+@pytest.mark.parametrize("method", ["pix", "boleto"])
+def test_happy_pilot_generates_offer_agreement_and_payment(isolated, method):
     seed(isolated, approve=True)
-    rt = runtime("pilot-happy")
+    key = f"pilot-happy-{method}"
+    rt = runtime(key, f"Quero pagar em 3x por {method}")
     assert verify(rt)["verified"]
     assert (
         call(tools.get_customer, rt, cpf="12345678900")["debt"]["current_amount"]
@@ -36,52 +40,39 @@ def test_happy_pilot_full_simulation_and_confirmation(isolated):
     )
     assert "INSTITUTIONS" in okf_tools.okf_index.func(runtime=rt)
     okf_tools.okf_read.func(path=PATH, runtime=rt)
-    offer = call(
-        tools.generate_offer,
+    result = call(
+        payment_tools.generate_payment_offer,
         rt,
         payment_type="installment",
+        method=method,
         installments=3,
         policy_path=PATH,
     )
+    assert result["created"]
+    offer = result["offer"]
+    agreement = result["agreement"]
+    payment = result["payment"]
     assert offer["installment_schedule"] == ["1957.81", "1957.81", "1957.80"]
-    confirmation = runtime("pilot-happy", f"CONFIRMAR ACORDO {offer['offer_id']}", "m2")
-    agreement = call(
-        tools.create_agreement,
-        confirmation,
-        offer_id=offer["offer_id"],
-        explicit_confirmation=True,
-    )
     assert agreement["created"] and agreement["is_simulation"]
+    assert payment["payment_code"].startswith(f"DUMMY-{method.upper()}-")
+    assert payment["amount"] == agreement["installment_schedule"][0]
     assert (
         call(
-            tools.create_agreement,
-            confirmation,
-            offer_id=offer["offer_id"],
-            explicit_confirmation=True,
+            payment_tools.generate_payment_offer,
+            rt,
+            payment_type="installment",
+            method=method,
+            installments=3,
+            policy_path=PATH,
         )
-        == agreement
+        == result
     )
-    pix = call(
-        payment_tools.create_payment_instruction,
-        confirmation,
-        agreement_id=agreement["agreement_id"],
-        method="pix",
-    )
-    boleto = call(
-        payment_tools.create_payment_instruction,
-        confirmation,
-        agreement_id=agreement["agreement_id"],
-        method="boleto",
-    )
-    assert pix["payment_code"].startswith("DUMMY-PIX-")
-    assert boleto["payment_code"].startswith("DUMMY-BOLETO-")
-    assert pix["amount"] == agreement["installment_schedule"][0]
-    email_runtime = runtime("pilot-happy", "Envie para teste@example.com", "m3")
+    email_runtime = runtime(key, "Envie para teste@example.com", "m3")
     assert (
         call(
             payment_tools.send_payment_instruction,
-            confirmation,
-            payment_id=pix["payment_id"],
+            rt,
+            payment_id=payment["payment_id"],
             email="teste@example.com",
         )["reason"]
         == "explicit_email_required"
@@ -89,7 +80,7 @@ def test_happy_pilot_full_simulation_and_confirmation(isolated):
     delivery = call(
         payment_tools.send_payment_instruction,
         email_runtime,
-        payment_id=pix["payment_id"],
+        payment_id=payment["payment_id"],
         email="teste@example.com",
     )
     assert delivery["captured"] and delivery["status"] == "captured"
@@ -98,7 +89,7 @@ def test_happy_pilot_full_simulation_and_confirmation(isolated):
         call(
             payment_tools.send_payment_instruction,
             email_runtime,
-            payment_id=pix["payment_id"],
+            payment_id=payment["payment_id"],
             email="teste@example.com",
         )
         == delivery
@@ -106,18 +97,18 @@ def test_happy_pilot_full_simulation_and_confirmation(isolated):
     assert (
         call(
             payment_tools.get_payment_status,
-            runtime("pilot-happy", "Já paguei", "m4"),
-            payment_id=pix["payment_id"],
+            runtime(key, "Já paguei", "m4"),
+            payment_id=payment["payment_id"],
         )["status"]
         == "pending"
     )
-    settled = payment_tools.simulate_payment_settled("pilot-happy", pix["payment_id"])
+    settled = payment_tools.simulate_payment_settled(key, payment["payment_id"])
     assert settled["status"] == "settled"
     assert (
         call(
             payment_tools.get_payment_status,
             email_runtime,
-            payment_id=pix["payment_id"],
+            payment_id=payment["payment_id"],
         )["status"]
         == "settled"
     )
@@ -125,33 +116,75 @@ def test_happy_pilot_full_simulation_and_confirmation(isolated):
 
 def test_negative_draft_identity_and_excess_terms(isolated):
     seed(isolated)
-    rt = runtime("pilot-negative")
-    args = {"payment_type": "cash", "policy_path": PATH}
+    rt = runtime("pilot-negative", "Quero pagar à vista por pix")
+    args = {"payment_type": "cash", "method": "pix", "policy_path": PATH}
     assert (
-        call(tools.generate_offer, rt, **args)["reason"]
+        call(payment_tools.generate_payment_offer, rt, **args)["reason"]
         == "identity_verification_required"
     )
     assert verify(rt)["verified"]
     okf_tools.okf_read.func(path=PATH, runtime=rt)
-    assert call(tools.generate_offer, rt, **args)["reason"] == "policy_not_published"
+    assert (
+        call(payment_tools.generate_payment_offer, rt, **args)["reason"]
+        == "policy_not_published"
+    )
     seed(isolated, approve=True)
     rt = runtime("pilot-new-approved")
     verify(rt)
     okf_tools.okf_read.func(path=PATH, runtime=rt)
     assert (
-        call(tools.generate_offer, rt, **args, discount_percentage="10")["reason"]
+        call(
+            payment_tools.generate_payment_offer,
+            runtime("pilot-new-approved", "Quero à vista com 10% por pix", "m2"),
+            **args,
+            discount_percentage="10",
+        )["reason"]
         == "policy_terms_exceeded"
     )
-    assert call(tools.generate_offer, rt, **args)["available"]
     assert (
         call(
-            payment_tools.create_payment_instruction,
-            rt,
-            agreement_id="AGR-missing",
-            method="pix",
+            payment_tools.generate_payment_offer,
+            runtime("pilot-new-approved", "Quero pagar à vista", "m3"),
+            **args,
         )["reason"]
-        == "valid_agreement_required"
+        == "explicit_offer_terms_required"
     )
+    assert (
+        call(
+            payment_tools.generate_payment_offer,
+            runtime("pilot-new-approved", "Quero em 2x por pix", "m4"),
+            payment_type="installment",
+            method="pix",
+            installments=3,
+            policy_path=PATH,
+        )["reason"]
+        == "explicit_offer_terms_required"
+    )
+
+
+def test_payment_policy_failure_rolls_back_offer(isolated, monkeypatch):
+    seed(isolated, approve=True)
+    key = "pilot-payment-policy-failure"
+    rt = runtime(key, "Quero pagar em 3x por boleto")
+    assert verify(rt)["verified"]
+    okf_tools.okf_read.func(path=PATH, runtime=rt)
+
+    def deny(*_args, **_kwargs):
+        raise ValueError("payment_method_not_allowed")
+
+    monkeypatch.setattr(payment_tools, "validate_payment_policy", deny)
+    result = call(
+        payment_tools.generate_payment_offer,
+        rt,
+        payment_type="installment",
+        method="boleto",
+        installments=3,
+        policy_path=PATH,
+    )
+    assert result == {"created": False, "reason": "payment_method_not_allowed"}
+    with SessionStore().transaction(key) as state:
+        assert not state["offers"] and not state["agreements"]
+        assert not state["payments"]
 
 
 def test_neutral_global_consultation_does_not_verify_or_negotiate(isolated):

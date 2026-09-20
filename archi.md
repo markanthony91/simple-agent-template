@@ -1,4 +1,4 @@
-# Architecture — 0.5.0
+# Architecture — 0.6.0
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →
@@ -38,9 +38,11 @@ dev server a production-grade execution queue.
 Text still streams before semantic validation; this release does not implement
 an output Evidence Gate. Backend action validation is not proof of text fidelity.
 
-Confirmed simulated agreement → policy revalidation → invalid dummy PIX/boleto →
-local outbox capture. The agent can only read payment status. Settlement is an
-approved `okf_admin` operation and is not registered as an agent tool.
+Customer-requested terms including PIX/boleto → one policy-gated transaction that
+creates offer, agreement and invalid dummy payment → local outbox capture. There
+is no internal approval or second customer confirmation. The agent can only read
+payment status. Settlement is an authenticated `okf_admin` operation standing in
+for the future provider webhook and is not registered as an agent tool.
 
 The existing middleware annotates the final AI message with response_audit:
 explicit BRL/percentage checks against authorized customer/offer results.

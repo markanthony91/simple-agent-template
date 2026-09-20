@@ -1,9 +1,10 @@
-# Agent Runtime — OKF simulator (0.5.0)
+# Agent Runtime — OKF simulator (0.6.0)
 
-The synthetic negotiation flow now continues from a confirmed agreement to
-invalid dummy PIX/boleto instructions, a local email outbox capture and an
-operator-only settlement simulation. Every step is session-bound, idempotent and
-revalidates the same published OKF policy. No payment or email is sent externally.
+The synthetic negotiation flow now generates the offer, agreement and invalid
+dummy PIX/boleto in one transaction after the customer requests complete terms.
+There is no internal human approval or separate confirmation. Local email outbox
+capture and operator-only settlement simulation remain session-bound and idempotent.
+No payment or email is sent externally.
 The pilot uses the canonical test scope `Will Bank` / `cartao_de_credito`.
 
 The backend now has a create-only contract for a future Demo form. It accepts
