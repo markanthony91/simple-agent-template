@@ -122,6 +122,15 @@ Coordinate PR integration before another main autodeploy.
 - [x] Deploy 0.7.0 and complete controlled Gemini A/B trials.
 - [x] Version the primary Assistant from 22 to 23 after 4/4 temporary calibrated payment runs succeeded.
 - [x] Confirm boleto and PIX on Assistant v23, preserve the neutral `GLOBAL` path and remove all synthetic artifacts.
+
+## Backend negotiation policy resolution — 0.8.1
+
+- [x] Resolve one applicable policy inside the pinned snapshot without model-managed OKF navigation.
+- [x] Fail closed for missing, draft, incompatible or ambiguous policy candidates.
+- [x] Reduce negotiation from five Gemini calls and four tools to two Gemini calls and one tool.
+- [x] Deploy Railway 0.8.1 and version the managed Assistant from 23 to 24 with exact read-back.
+- [x] Complete published happy and unhappy conversations; negotiation fell from 10.81 s to 7.14 s.
+- [x] Remove four synthetic conversations and return persistent sessions to the 52-row baseline.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy
