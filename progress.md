@@ -96,7 +96,7 @@ published end-to-end financial acceptance remains pending. Candidate/isolation
 evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.
 
-## Dummy payment pilot — 0.6.0
+## Dummy payment pilot — 0.6.1
 
 - [x] Normalize the synthetic test scope to `Will Bank` / `cartao_de_credito`.
 - [x] Revalidate the agreement policy before creating invalid dummy PIX/boleto.
@@ -109,7 +109,8 @@ Coordinate PR integration before another main autodeploy.
 - [x] Deploy backend 0.5.0 and run isolated Gemini conversations based on the
   anonymized Marcelo Barbosa replay; Qwen timed out before response.
 - [x] Activate the reviewed draft.
-- [ ] Deploy 0.6.0 and repeat the same complete conversation through the managed Assistant.
+- [x] Deploy 0.6.0 and verify atomic proposal/agreement/boleto creation through the managed Assistant.
+- [ ] Deploy 0.6.1 with punctuation-safe e-mail capture and complete the remaining live checks.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy

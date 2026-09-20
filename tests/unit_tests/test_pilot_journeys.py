@@ -67,7 +67,7 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, method):
         )
         == result
     )
-    email_runtime = runtime(key, "Envie para teste@example.com", "m3")
+    email_runtime = runtime(key, "Envie para teste@example.com.", "m3")
     assert (
         call(
             payment_tools.send_payment_instruction,

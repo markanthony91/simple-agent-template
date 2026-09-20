@@ -19,7 +19,7 @@ from simple_agent.services.session_store import (
 )
 from simple_agent.tools.collection_tools import _create_agreement, _generate_offer
 
-EMAIL_RE = re.compile(r"[^@\s]+@[^@\s.]+\.[^@\s]+")
+EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 
 
 class _CompositeError(Exception):
