@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.8.0)
+# Agent Runtime — OKF simulator (0.8.1)
 
 The synthetic negotiation flow now generates the offer, agreement and invalid
 dummy PIX/boleto in one transaction after the customer requests complete terms.

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from simple_agent.services.offer_policy import fingerprint, money, validate_policy
 from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.okf_validator import frontmatter
@@ -29,6 +31,10 @@ def resolve_payment_policy(
         if source.name.casefold() in {"index.md", "log.md"}:
             continue
         content = source.read_text(encoding="utf-8")
+        if not re.search(r"^negotiation\s*:", content, re.MULTILINE) or not re.search(
+            r"^payment\s*:", content, re.MULTILINE
+        ):
+            continue
         metadata = frontmatter(content)
         if (
             metadata.get("institution") != fixture.get("institution")
