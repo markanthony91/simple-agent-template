@@ -2,9 +2,85 @@
 
 from __future__ import annotations
 
-from simple_agent.services.offer_policy import money, validate_policy
+from simple_agent.services.offer_policy import fingerprint, money, validate_policy
 from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.okf_validator import frontmatter
+
+
+def resolve_payment_policy(
+    state: dict,
+    payment_type: str,
+    installments: int,
+    discount_percentage: str,
+    method: str,
+) -> str:
+    """Resolve one applicable policy inside the session's pinned snapshot."""
+    snapshot = state.get("snapshot_id")
+    if not snapshot:
+        raise ValueError("policy_not_found")
+    root = PersistentOKFStore().bundle_root(snapshot)
+    fixture = state["fixture"]
+    receipts = state.setdefault("receipts", {})
+    valid: list[str] = []
+    errors: list[str] = []
+    previous_receipts: dict[str, tuple[bool, dict | None]] = {}
+
+    for source in sorted(root.rglob("*.md")):
+        if source.name.casefold() in {"index.md", "log.md"}:
+            continue
+        content = source.read_text(encoding="utf-8")
+        metadata = frontmatter(content)
+        if (
+            metadata.get("institution") != fixture.get("institution")
+            or metadata.get("product") != fixture.get("product")
+            or not isinstance(metadata.get("negotiation"), dict)
+            or not isinstance(metadata.get("payment"), dict)
+        ):
+            continue
+        path = source.relative_to(root).as_posix()
+        previous_receipts[path] = (path in receipts, receipts.get(path))
+        receipts[path] = {"hash": fingerprint(content), "snapshot_id": snapshot}
+        try:
+            evidence = validate_policy(
+                state,
+                path,
+                payment_type,
+                1 if payment_type == "cash" else installments,
+                money(discount_percentage),
+            )
+            validate_payment_policy(
+                state,
+                {
+                    "policy_source": evidence,
+                    "payment_type": payment_type,
+                    "installments": 1 if payment_type == "cash" else installments,
+                    "discount_percentage": discount_percentage,
+                },
+                method,
+            )
+        except (ValueError, ArithmeticError) as error:
+            errors.append(str(error))
+            _restore_receipt(receipts, path, previous_receipts[path])
+        else:
+            valid.append(path)
+
+    if len(valid) > 1:
+        for path in valid:
+            _restore_receipt(receipts, path, previous_receipts[path])
+        raise ValueError("policy_ambiguous")
+    if not valid:
+        raise ValueError(errors[0] if errors else "policy_not_found")
+    return valid[0]
+
+
+def _restore_receipt(
+    receipts: dict, path: str, previous: tuple[bool, dict | None]
+) -> None:
+    existed, value = previous
+    if existed:
+        receipts[path] = value
+    else:
+        receipts.pop(path, None)
 
 
 def validate_payment_policy(

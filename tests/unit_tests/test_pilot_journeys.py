@@ -38,15 +38,12 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, method):
         call(tools.get_customer, rt, cpf="12345678900")["debt"]["current_amount"]
         == "5873.42"
     )
-    assert "INSTITUTIONS" in okf_tools.okf_index.func(runtime=rt)
-    okf_tools.okf_read.func(path=PATH, runtime=rt)
     result = call(
         payment_tools.generate_payment_offer,
         rt,
         payment_type="installment",
         method=method,
         installments=3,
-        policy_path=PATH,
     )
     assert result["created"]
     offer = result["offer"]
@@ -63,7 +60,6 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, method):
             payment_type="installment",
             method=method,
             installments=3,
-            policy_path=PATH,
         )
         == result
     )
@@ -117,13 +113,12 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, method):
 def test_negative_draft_identity_and_excess_terms(isolated):
     seed(isolated)
     rt = runtime("pilot-negative", "Quero pagar à vista por pix")
-    args = {"payment_type": "cash", "method": "pix", "policy_path": PATH}
+    args = {"payment_type": "cash", "method": "pix"}
     assert (
         call(payment_tools.generate_payment_offer, rt, **args)["reason"]
         == "identity_verification_required"
     )
     assert verify(rt)["verified"]
-    okf_tools.okf_read.func(path=PATH, runtime=rt)
     assert (
         call(payment_tools.generate_payment_offer, rt, **args)["reason"]
         == "policy_not_published"
@@ -131,7 +126,6 @@ def test_negative_draft_identity_and_excess_terms(isolated):
     seed(isolated, approve=True)
     rt = runtime("pilot-new-approved")
     verify(rt)
-    okf_tools.okf_read.func(path=PATH, runtime=rt)
     assert (
         call(
             payment_tools.generate_payment_offer,
@@ -156,10 +150,28 @@ def test_negative_draft_identity_and_excess_terms(isolated):
             payment_type="installment",
             method="pix",
             installments=3,
-            policy_path=PATH,
         )["reason"]
         == "explicit_offer_terms_required"
     )
+
+
+def test_automatic_policy_resolution_fails_closed_when_ambiguous(isolated):
+    seed(isolated, approve=True)
+    root = isolated.bundle_root(isolated.active_bundle_id())
+    duplicate = "INSTITUTIONS/will_bank/cartao_de_credito/duplicate.md"
+    (root / duplicate).write_text((root / PATH).read_text(), encoding="utf-8")
+    rt = runtime("pilot-ambiguous", "Quero pagar em 3x por pix")
+    assert verify(rt)["verified"]
+    result = call(
+        payment_tools.generate_payment_offer,
+        rt,
+        payment_type="installment",
+        method="pix",
+        installments=3,
+    )
+    assert result == {"created": False, "reason": "policy_ambiguous"}
+    with SessionStore().transaction("pilot-ambiguous") as state:
+        assert not state["receipts"]
 
 
 def test_payment_policy_failure_rolls_back_offer(isolated, monkeypatch):

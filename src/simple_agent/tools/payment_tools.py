@@ -11,7 +11,10 @@ from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
 from simple_agent.services.offer_policy import money
-from simple_agent.services.payment_policy import validate_payment_policy
+from simple_agent.services.payment_policy import (
+    resolve_payment_policy,
+    validate_payment_policy,
+)
 from simple_agent.services.session_store import (
     SessionStore,
     latest_user_message,
@@ -123,7 +126,9 @@ def generate_payment_offer(
     """Generate an offer, agreement and dummy PIX/boleto in one transaction.
 
     Use only after the customer explicitly names PIX or boleto in the latest
-    message. No internal human approval or second confirmation is required.
+    message. When policy_path is omitted, the backend resolves exactly one
+    applicable policy from the pinned snapshot. No internal human approval or
+    second confirmation is required.
     Only created=true authorizes presenting the exact returned schedule and code.
     """
     try:
@@ -139,6 +144,17 @@ def generate_payment_offer(
                 return _json(
                     {"created": False, "reason": "explicit_offer_terms_required"}
                 )
+            if not policy_path:
+                try:
+                    policy_path = resolve_payment_policy(
+                        state,
+                        payment_type,
+                        installments,
+                        discount_percentage,
+                        method,
+                    )
+                except (ValueError, ArithmeticError) as exc:
+                    return _json({"created": False, "reason": str(exc)})
             offer = _generate_offer(
                 state,
                 payment_type,
