@@ -1,4 +1,4 @@
-# Architecture — 0.2.2
+# Architecture — 0.5.0
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →
@@ -9,7 +9,8 @@ OKF provides policy, not account balances. No RAG, embeddings or vector database
 
 - /data/okf: immutable bundles, active pointer, drafts and preserved RAW.
 - /data/sessions/sessions.sqlite3: fixture copy, identity, read receipts, expiring
-  offers and idempotent agreements per server thread_id.
+  offers, idempotent agreements, dummy payments and local outbox records per
+  server thread_id.
 - /data/simulator: editable synthetic fixture for NEW conversations.
 - /data/tools: tool enablement checked on execution as well as model request.
 - /data/langgraph: LangGraph dev-server checkpoints, linked by startup.
@@ -36,6 +37,10 @@ dev server a production-grade execution queue.
 
 Text still streams before semantic validation; this release does not implement
 an output Evidence Gate. Backend action validation is not proof of text fidelity.
+
+Confirmed simulated agreement → policy revalidation → invalid dummy PIX/boleto →
+local outbox capture. The agent can only read payment status. Settlement is an
+approved `okf_admin` operation and is not registered as an agent tool.
 
 The existing middleware annotates the final AI message with response_audit:
 explicit BRL/percentage checks against authorized customer/offer results.

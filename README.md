@@ -1,4 +1,10 @@
-# Agent Runtime — OKF simulator (0.4.2)
+# Agent Runtime — OKF simulator (0.5.0)
+
+The synthetic negotiation flow now continues from a confirmed agreement to
+invalid dummy PIX/boleto instructions, a local email outbox capture and an
+operator-only settlement simulation. Every step is session-bound, idempotent and
+revalidates the same published OKF policy. No payment or email is sent externally.
+The pilot uses the canonical test scope `Will Bank` / `cartao_de_credito`.
 
 The backend now has a create-only contract for a future Demo form. It accepts
 full name, CPF, E.164 phone, debt amount and days overdue, resolves the creditor
@@ -12,8 +18,9 @@ the operation is not a public customer-data endpoint.
 
 In a future-form Demo conversation, the exact command `/reset-demo` resets the
 same session: it retains the pinned form/creditor and OKF snapshot, clears
-identity, offers, agreements and transient state, and excludes prior messages
-from subsequent model context. Earlier checkpoints remain available for audit.
+identity, offers, agreements, dummy payments, outbox records and transient state,
+and excludes prior messages from subsequent model context. Earlier checkpoints
+remain available for audit.
 The command does not call the LLM or any channel; Playground sessions return
 `Comando indisponível nesta sessão.`
 

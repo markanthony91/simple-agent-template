@@ -95,6 +95,17 @@ The E2E report records the tested financial journeys and current failures;
 published end-to-end financial acceptance remains pending. Candidate/isolation
 evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.
+
+## Dummy payment pilot — 0.5.0
+
+- [x] Normalize the synthetic test scope to `Will Bank` / `cartao_de_credito`.
+- [x] Revalidate the agreement policy before creating invalid dummy PIX/boleto.
+- [x] Capture explicit e-mail in a local outbox without external delivery.
+- [x] Keep simulated settlement behind an approved admin operation.
+- [x] Validate happy, negative and neutral journeys locally.
+- [x] Create and validate isolated Railway draft `will-bank-negotiation-pilot-20260920-185ae54d`.
+- [ ] Publish/activate the draft only after operator review.
+- [ ] Run the real-model conversation on a new session after deployment and activation.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy

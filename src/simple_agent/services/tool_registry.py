@@ -20,6 +20,9 @@ DEFAULT_TOOLS: dict[str, dict[str, Any]] = {
     "verify_customer_identity": {"name": "verify_customer_identity", "description": "Verify the simulator customer using the session's configured CPF method and additional factors.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
     "generate_offer": {"name": "generate_offer", "description": "Calculate and persist a simulator offer from current debt and customer eligibility.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
     "create_agreement": {"name": "create_agreement", "description": "Create a simulated agreement from a valid persisted offer after explicit confirmation.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "create_payment_instruction": {"name": "create_payment_instruction", "description": "Create an invalid dummy PIX or boleto for a simulated agreement.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "send_payment_instruction": {"name": "send_payment_instruction", "description": "Capture a dummy email delivery in the local outbox without sending it.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "get_payment_status": {"name": "get_payment_status", "description": "Read a dummy payment status from the current session.", "category": "collection", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
 }
 
 

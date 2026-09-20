@@ -162,3 +162,10 @@ def test_runtime_hidden_from_model_schema():
         schema = tool.tool_call_schema.model_json_schema()
         assert "runtime" not in schema["properties"]
         assert "thread_id" not in schema["properties"]
+
+    from simple_agent.tools.payment_tools import PAYMENT_TOOLS
+
+    for tool in PAYMENT_TOOLS:
+        schema = tool.tool_call_schema.model_json_schema()
+        assert "runtime" not in schema["properties"]
+        assert "thread_id" not in schema["properties"]

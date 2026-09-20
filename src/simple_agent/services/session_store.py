@@ -43,6 +43,8 @@ class SessionStore:
             "identity_verified": False,
             "offers": {},
             "agreements": {},
+            "payments": {},
+            "deliveries": {},
             "receipts": {},
             "snapshot_id": PersistentOKFStore().active_bundle_id(),
         }
@@ -76,6 +78,8 @@ class SessionStore:
                 "identity_verified": False,
                 "offers": {},
                 "agreements": {},
+                "payments": {},
+                "deliveries": {},
                 "receipts": {},
                 "snapshot_id": state["snapshot_id"],
                 "demo_session": True,
@@ -107,9 +111,13 @@ class SessionStore:
                     "identity_verified": False,
                     "offers": {},
                     "agreements": {},
+                    "payments": {},
+                    "deliveries": {},
                     "receipts": {},
                     "snapshot_id": PersistentOKFStore().active_bundle_id(),
                 }
+            state.setdefault("payments", {})
+            state.setdefault("deliveries", {})
             yield state
             db.execute(
                 "INSERT INTO sessions(id, data) VALUES (?, ?) "

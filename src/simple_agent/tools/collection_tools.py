@@ -279,8 +279,11 @@ def create_agreement(
                     "customer_id",
                     "debt_id",
                     "negotiated_amount",
+                    "payment_type",
+                    "discount_percentage",
                     "installments",
                     "installment_schedule",
+                    "policy_source",
                     "snapshot_id",
                 )
             },

@@ -7,9 +7,10 @@ from simple_agent.services.session_store import SessionStore
 from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.services.okf_validator import validate_okf_files
 from simple_agent.tools import collection_tools as tools, okf_tools
+from simple_agent.tools import payment_tools
 
 ROOT = Path(__file__).resolve().parents[2] / "examples" / "pilot-okf"
-PATH = "INSTITUTIONS/banco_aurora/cartao_de_credito/negotiation.md"
+PATH = "INSTITUTIONS/will_bank/cartao_de_credito/negotiation.md"
 
 
 def seed(store, approve=False):
@@ -21,7 +22,7 @@ def seed(store, approve=False):
         }
     store.import_bundle("synthetic-pilot", "0.2", files)
     fixture = SimulatorStore().load()
-    fixture["institution"] = "banco-aurora"
+    fixture["institution"] = "Will Bank"
     SimulatorStore().save(fixture)
 
 
@@ -60,6 +61,66 @@ def test_happy_pilot_full_simulation_and_confirmation(isolated):
         )
         == agreement
     )
+    pix = call(
+        payment_tools.create_payment_instruction,
+        confirmation,
+        agreement_id=agreement["agreement_id"],
+        method="pix",
+    )
+    boleto = call(
+        payment_tools.create_payment_instruction,
+        confirmation,
+        agreement_id=agreement["agreement_id"],
+        method="boleto",
+    )
+    assert pix["payment_code"].startswith("DUMMY-PIX-")
+    assert boleto["payment_code"].startswith("DUMMY-BOLETO-")
+    assert pix["amount"] == agreement["installment_schedule"][0]
+    email_runtime = runtime("pilot-happy", "Envie para teste@example.com", "m3")
+    assert (
+        call(
+            payment_tools.send_payment_instruction,
+            confirmation,
+            payment_id=pix["payment_id"],
+            email="teste@example.com",
+        )["reason"]
+        == "explicit_email_required"
+    )
+    delivery = call(
+        payment_tools.send_payment_instruction,
+        email_runtime,
+        payment_id=pix["payment_id"],
+        email="teste@example.com",
+    )
+    assert delivery["captured"] and delivery["status"] == "captured"
+    assert delivery["recipient"] == "<redacted>"
+    assert (
+        call(
+            payment_tools.send_payment_instruction,
+            email_runtime,
+            payment_id=pix["payment_id"],
+            email="teste@example.com",
+        )
+        == delivery
+    )
+    assert (
+        call(
+            payment_tools.get_payment_status,
+            runtime("pilot-happy", "Já paguei", "m4"),
+            payment_id=pix["payment_id"],
+        )["status"]
+        == "pending"
+    )
+    settled = payment_tools.simulate_payment_settled("pilot-happy", pix["payment_id"])
+    assert settled["status"] == "settled"
+    assert (
+        call(
+            payment_tools.get_payment_status,
+            email_runtime,
+            payment_id=pix["payment_id"],
+        )["status"]
+        == "settled"
+    )
 
 
 def test_negative_draft_identity_and_excess_terms(isolated):
@@ -82,6 +143,15 @@ def test_negative_draft_identity_and_excess_terms(isolated):
         == "policy_terms_exceeded"
     )
     assert call(tools.generate_offer, rt, **args)["available"]
+    assert (
+        call(
+            payment_tools.create_payment_instruction,
+            rt,
+            agreement_id="AGR-missing",
+            method="pix",
+        )["reason"]
+        == "valid_agreement_required"
+    )
 
 
 def test_neutral_global_consultation_does_not_verify_or_negotiate(isolated):
@@ -96,3 +166,4 @@ def test_neutral_global_consultation_does_not_verify_or_negotiate(isolated):
     with SessionStore().transaction("pilot-neutral") as state:
         assert not state["identity_verified"]
         assert not state["offers"] and not state["agreements"]
+        assert not state["payments"] and not state["deliveries"]
