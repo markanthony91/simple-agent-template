@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.2.0)
+# Agent Runtime — OKF simulator (0.2.1)
 
 LangChain/LangGraph runtime, controlled OKF tools and synthetic debt negotiation.
 The separate `agent-chat-ui` repository provides the Next.js frontend.
@@ -19,13 +19,15 @@ Canonical LLM configuration: `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`.
 Chat and RAW ingestion use the same OpenAI-compatible adapter. Legacy
 `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `SIMPLE_AGENT_MODEL` are fallback only.
 Streaming uses the SDK; no automatic retry after partial text. No new inference server or tunnel.
+General institutional questions stay outside the identity flow. CPF and other
+identity factors are requested only after an explicit personal-account request.
 
 ## Tests
 
 ```bash
 uv run pytest -q
 uv run ruff check src tests
-docker build -t agent-runtime:0.2.0 .
+docker build -t agent-runtime:0.2.1 .
 ```
 
 Tests force synthetic credentials and temporary storage. They do not call Qwen.
