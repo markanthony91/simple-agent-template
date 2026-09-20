@@ -22,6 +22,18 @@ admin operation can change a dummy payment from `pending` to `settled`.
 The draft was not published or activated. Review it in Dataset before changing the
 active snapshot.
 
+## Railway rollout
+
+- Backend 0.5.0 deployment: `73ea459c-e7b0-4766-895b-eef18b95a338`, success.
+- Source with runtime behavior: `b3d61c1`.
+- Backup: `/data/backups/pre-dummy-payment-050-20260920T143736Z`.
+- Archive SHA-256: `b66d6f5803aae94587a9fb7da42323b440afe17e47d5aa6a55c9cb32242b9435`.
+- Read-back confirmed package 0.5.0, all three payment tools and
+  `/app/.langgraph_api -> /data/langgraph`.
+- All 46 prior thread states/histories, four Assistants and 52 session rows matched
+  the backup after deployment and canaries.
+- The active bundle ID remained unchanged; the candidate remains a draft.
+
 ## Validation
 
 ```text
@@ -43,3 +55,16 @@ Smart Debt Marcelo Barbosa replay: isolated “A vista”, discount inquiry, rep
 cash-condition inquiry, preference for installments, request for 3x, boleto,
 explicit e-mail, code redelivery and “Já paguei”. Customer identity, amounts,
 dates and commercial terms remain the local synthetic fixture and OKF policy.
+
+The default Qwen request timed out after 120 seconds before producing a response,
+so it is not an acceptance result. Gemini through the registered Lovable connection
+completed all four isolated scenarios. In the happy path it generated the exact 3x
+schedule, registered the agreement, created a dummy boleto, captured the explicit
+e-mail without claiming external delivery, repeated the same code and kept “Já
+paguei” as `pending` after calling `get_payment_status`. The cash replay answered
+the 0% discount objectively and repeated the same persisted offer. Negative and
+neutral scenarios neither verified identity nor created offers.
+
+The operator settlement canary denied the request without approval, then changed
+both payment and agreement to `settled` after explicit admin approval. All canaries
+used `/tmp` storage, not the active dataset or session database.

@@ -105,7 +105,9 @@ Coordinate PR integration before another main autodeploy.
 - [x] Validate happy, negative and neutral journeys locally.
 - [x] Create and validate isolated Railway draft `will-bank-negotiation-pilot-20260920-185ae54d`.
 - [ ] Publish/activate the draft only after operator review.
-- [ ] Run the real-model conversation on a new session after deployment and activation.
+- [x] Deploy backend 0.5.0 and run isolated Gemini conversations based on the
+  anonymized Marcelo Barbosa replay; Qwen timed out before response.
+- [ ] Activate the reviewed draft and repeat the same conversation through the UI.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy

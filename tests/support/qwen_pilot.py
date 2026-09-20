@@ -28,12 +28,17 @@ def run() -> None:
     os.environ["LANGSMITH_TRACING"] = "false"
     for logger in ("httpx", "httpcore", "openai"):
         logging.getLogger(logger).setLevel(logging.CRITICAL)
+    connection = os.getenv("PILOT_LLM_CONNECTION", "default")
 
     from simple_agent.services.okf_store import PersistentOKFStore
     from simple_agent.services.simulator_store import SimulatorStore
     from simple_agent.services.session_store import SessionStore
 
-    repo = Path(__file__).resolve().parents[2]
+    repo = (
+        Path(os.environ["PILOT_APP_ROOT"])
+        if os.getenv("PILOT_APP_ROOT")
+        else Path(__file__).resolve().parents[2]
+    )
     source = repo / "examples" / "pilot-okf"
     files = {
         p.relative_to(source).as_posix(): p.read_text().replace(
@@ -56,6 +61,7 @@ def run() -> None:
         for mode, data in graph.stream(
             {"messages": [*history, HumanMessage(content=query, id=uuid4().hex)]},
             {"configurable": {"thread_id": key}, "recursion_limit": 28},
+            context={"llm_integration": {"primary": connection}},
             stream_mode=["messages", "values"],
         ):
             if (
