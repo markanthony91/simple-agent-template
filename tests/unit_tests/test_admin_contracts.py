@@ -122,7 +122,7 @@ def test_tool_usage_matches_runtime_without_injected_arguments(admin):
         assert record["usage_description"] == tool.description
         assert record["parameters"] == tool.tool_call_schema.model_json_schema()
         assert "runtime" not in record["parameters"].get("properties", {})
-    assert "cpf" in records["verify_customer_identity"]["parameters"]["required"]
+    assert "cpf" in records["verify_and_get_customer"]["parameters"]["required"]
     assert admin.registry.registry_file.read_bytes() == before
 
 

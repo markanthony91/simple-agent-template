@@ -1,4 +1,17 @@
-# Agent Runtime — OKF simulator (0.8.1)
+# Agent Runtime — OKF simulator (0.9.0)
+
+Identity verification and customer lookup now execute atomically through
+`verify_and_get_customer`. A successful call returns the pinned customer balance;
+a failed call returns no financial data. The identity and payment tools are
+return-direct operations: the backend renders their authorized result as the final
+assistant message, so those turns need one model call instead of a second model
+call to restate values.
+
+Customer balance and eligibility come from the session fixture pinned by the
+backend. Commercial limits, validity, payment methods and delivery channels come
+from the single published OKF policy matching that session's institution and
+product. The model supplies the requested terms but neither calculates nor selects
+the applicable conditions.
 
 The synthetic negotiation flow now generates the offer, agreement and invalid
 dummy PIX/boleto in one transaction after the customer requests complete terms.

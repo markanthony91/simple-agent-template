@@ -75,6 +75,27 @@ def test_data_hidden_and_verification_isolated(policy):
     assert "debt" not in call(tools.get_customer, a, cpf="12345678900")
 
 
+def test_atomic_identity_returns_customer_only_on_success(policy):
+    valid = call(
+        tools.verify_and_get_customer,
+        runtime("atomic-valid"),
+        cpf="12345678900",
+        full_name="João da Silva",
+    )
+    assert valid["verified"] is True
+    assert valid["customer"]["debt"]["current_amount"] == "5873.42"
+    assert tools.verify_and_get_customer.return_direct is True
+
+    denied = call(
+        tools.verify_and_get_customer,
+        runtime("atomic-denied"),
+        cpf="00000000000",
+        full_name="Pessoa Incorreta",
+    )
+    assert denied["verified"] is False
+    assert "customer" not in denied
+
+
 def test_offer_requires_identity_and_policy_receipt(policy):
     rt = runtime()
     args = {"payment_type": "installment", "installments": 3, "policy_path": PATH}

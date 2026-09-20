@@ -131,6 +131,15 @@ Coordinate PR integration before another main autodeploy.
 - [x] Deploy Railway 0.8.1 and version the managed Assistant from 23 to 24 with exact read-back.
 - [x] Complete published happy and unhappy conversations; negotiation fell from 10.81 s to 7.14 s.
 - [x] Remove four synthetic conversations and return persistent sessions to the 52-row baseline.
+
+## Atomic identity and deterministic replies — 0.9.0
+
+- [x] Verify identity and return the pinned customer in one backend transaction.
+- [x] Remove the legacy two-tool identity route from the model's tool catalog.
+- [x] Render identity and proposal results from backend output without a post-tool model call.
+- [x] Keep customer eligibility in the pinned session and commercial conditions in the matching published OKF policy.
+- [x] Add regression coverage for identity data isolation, exact installment rendering and one-call graph routing.
+- [ ] Deploy Railway, version the managed Assistant and repeat live happy/unhappy timing tests.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy

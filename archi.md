@@ -1,8 +1,8 @@
-# Architecture — 0.7.0
+# Architecture — 0.9.0
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →
-session-authorized tool → result → next inference.
+session-authorized tool → deterministic direct reply for identity/payment actions.
 
 System prompt, AGENTS.md and WORKFLOW.md remain external operational instructions.
 OKF provides policy, not account balances. No RAG, embeddings or vector database.
@@ -19,11 +19,15 @@ Snapshot and fixture are pinned at the first inference; publication does not
 silently change an ongoing conversation. SQLite transactions serialize short
 state operations only; no transaction holds a network LLM call.
 
-After customer resolution, negotiation policy discovery uses one root index and
-one `COMPANIES`-scoped lexical search. Ranking aggregates matches per document,
-normalizes installment synonyms and returns each canonical path once. This avoids
-repeated lines crowding out the institution-specific policy and reduces model
-round trips before the policy read.
+Identity verification and customer lookup share one SQLite transaction. Only a
+successful verification marks the debt as read and returns the pinned customer.
+The model no longer receives the legacy two-tool path.
+
+For a personal negotiation, the payment tool scans only policy-shaped documents
+in the pinned snapshot and accepts exactly one published, current policy matching
+the fixture's institution and product. The session fixture limits eligibility;
+the OKF policy limits commercial terms, payment methods and delivery channels.
+Either source may restrict a request and neither may broaden the other.
 
 The future Demo form uses the existing admin graph only as a server-side contract:
 it resolves `creditor_name` from Zerai Canais, then creates one new row keyed by
@@ -50,10 +54,10 @@ is no internal approval or second customer confirmation. The agent can only read
 payment status. Settlement is an authenticated `okf_admin` operation standing in
 for the future provider webhook and is not registered as an agent tool.
 
-The existing middleware annotates the final AI message with response_audit:
-explicit BRL/percentage checks against authorized customer/offer results.
-No response rewrite, extra LLM call, or retry. Absence of a numeric mismatch does
-not prove semantic fidelity. Frontend 0.1.1 explains this limitation beside the text.
+For identity and payment transactions, return-direct routing skips the post-tool
+model call and middleware appends a deterministic AI message from the tool result.
+The same numeric audit annotates that message. Other answers keep the existing
+post-stream audit; absence of a mismatch does not prove semantic fidelity.
 System/AGENTS/workflow defaults are composed once, without a duplicate hidden
 commercial prompt in Python. Saved context overrides remain supported.
 The RAW compiler canonicalizes new roots and rejects case collisions; exact

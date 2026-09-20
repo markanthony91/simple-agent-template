@@ -42,6 +42,76 @@ def _amount(value: Decimal) -> str:
     return str(value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
 
+def _customer_payload(state: dict, cpf: str = "") -> dict:
+    fixture = state["fixture"]
+    if cpf and _digits(cpf) != _digits(fixture["cpf"]):
+        return {"found": False, "reason": "customer_not_found"}
+    if not state["identity_verified"]:
+        return {
+            "found": False,
+            "identity_validated": False,
+            "financial_data_available": False,
+            "reason": "identity_verification_required",
+        }
+    debt = fixture.get("debt", {})
+    state["debt_read"] = True
+    payload = {
+        "found": True,
+        "identity_validated": True,
+        "customer_id": fixture["customer_id"],
+        "full_name": fixture["full_name"],
+        "cpf": _mask_document(fixture["cpf"]),
+        "institution": fixture.get("institution"),
+        "product": fixture.get("product"),
+        "debt": {
+            **debt,
+            "days_overdue": debt.get("days_overdue")
+            if isinstance(debt.get("days_overdue"), int)
+            else SimulatorStore().days_overdue(debt.get("due_date")),
+        },
+    }
+    if fixture.get("phone"):
+        payload["phone"] = _mask_phone(fixture["phone"])
+    return payload
+
+
+def _verify_identity(
+    state: dict, runtime: ToolRuntime, cpf: str, full_name: str, birth_date: str
+) -> dict:
+    fixture = state["fixture"]
+    policy = policy_for(state)
+    attempts = state.get("identity_attempts", 0)
+    verified = attempts < policy.max_attempts and matches(
+        state, cpf, full_name, birth_date
+    )
+    state["identity_verified"] = verified
+    if not verified:
+        state["debt_read"] = False
+        state.pop("verification_id", None)
+        state["offers"] = {}
+        # Retransmission of the same tool call cannot consume another attempt.
+        seen = state.setdefault("identity_failed_calls", [])
+        call_id = runtime.tool_call_id
+        if attempts < policy.max_attempts and (not call_id or call_id not in seen):
+            attempts += 1
+            state["identity_attempts"] = attempts
+            if call_id:
+                seen.append(call_id)
+        return {
+            "verified": False,
+            "reason": "identity_validation_failed",
+            "attempts_remaining": max(0, policy.max_attempts - attempts),
+            "requires_human": attempts >= policy.max_attempts,
+        }
+    state["verification_id"] = state.get("verification_id") or f"VER-{uuid4().hex}"
+    return {
+        "verified": True,
+        "verification_id": state["verification_id"],
+        "customer_id": fixture["customer_id"],
+        "cpf": _mask_document(cpf),
+    }
+
+
 @tool
 def get_customer(runtime: ToolRuntime, cpf: str = "") -> str:
     """Read the pinned session's synthetic debt only after identity verification.
@@ -50,38 +120,7 @@ def get_customer(runtime: ToolRuntime, cpf: str = "") -> str:
     Optional cpf is for legacy full-CPF callers; it cannot select another customer.
     """
     with SessionStore().transaction(thread_id(runtime)) as state:
-        fixture = state["fixture"]
-        if cpf and _digits(cpf) != _digits(fixture["cpf"]):
-            return _json({"found": False, "reason": "customer_not_found"})
-        if not state["identity_verified"]:
-            return _json(
-                {
-                    "found": False,
-                    "identity_validated": False,
-                    "financial_data_available": False,
-                    "reason": "identity_verification_required",
-                }
-            )
-        debt = fixture.get("debt", {})
-        state["debt_read"] = True
-        payload = {
-            "found": True,
-            "identity_validated": True,
-            "customer_id": fixture["customer_id"],
-            "full_name": fixture["full_name"],
-            "cpf": _mask_document(fixture["cpf"]),
-            "institution": fixture.get("institution"),
-            "product": fixture.get("product"),
-            "debt": {
-                **debt,
-                "days_overdue": debt.get("days_overdue")
-                if isinstance(debt.get("days_overdue"), int)
-                else SimulatorStore().days_overdue(debt.get("due_date")),
-            },
-        }
-        if fixture.get("phone"):
-            payload["phone"] = _mask_phone(fixture["phone"])
-        return _json(payload)
+        return _json(_customer_payload(state, cpf))
 
 
 @tool
@@ -96,43 +135,24 @@ def verify_customer_identity(
     identity. On requires_human=true stop attempts; never disclose expected values.
     """
     with SessionStore().transaction(thread_id(runtime)) as state:
-        fixture = state["fixture"]
-        policy = policy_for(state)
-        attempts = state.get("identity_attempts", 0)
-        verified = attempts < policy.max_attempts and matches(
-            state, cpf, full_name, birth_date
-        )
-        state["identity_verified"] = verified
-        if not verified:
-            state["debt_read"] = False
-            state.pop("verification_id", None)
-            state["offers"] = {}
-            # Retransmission of the same tool call cannot consume another attempt.
-            seen = state.setdefault("identity_failed_calls", [])
-            call_id = runtime.tool_call_id
-            if attempts < policy.max_attempts and (not call_id or call_id not in seen):
-                attempts += 1
-                state["identity_attempts"] = attempts
-                if call_id:
-                    seen.append(call_id)
-            locked = attempts >= policy.max_attempts
-            return _json(
-                {
-                    "verified": False,
-                    "reason": "identity_validation_failed",
-                    "attempts_remaining": max(0, policy.max_attempts - attempts),
-                    "requires_human": locked,
-                }
-            )
-        state["verification_id"] = state.get("verification_id") or f"VER-{uuid4().hex}"
-        return _json(
-            {
-                "verified": True,
-                "verification_id": state["verification_id"],
-                "customer_id": fixture["customer_id"],
-                "cpf": _mask_document(cpf),
-            }
-        )
+        return _json(_verify_identity(state, runtime, cpf, full_name, birth_date))
+
+
+@tool(return_direct=True)
+def verify_and_get_customer(
+    cpf: str, runtime: ToolRuntime, full_name: str = "", birth_date: str = ""
+) -> str:
+    """Verify identity and return the pinned synthetic debt in one atomic call.
+
+    Use instead of separate verification and customer lookup. The session contract
+    defines the required CPF segment and secondary factors. Only verified=true
+    includes customer data; failures never expose financial data.
+    """
+    with SessionStore().transaction(thread_id(runtime)) as state:
+        result = _verify_identity(state, runtime, cpf, full_name, birth_date)
+        if result["verified"]:
+            result["customer"] = _customer_payload(state)
+        return _json(result)
 
 
 @tool
@@ -326,6 +346,5 @@ def create_agreement(
 
 
 COLLECTION_TOOLS = [
-    get_customer,
-    verify_customer_identity,
+    verify_and_get_customer,
 ]

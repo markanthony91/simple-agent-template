@@ -23,8 +23,9 @@
 5. Publish backend and companion frontend together in a controlled maintenance window.
    Old clients cannot publish without the new approved flag. New clients send it
    only after operator confirmation. This is intent capture, not admin authentication.
-6. Start a NEW synthetic conversation. Verify identity → debt → policy → offer →
-   confirmation. Verify another thread cannot reuse identity or offer.
+6. Start a NEW synthetic conversation. Verify atomic identity/customer lookup →
+   requested terms → deterministic proposal/payment response. Verify another thread
+   cannot reuse identity or offer.
 7. Check /info (application), then a protected synthetic tool loop (provider/runtime).
    /info alone does not establish Qwen availability.
 

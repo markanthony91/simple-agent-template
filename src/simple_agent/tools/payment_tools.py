@@ -114,7 +114,7 @@ def _create_payment(
     return _public(payment)
 
 
-@tool
+@tool(return_direct=True)
 def generate_payment_offer(
     payment_type: Literal["cash", "installment"],
     method: Literal["pix", "boleto"],
