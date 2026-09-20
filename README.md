@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.9.1)
+# Agent Runtime — OKF simulator (0.9.2)
 
 Identity verification and customer lookup now execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;
@@ -23,6 +23,8 @@ For a personal negotiation, the payment tool resolves and validates exactly one
 applicable policy inside the session's pinned snapshot. This removes model-managed
 OKF navigation from the transaction while preserving fail-closed policy checks.
 General institutional questions continue to use progressive OKF navigation.
+They never request identity data unless the user explicitly changes scope to
+their own account, debt, proposal, payment or contestation.
 
 The backend now has a create-only contract for a future Demo form. It accepts
 full name, CPF, E.164 phone, debt amount and days overdue, resolves the creditor
