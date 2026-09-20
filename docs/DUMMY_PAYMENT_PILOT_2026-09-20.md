@@ -101,3 +101,8 @@ ran. Its session retained zero offers, agreements and payments. Deterministic
 backend coverage for both PIX and boleto passed. The three synthetic live threads
 and their session rows were deleted after evidence capture; the persistent session
 count returned from 55 to the baseline 52.
+
+Follow-up 0.7.0 search calibration reduced financial navigation to three calls and
+completed six consecutive Gemini payments (three PIX and three boleto across the
+temporary and primary Assistants) without an incomplete provider response. See
+`docs/OKF_SEARCH_CALIBRATION_2026-09-20.md` for the controlled A/B evidence.

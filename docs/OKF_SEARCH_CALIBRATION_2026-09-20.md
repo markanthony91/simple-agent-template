@@ -27,6 +27,32 @@ first for both `boleto parcelado 3x` and `à vista PIX` queries.
 
 ## Acceptance
 
-Pending controlled Railway trials with the managed Gemini connection. Measure
-navigation calls, elapsed negotiation time, selected canonical path, payment
-creation and provider completeness. Synthetic threads must be removed afterward.
+Railway 0.7.0 deployment `3f5a0fc0-b8f1-4ad4-a53b-d4f98458a73d`
+completed successfully from source `66611aa`.
+
+| Variant | Navigation | Time | Result |
+|---|---:|---:|---|
+| Main Assistant v22, uncalibrated | 12 calls | 20.71 s | Visited `PRODUCTS` and `COMPANIES`; provider error; no payment |
+| Prompt shortcut with old line ranking | 3 calls | 7.76 s | Read generic autonomy document; no payment |
+| Temporary calibrated Assistant on 0.7.0 | 3 calls per run | 11.21 s median over three reliable measurements | 4/4 payments created: 2 boleto and 2 PIX |
+| Main Assistant v23 on 0.7.0 | 3 calls per run | 12.28 s boleto; 11.32 s PIX | 2/2 payments created |
+
+Every calibrated financial run used exactly `okf_index(<root>)`, one
+`okf_search(scope="COMPANIES")`, then `okf_read` on the synthetic Will Bank
+policy. No calibrated run visited `PRODUCTS` or returned
+`provider_response_incomplete`.
+
+A neutral debt-contestation query still followed `GLOBAL`, used four navigation
+calls, completed in 13.54 seconds and did not request identity. Twenty direct
+search measurements on the hosted 469-file bundle returned the correct first path
+with 124.92 ms median, 149.25 ms p95 and 156.37 ms maximum. Model round trips,
+not server-side lexical search, remain the dominant latency.
+
+The main Assistant was versioned from 22 to 23 with exact AGENTS.md and WORKFLOW
+read-back. System Prompt, profile, Gemini/Lovable integration, model settings and
+workflow catalog were preserved. The temporary Assistant, eight synthetic threads
+and their session rows were removed; the persistent session count returned from 60
+to the 52-row baseline.
+
+Backup: `/data/backups/pre-okf-search-070-20260920T152920Z.tar.gz`, SHA-256
+`e1b3534f05ef9d8aa62a384674da2e5b94e54fc66cef33b9432489c6e568b277`.

@@ -119,7 +119,9 @@ Coordinate PR integration before another main autodeploy.
 - [x] Prove that prompt-only routing reduces calls but still selects a generic document with line-level ranking.
 - [x] Rank whole documents, deduplicate paths and normalize installment terms.
 - [x] Confirm the active Will Bank policy ranks first for boleto 3x and PIX à vista using an isolated copy of the published bundle.
-- [ ] Deploy 0.7.0 and repeat controlled Gemini A/B trials before changing the primary Assistant instructions.
+- [x] Deploy 0.7.0 and complete controlled Gemini A/B trials.
+- [x] Version the primary Assistant from 22 to 23 after 4/4 temporary calibrated payment runs succeeded.
+- [x] Confirm boleto and PIX on Assistant v23, preserve the neutral `GLOBAL` path and remove all synthetic artifacts.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy
