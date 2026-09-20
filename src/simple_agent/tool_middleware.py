@@ -54,7 +54,7 @@ GENERAL_CONTEXT = re.compile(
 IDENTITY_OBJECT = (
     r"(?:\bcpf\b|nome completo|data de nascimento|4 primeiros digitos|"
     r"quatro primeiros digitos|numero do documento|dados de identificacao|"
-    r"validar sua identidade|protocolo de identificacao)"
+    r"validar sua identidade|protocolo de identificacao|\bidentificacao\b)"
 )
 IDENTITY_NEGATION = re.compile(
     rf"\bnao .{{0,50}}(?:necessario|preciso|permitido).{{0,80}}{IDENTITY_OBJECT}"

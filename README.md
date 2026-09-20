@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.9.4)
+# Agent Runtime — OKF simulator (0.9.5)
 
 Identity verification and customer lookup now execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;

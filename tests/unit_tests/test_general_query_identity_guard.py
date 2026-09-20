@@ -55,3 +55,12 @@ def test_unsolicited_identity_offer_is_removed() -> None:
     )
 
     assert _sanitize_general_response(response) == "O prazo ainda está a definir pela operação."
+
+
+def test_personal_account_offer_is_removed_after_general_answer() -> None:
+    response = (
+        "O prazo ainda está a definir pela operação.\n\n"
+        "Se desejar saber o prazo do seu caso, solicite atendimento da conta pessoal para realizarmos a identificação segura."
+    )
+
+    assert _sanitize_general_response(response) == "O prazo ainda está a definir pela operação."
