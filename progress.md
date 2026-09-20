@@ -110,7 +110,8 @@ Coordinate PR integration before another main autodeploy.
   anonymized Marcelo Barbosa replay; Qwen timed out before response.
 - [x] Activate the reviewed draft.
 - [x] Deploy 0.6.0 and verify atomic proposal/agreement/boleto creation through the managed Assistant.
-- [ ] Deploy 0.6.1 with punctuation-safe e-mail capture and complete the remaining live checks.
+- [x] Deploy 0.6.1 with punctuation-safe e-mail capture and complete the live boleto journey through settlement.
+- [ ] Repeat the live PIX journey after the Gemini/Lovable bridge stops returning `provider_response_incomplete`; no PIX state was persisted by the failed runs.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy

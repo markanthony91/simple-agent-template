@@ -39,6 +39,16 @@ pilot's changed concepts.
   the backup after deployment and canaries.
 - During the 0.5.0 deployment check the old active bundle remained unchanged; the
   reviewed pilot was activated later, as recorded above.
+- Backend 0.6.0 deployment: `9d0e3477-4790-4337-9e2d-28537e2c501a`, success.
+- Backend 0.6.1 deployment: `838036c8-40eb-4c01-8361-c158b67f9729`, success.
+- Source: `0352b40`; runtime read-back confirmed package 0.6.1 and the active
+  pilot bundle remained unchanged.
+- Pre-0.6 backup: `/data/backups/pre-dummy-payment-060-20260920T150353Z.tar.gz`,
+  SHA-256 `e1fdbc9e7b217417dbbef939dd446dd00c71038bea2333640be16b7e22fdb0cd`.
+- Managed Assistant `dd5766a7-2237-5e12-b949-7236c459698c` advanced from
+  version 21 to 22. System Prompt, AGENTS.md and WORKFLOW.md matched the source
+  after read-back; profile, LLM integration/settings and workflow catalog were
+  preserved.
 
 ## Validation
 
@@ -76,3 +86,18 @@ both payment and agreement to `settled` through the authenticated admin operatio
 This operation stands in for a payment-provider webhook; it is not proposal
 approval. All initial canaries used `/tmp` storage, not the active dataset or
 session database.
+
+The published Gemini/Lovable canary then completed identity, debt lookup and one
+atomic 3x boleto request without a confirmation turn. `generate_payment_offer`
+returned one offer, agreement and pending boleto with the exact schedule
+`1957.81`, `1957.81`, `1957.80`. A natural sentence ending the e-mail address in
+a period exposed and led to the 0.6.1 parser fix. After deployment, outbox capture,
+stable code repetition, pending status, authenticated settlement simulation and
+the final `settled` read all passed.
+
+The live PIX canary was stopped by three `provider_response_incomplete` failures
+from the Gemini/Lovable bridge during OKF navigation, before the financial tool
+ran. Its session retained zero offers, agreements and payments. Deterministic
+backend coverage for both PIX and boleto passed. The three synthetic live threads
+and their session rows were deleted after evidence capture; the persistent session
+count returned from 55 to the baseline 52.
