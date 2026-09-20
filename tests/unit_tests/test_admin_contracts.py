@@ -86,6 +86,29 @@ def test_future_form_requires_approval_and_passes_exact_contract(admin, monkeypa
     }
 
 
+def test_dummy_settlement_requires_operator_approval(admin, monkeypatch):
+    captured = {}
+
+    def settle(thread_id, payment_id):
+        captured.update(thread_id=thread_id, payment_id=payment_id)
+        return {"payment_id": payment_id, "status": "settled"}
+
+    monkeypatch.setattr(
+        "simple_agent.tools.payment_tools.simulate_payment_settled", settle
+    )
+    payload = {
+        "operation": "simulate_payment_settled",
+        "thread_id": "thread-1",
+        "payment_id": "PAY-1",
+    }
+    assert admin.execute(payload)["error"] == "human_approval_required"
+    assert captured == {}
+    result = admin.execute({**payload, "approved": True})
+    assert result["error"] == ""
+    assert result["result"]["status"] == "settled"
+    assert captured == {"thread_id": "thread-1", "payment_id": "PAY-1"}
+
+
 def test_tool_usage_matches_runtime_without_injected_arguments(admin):
     from simple_agent.managed_graph import ALL_TOOLS
 
@@ -99,7 +122,7 @@ def test_tool_usage_matches_runtime_without_injected_arguments(admin):
         assert record["usage_description"] == tool.description
         assert record["parameters"] == tool.tool_call_schema.model_json_schema()
         assert "runtime" not in record["parameters"].get("properties", {})
-    assert "cpf" in records["verify_customer_identity"]["parameters"]["required"]
+    assert "cpf" in records["verify_and_get_customer"]["parameters"]["required"]
     assert admin.registry.registry_file.read_bytes() == before
 
 

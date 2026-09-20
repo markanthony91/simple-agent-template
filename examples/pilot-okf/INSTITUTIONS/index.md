@@ -1,3 +1,3 @@
 # Instituições sintéticas
 
-- [Banco Aurora](banco_aurora/index.md)
+- [Will Bank](will_bank/index.md)

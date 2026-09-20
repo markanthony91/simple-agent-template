@@ -5,6 +5,7 @@ import re
 import asyncio
 import logging
 import socket
+from decimal import Decimal, InvalidOperation
 from time import perf_counter
 from typing import Any, Awaitable, Callable
 
@@ -39,6 +40,94 @@ RESET_DEMO_REPLY = (
     "estado operacional foi limpo."
 )
 RESET_DEMO_UNAVAILABLE = "Comando indisponível nesta sessão."
+DIRECT_REPLY_TOOLS = {"verify_and_get_customer", "generate_payment_offer"}
+
+
+def _brl(value: Any) -> str:
+    try:
+        number = Decimal(str(value)).quantize(Decimal("0.01"))
+    except (InvalidOperation, ValueError):
+        return "valor indisponível"
+    whole, cents = f"{number:,.2f}".split(".")
+    return f"R$ {whole.replace(',', '.')},{cents}"
+
+
+def _direct_failure(reason: str) -> str:
+    return {
+        "identity_verification_required": "Preciso confirmar sua identidade antes de negociar.",
+        "explicit_offer_terms_required": (
+            "Informe na mesma mensagem se deseja pagar à vista ou em quantas parcelas, "
+            "e escolha PIX ou boleto."
+        ),
+        "customer_not_eligible": "Não há uma condição de negociação disponível para este cadastro.",
+        "customer_eligibility_exceeded": "A condição solicitada está fora da elegibilidade deste cadastro. Informe outra opção.",
+        "policy_not_found": "Não encontrei uma política publicada aplicável a esta negociação.",
+        "policy_ambiguous": "Há mais de uma política aplicável; a negociação foi bloqueada para evitar condição incorreta.",
+        "policy_not_published": "A política encontrada ainda não está publicada e não autoriza uma proposta.",
+        "policy_not_current": "A política encontrada não está vigente e não autoriza uma proposta.",
+        "policy_terms_undefined": "As condições da política ainda não foram definidas.",
+        "policy_terms_invalid": "As condições publicadas estão inválidas e não autorizam uma proposta.",
+        "policy_terms_exceeded": "A condição solicitada ultrapassa o limite da política publicada. Informe outra opção.",
+        "payment_terms_undefined": "Os meios de pagamento da política ainda não foram definidos.",
+        "payment_terms_invalid": "Os meios de pagamento publicados estão inválidos.",
+        "payment_method_not_allowed": "O meio de pagamento solicitado não é permitido pela política aplicável.",
+        "invalid_financial_value": "O valor informado é inválido.",
+    }.get(reason, "Não foi possível gerar a proposta com segurança. Tente outra condição.")
+
+
+def render_direct_reply(tool_name: str, content: Any) -> str | None:
+    """Render backend-authorized results without another model call."""
+    try:
+        payload = json.loads(content) if isinstance(content, str) else content
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if tool_name == "verify_and_get_customer":
+        if not payload.get("verified"):
+            if payload.get("requires_human"):
+                return "Não consegui confirmar os dados. Por segurança, esta sessão não pode continuar."
+            remaining = int(payload.get("attempts_remaining", 0))
+            return (
+                "Não consegui confirmar os dados informados. Confira todos os dados e tente novamente. "
+                f"Tentativas restantes: {remaining}."
+            )
+        customer = payload.get("customer", {})
+        debt = customer.get("debt", {}) if isinstance(customer, dict) else {}
+        institution = str(customer.get("institution") or "a instituição")
+        return (
+            f"Identidade confirmada. O saldo atual simulado com {institution} é "
+            f"{_brl(debt.get('current_amount'))}.\n\n"
+            "Para negociar, informe se deseja pagar à vista ou parcelado, a quantidade "
+            "de parcelas e escolha PIX ou boleto."
+        )
+    if tool_name != "generate_payment_offer":
+        return None
+    if not payload.get("created"):
+        return _direct_failure(str(payload.get("reason") or ""))
+    offer = payload["offer"]
+    agreement = payload["agreement"]
+    payment = payload["payment"]
+    schedule = "; ".join(
+        f"{index}ª {_brl(amount)}"
+        for index, amount in enumerate(offer["installment_schedule"], 1)
+    )
+    payment_label = (
+        "à vista" if offer["payment_type"] == "cash" else f"{offer['installments']} parcelas"
+    )
+    return (
+        "Proposta simulada criada com sucesso.\n\n"
+        f"- Total negociado: {_brl(offer['negotiated_amount'])}\n"
+        f"- Forma: {payment_label}\n"
+        f"- Cronograma: {schedule}\n"
+        f"- Método: {str(payment['method']).upper()}\n"
+        f"- Código dummy: {payment['payment_code']}\n"
+        f"- Proposta: {offer['offer_id']}\n"
+        f"- Acordo: {agreement['agreement_id']}\n"
+        f"- ID do pagamento: {payment['payment_id']}\n"
+        f"- Validade: {offer['expires_at']}\n\n"
+        "Esta simulação não gera cobrança nem pagamento real."
+    )
 
 
 def is_reset_demo_command(content: Any) -> bool:
@@ -89,6 +178,54 @@ class DemoResetMiddleware(AgentMiddleware):
 
     async def abefore_model(self, state, runtime) -> dict[str, Any] | None:
         return await asyncio.to_thread(self.before_model, state, runtime)
+
+
+class DirectReplyMiddleware(AgentMiddleware):
+    """Append a user-facing AI message after a return-direct transactional tool."""
+
+    def after_agent(self, state, runtime) -> dict[str, Any] | None:
+        messages = state.get("messages", [])
+        if not messages or getattr(messages[-1], "type", None) != "tool":
+            return None
+        tool_message = messages[-1]
+        if getattr(tool_message, "name", None) not in DIRECT_REPLY_TOOLS:
+            return None
+        reply = render_direct_reply(tool_message.name, tool_message.content)
+        if not reply:
+            return None
+        key = get_config().get("configurable", {}).get("thread_id")
+        with SessionStore().transaction(key) as session:
+            report = audit_response(reply, session)
+        report.update(
+            mode="deterministic_backend",
+            semantic_fidelity="backend_template",
+            pre_display_protection=True,
+        )
+        logger.info(
+            json.dumps(
+                {
+                    "event": "DIRECT_REPLY",
+                    "hostname": socket.gethostname(),
+                    "thread_id": key,
+                    "tool": tool_message.name,
+                    "audit_status": report["status"],
+                }
+            )
+        )
+        return {
+            "messages": [
+                AIMessage(
+                    content=reply,
+                    additional_kwargs={
+                        "deterministic_reply": True,
+                        "response_audit": report,
+                    },
+                )
+            ]
+        }
+
+    async def aafter_agent(self, state, runtime) -> dict[str, Any] | None:
+        return await asyncio.to_thread(self.after_agent, state, runtime)
 
 
 def _meta(request: ToolCallRequest) -> tuple[str, str, dict]:
@@ -287,3 +424,4 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
 
 filter_enabled_tools = FilterEnabledToolsMiddleware()
 demo_reset = DemoResetMiddleware()
+direct_reply = DirectReplyMiddleware()

@@ -16,10 +16,10 @@ DEFAULT_TOOLS: dict[str, dict[str, Any]] = {
     "okf_search": {"name": "okf_search", "description": "Search the active OKF bundle as a fallback.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "okf_read": {"name": "okf_read", "description": "Read a document from the active OKF bundle.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "okf_read_section": {"name": "okf_read_section", "description": "Read one section from an OKF document.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
-    "get_customer": {"name": "get_customer", "description": "Return the configured simulator customer and debt when the document matches.", "category": "collection", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
-    "verify_customer_identity": {"name": "verify_customer_identity", "description": "Verify the simulator customer using the session's configured CPF method and additional factors.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
-    "generate_offer": {"name": "generate_offer", "description": "Calculate and persist a simulator offer from current debt and customer eligibility.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
-    "create_agreement": {"name": "create_agreement", "description": "Create a simulated agreement from a valid persisted offer after explicit confirmation.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "verify_and_get_customer": {"name": "verify_and_get_customer", "description": "Atomically verify the simulator customer and return the pinned debt only on success.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "generate_payment_offer": {"name": "generate_payment_offer", "description": "Generate a policy-approved offer, agreement and invalid dummy PIX/boleto in one transaction.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "send_payment_instruction": {"name": "send_payment_instruction", "description": "Capture a dummy email delivery in the local outbox without sending it.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": False},
+    "get_payment_status": {"name": "get_payment_status", "description": "Read a dummy payment status from the current session.", "category": "collection", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
 }
 
 

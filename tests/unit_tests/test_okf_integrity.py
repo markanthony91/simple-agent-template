@@ -35,6 +35,37 @@ def test_search_multiple_files(isolated):
     assert "a.md" in result and "b.md" in result
 
 
+def test_search_ranks_whole_policy_and_returns_each_document_once(isolated):
+    pilot = "COMPANIES/will/policies/negociacao-piloto.md"
+    generic = "COMPANIES/will/knowledge/formas-pagamento.md"
+    isolated.import_bundle(
+        "ranked",
+        "0.2",
+        {
+            "index.md": "# Index",
+            pilot: (
+                "---\ntype: Policy\ninstitution: Will Bank\n"
+                "product: cartao_de_credito\nnegotiation:\n  max_installments: 3\n"
+                "payment:\n  methods: [pix, boleto]\n---\n"
+                "# Negociação\nAté três parcelas, sem desconto."
+            ),
+            generic: (
+                "---\ntype: Knowledge\ntags: [Will Bank, cartão de crédito]\n---\n"
+                "# Formas de pagamento\nBoleto é um meio de pagamento.\n"
+                "Boleto pode ser consultado."
+            ),
+        },
+    )
+
+    result = isolated.service().search(
+        "Will Bank cartao_de_credito boleto parcelado 3x", scope="COMPANIES"
+    )
+    matches = result.splitlines()[2:]
+    assert matches[0].startswith(pilot)
+    assert sum(line.startswith(pilot) for line in matches) == 1
+    assert sum(line.startswith(generic) for line in matches) == 1
+
+
 @pytest.mark.parametrize(
     "path", ["/etc/passwd.md", "../outside.md", "GLOBAL/../../a.md", "a.txt"]
 )

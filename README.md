@@ -1,4 +1,28 @@
-# Agent Runtime — OKF simulator (0.4.2)
+# Agent Runtime — OKF simulator (0.9.1)
+
+Identity verification and customer lookup now execute atomically through
+`verify_and_get_customer`. A successful call returns the pinned customer balance;
+a failed call returns no financial data. The identity and payment tools are
+return-direct operations: the backend renders their authorized result as the final
+assistant message, so those turns need one model call instead of a second model
+call to restate values.
+
+Customer balance and eligibility come from the session fixture pinned by the
+backend. Commercial limits, validity, payment methods and delivery channels come
+from the single published OKF policy matching that session's institution and
+product. The model supplies the requested terms but neither calculates nor selects
+the applicable conditions.
+
+The synthetic negotiation flow now generates the offer, agreement and invalid
+dummy PIX/boleto in one transaction after the customer requests complete terms.
+There is no internal human approval or separate confirmation. Local email outbox
+capture and operator-only settlement simulation remain session-bound and idempotent.
+No payment or email is sent externally.
+The pilot uses the canonical test scope `Will Bank` / `cartao_de_credito`.
+For a personal negotiation, the payment tool resolves and validates exactly one
+applicable policy inside the session's pinned snapshot. This removes model-managed
+OKF navigation from the transaction while preserving fail-closed policy checks.
+General institutional questions continue to use progressive OKF navigation.
 
 The backend now has a create-only contract for a future Demo form. It accepts
 full name, CPF, E.164 phone, debt amount and days overdue, resolves the creditor
@@ -12,8 +36,9 @@ the operation is not a public customer-data endpoint.
 
 In a future-form Demo conversation, the exact command `/reset-demo` resets the
 same session: it retains the pinned form/creditor and OKF snapshot, clears
-identity, offers, agreements and transient state, and excludes prior messages
-from subsequent model context. Earlier checkpoints remain available for audit.
+identity, offers, agreements, dummy payments, outbox records and transient state,
+and excludes prior messages from subsequent model context. Earlier checkpoints
+remain available for audit.
 The command does not call the LLM or any channel; Playground sessions return
 `Comando indisponível nesta sessão.`
 

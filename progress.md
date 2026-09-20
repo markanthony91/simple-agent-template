@@ -95,6 +95,53 @@ The E2E report records the tested financial journeys and current failures;
 published end-to-end financial acceptance remains pending. Candidate/isolation
 evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.
+
+## Dummy payment pilot — 0.6.1
+
+- [x] Normalize the synthetic test scope to `Will Bank` / `cartao_de_credito`.
+- [x] Revalidate the agreement policy before creating invalid dummy PIX/boleto.
+- [x] Capture explicit e-mail in a local outbox without external delivery.
+- [x] Keep simulated settlement behind an authenticated admin operation.
+- [x] Replace separate offer confirmation with one transactional offer/agreement/payment tool after the customer requests complete terms.
+- [x] Validate happy, negative and neutral journeys locally.
+- [x] Create and validate isolated Railway draft `will-bank-negotiation-pilot-20260920-185ae54d`.
+- [x] Publish/activate the reviewed draft as `will-bank-negotiation-pilot-20260920-20260920T144839Z-d1e9d7be`.
+- [x] Deploy backend 0.5.0 and run isolated Gemini conversations based on the
+  anonymized Marcelo Barbosa replay; Qwen timed out before response.
+- [x] Activate the reviewed draft.
+- [x] Deploy 0.6.0 and verify atomic proposal/agreement/boleto creation through the managed Assistant.
+- [x] Deploy 0.6.1 with punctuation-safe e-mail capture and complete the live boleto journey through settlement.
+- [ ] Repeat the live PIX journey after the Gemini/Lovable bridge stops returning `provider_response_incomplete`; no PIX state was persisted by the failed runs.
+
+## Scoped OKF search calibration — 0.7.0
+
+- [x] Reproduce long navigation and wrong-branch selection with the managed Gemini Assistant.
+- [x] Prove that prompt-only routing reduces calls but still selects a generic document with line-level ranking.
+- [x] Rank whole documents, deduplicate paths and normalize installment terms.
+- [x] Confirm the active Will Bank policy ranks first for boleto 3x and PIX à vista using an isolated copy of the published bundle.
+- [x] Deploy 0.7.0 and complete controlled Gemini A/B trials.
+- [x] Version the primary Assistant from 22 to 23 after 4/4 temporary calibrated payment runs succeeded.
+- [x] Confirm boleto and PIX on Assistant v23, preserve the neutral `GLOBAL` path and remove all synthetic artifacts.
+
+## Backend negotiation policy resolution — 0.8.1
+
+- [x] Resolve one applicable policy inside the pinned snapshot without model-managed OKF navigation.
+- [x] Fail closed for missing, draft, incompatible or ambiguous policy candidates.
+- [x] Reduce negotiation from five Gemini calls and four tools to two Gemini calls and one tool.
+- [x] Deploy Railway 0.8.1 and version the managed Assistant from 23 to 24 with exact read-back.
+- [x] Complete published happy and unhappy conversations; negotiation fell from 10.81 s to 7.14 s.
+- [x] Remove four synthetic conversations and return persistent sessions to the 52-row baseline.
+
+## Atomic identity and deterministic replies — 0.9.1
+
+- [x] Verify identity and return the pinned customer in one backend transaction.
+- [x] Remove the legacy two-tool identity route from the model's tool catalog.
+- [x] Render identity and proposal results from backend output without a post-tool model call.
+- [x] Keep customer eligibility in the pinned session and commercial conditions in the matching published OKF policy.
+- [x] Add regression coverage for identity data isolation, exact installment rendering and one-call graph routing.
+- [x] Deploy Railway 0.9.1 and version the managed Assistant from 24 to 25 with exact read-back.
+- [x] Repeat live happy/unhappy paths; identity reached 2.40 s and negotiation 3.15 s with one Gemini call each.
+- [x] Remove three synthetic conversations and return persistent sessions to the 52-row baseline.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy

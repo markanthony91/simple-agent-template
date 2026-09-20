@@ -11,6 +11,33 @@ from simple_agent.services.okf_navigation import IndexNavigation
 class OKFService(IndexNavigation):
     RESERVED_MARKDOWN = {"index.md", "log.md"}
     TOP_LEVEL_DIRECTORIES = {"GLOBAL", "INSTITUTIONS", "PRODUCTS"}
+    SEARCH_STOP_WORDS = {
+        "a",
+        "as",
+        "o",
+        "os",
+        "de",
+        "da",
+        "do",
+        "das",
+        "dos",
+        "e",
+        "em",
+        "para",
+        "por",
+        "com",
+    }
+    SEARCH_ALIASES = {
+        "installment": "parcela",
+        "installments": "parcela",
+        "parcelado": "parcela",
+        "parcelada": "parcela",
+        "parcelamento": "parcela",
+        "parcelamentos": "parcela",
+        "parcelas": "parcela",
+        "negociar": "negociacao",
+        "negociacao": "negociacao",
+    }
 
     def __init__(
         self, root: Path, max_chars_per_file: int = 15000, max_results: int = 10
@@ -161,6 +188,19 @@ class OKFService(IndexNavigation):
         )
         return re.sub(r"[^a-z0-9]+", " ", without_marks.lower()).strip()
 
+    @classmethod
+    def _search_tokens(cls, text: str) -> set[str]:
+        tokens: set[str] = set()
+        for token in cls._normalize(text).split():
+            if token in cls.SEARCH_STOP_WORDS:
+                continue
+            installments = re.fullmatch(r"(\d+)x", token)
+            if installments:
+                tokens.update({installments.group(1), "parcela"})
+            else:
+                tokens.add(cls.SEARCH_ALIASES.get(token, token))
+        return tokens
+
     @staticmethod
     def _extract_headings(content: str) -> list[tuple[int, str, int]]:
         headings: list[tuple[int, str, int]] = []
@@ -252,7 +292,7 @@ class OKFService(IndexNavigation):
         overrides: dict[str, str] | None = None,
         active_files: set[str] | None = None,
     ) -> str:
-        query_tokens = set(self._normalize(query).split())
+        query_tokens = self._search_tokens(query)
         if not query_tokens:
             raise ValueError("Search query cannot be empty")
 
@@ -264,7 +304,7 @@ class OKFService(IndexNavigation):
             except FileNotFoundError:
                 cleaned_scope = self._collapse_duplicate_root(scope.strip("/"))
 
-        ranked: list[tuple[int, str]] = []
+        ranked: list[tuple[int, int, str, str]] = []
         for relative in self.list_files(overrides, active_files).splitlines():
             if (
                 not relative.endswith(".md")
@@ -277,14 +317,23 @@ class OKFService(IndexNavigation):
                 content = self.read_file(relative, overrides, active_files)
             except FileNotFoundError:
                 continue
+            document_score = len(
+                query_tokens & self._search_tokens(f"{relative}\n{content}")
+            )
+            if not document_score:
+                continue
+            best_line = ""
+            best_line_score = -1
             for number, line in enumerate(content.splitlines(), start=1):
                 if line.startswith("OKF_CANONICAL_PATH:"):
                     continue
-                score = len(query_tokens & set(self._normalize(line).split()))
-                if score:
-                    ranked.append((score, f"{relative}:{number}: {line.strip()}"))
-        ranked.sort(key=lambda item: (-item[0], item[1]))
-        matches = [text for _, text in ranked[: self.max_results]]
+                line_score = len(query_tokens & self._search_tokens(line))
+                if line_score > best_line_score:
+                    best_line_score = line_score
+                    best_line = f"{relative}:{number}: {line.strip()}"
+            ranked.append((document_score, best_line_score, relative, best_line))
+        ranked.sort(key=lambda item: (-item[0], -item[1], item[2]))
+        matches = [text for _, _, _, text in ranked[: self.max_results]]
 
         # Always include OKF_CANONICAL_SCOPE even when no matches
         scope_marker = f"OKF_CANONICAL_SCOPE: {cleaned_scope or '<root>'}"

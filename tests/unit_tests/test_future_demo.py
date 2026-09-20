@@ -173,6 +173,8 @@ def test_reset_demo_clears_operational_state_and_active_history(
             debt_read=True,
             offers={"offer": {"value": "100.00"}},
             agreements={"agreement": {"status": "created"}},
+            payments={"payment": {"status": "pending"}},
+            deliveries={"delivery": {"status": "captured"}},
             receipts={"policy.md": {"hash": "synthetic"}},
         )
 
@@ -197,6 +199,7 @@ def test_reset_demo_clears_operational_state_and_active_history(
         assert state["demo_session"] is True
         assert state["identity_verified"] is False
         assert state["offers"] == state["agreements"] == state["receipts"] == {}
+        assert state["payments"] == state["deliveries"] == {}
         assert state["reset_count"] == 1
         assert state["last_reset_at"]
         assert "identity_attempts" not in state

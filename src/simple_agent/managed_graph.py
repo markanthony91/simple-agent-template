@@ -6,9 +6,10 @@ from langchain.agents.middleware import ModelRequest, dynamic_prompt
 
 from simple_agent.graph import calculator, utc_now
 from simple_agent.prompt_loader import load_agent_prompt
-from simple_agent.tool_middleware import demo_reset, filter_enabled_tools
+from simple_agent.tool_middleware import demo_reset, direct_reply, filter_enabled_tools
 from simple_agent.tools.okf_tools import OKF_TOOLS
 from simple_agent.tools.collection_tools import COLLECTION_TOOLS
+from simple_agent.tools.payment_tools import PAYMENT_TOOLS
 from simple_agent.llm import create_llm
 from simple_agent.llm_fallback import LLMFallbackMiddleware
 from simple_agent.runtime_settings import AgentProfile
@@ -36,11 +37,17 @@ def runtime_prompt(request: ModelRequest) -> str:
     )
 
 
-ALL_TOOLS = [utc_now, calculator, *OKF_TOOLS, *COLLECTION_TOOLS]
+ALL_TOOLS = [utc_now, calculator, *OKF_TOOLS, *COLLECTION_TOOLS, *PAYMENT_TOOLS]
 
 graph = create_agent(
     model=create_llm(),
     tools=ALL_TOOLS,
-    middleware=[demo_reset, runtime_prompt, filter_enabled_tools, LLMFallbackMiddleware()],
+    middleware=[
+        demo_reset,
+        runtime_prompt,
+        filter_enabled_tools,
+        LLMFallbackMiddleware(),
+        direct_reply,
+    ],
     name="simple_agent",
 )

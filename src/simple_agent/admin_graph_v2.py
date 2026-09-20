@@ -30,6 +30,7 @@ class AdminState(TypedDict, total=False):
     approved: bool
     query: str
     settings: dict[str, Any]
+    payment_id: str
 
 
 store = PersistentOKFStore()
@@ -54,6 +55,7 @@ def execute(state: AdminState) -> AdminState:
                 "publish_draft",
                 "activate_bundle",
                 "create_future_demo_session",
+                "simulate_payment_settled",
             }
             and state.get("approved") is not True
         ):
@@ -166,6 +168,12 @@ def execute(state: AdminState) -> AdminState:
             if not isinstance(form, dict):
                 raise ValueError("demo_form must be an object")
             result = create_future_demo_session(required_text(state, "thread_id"), form)
+        elif operation == "simulate_payment_settled":
+            from simple_agent.tools.payment_tools import simulate_payment_settled
+
+            result = simulate_payment_settled(
+                required_text(state, "thread_id"), required_text(state, "payment_id")
+            )
         else:
             raise ValueError(f"Unsupported admin operation: {operation}")
         return {**state, "result": result, "error": "", "approved": False}

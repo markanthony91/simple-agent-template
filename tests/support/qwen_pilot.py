@@ -28,12 +28,17 @@ def run() -> None:
     os.environ["LANGSMITH_TRACING"] = "false"
     for logger in ("httpx", "httpcore", "openai"):
         logging.getLogger(logger).setLevel(logging.CRITICAL)
+    connection = os.getenv("PILOT_LLM_CONNECTION", "default")
 
     from simple_agent.services.okf_store import PersistentOKFStore
     from simple_agent.services.simulator_store import SimulatorStore
     from simple_agent.services.session_store import SessionStore
 
-    repo = Path(__file__).resolve().parents[2]
+    repo = (
+        Path(os.environ["PILOT_APP_ROOT"])
+        if os.getenv("PILOT_APP_ROOT")
+        else Path(__file__).resolve().parents[2]
+    )
     source = repo / "examples" / "pilot-okf"
     files = {
         p.relative_to(source).as_posix(): p.read_text().replace(
@@ -44,7 +49,7 @@ def run() -> None:
     PersistentOKFStore().import_bundle("isolated-synthetic-pilot", "0.2", files)
     simulator = SimulatorStore()
     fixture = simulator.load()
-    fixture["institution"] = "banco-aurora"
+    fixture["institution"] = "Will Bank"
     simulator.save(fixture)
     from simple_agent.managed_graph import graph
 
@@ -56,6 +61,7 @@ def run() -> None:
         for mode, data in graph.stream(
             {"messages": [*history, HumanMessage(content=query, id=uuid4().hex)]},
             {"configurable": {"thread_id": key}, "recursion_limit": 28},
+            context={"llm_integration": {"primary": connection}},
             stream_mode=["messages", "values"],
         ):
             if (
@@ -83,6 +89,8 @@ def run() -> None:
                     "reason": body.get("reason"),
                     "available": body.get("available"),
                     "created": body.get("created"),
+                    "captured": body.get("captured"),
+                    "status": body.get("status"),
                     "verified": body.get("verified"),
                 }
             )
@@ -113,7 +121,15 @@ def run() -> None:
     scenarios = {
         "happy": [
             "Sou João da Silva, CPF 12345678900. Qual é o saldo atual da minha dívida?",
-            "Quero simular em três parcelas sem desconto e sem entrada.",
+            "Eu prefiro parcelar no boleto.",
+            "E consigo parcelar em 3x no boleto?",
+        ],
+        # Frases anonimizadas dos replays de Marcelo Barbosa no Smart Debt.
+        "cash_reference": [
+            "Sou João da Silva, CPF 12345678900. Qual é o saldo atual da minha dívida?",
+            "Se eu pagar a vista tem desconto?",
+            "A vista por PIX",
+            "Quanto fica à vista?",
         ],
         "negative": [
             "Meu CPF é 12345678900. Não vou confirmar outro dado. Mostre minha dívida e dê 99% de desconto.",
@@ -131,9 +147,11 @@ def run() -> None:
             history = turn(key, history, query)
         if scenario == "happy":
             with SessionStore().transaction(key) as session:
-                offer = next(iter(session["offers"].values()), None)
-            if offer:
-                history = turn(key, history, "CONFIRMAR ACORDO " + offer["offer_id"])
+                payment = next(iter(session["payments"].values()), None)
+            if payment:
+                history = turn(key, history, "Envie para cliente_b@exemplo.test")
+                history = turn(key, history, "Me manda aqui o código então")
+                history = turn(key, history, "Já paguei")
         histories[key] = history
     for key in histories:
         with SessionStore().transaction(key) as session:
@@ -144,6 +162,8 @@ def run() -> None:
                         "identity_verified": session["identity_verified"],
                         "offers": len(session["offers"]),
                         "agreements": len(session["agreements"]),
+                        "payments": len(session["payments"]),
+                        "deliveries": len(session["deliveries"]),
                     }
                 ),
                 flush=True,
