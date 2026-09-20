@@ -51,11 +51,21 @@ PERSONAL_ACTION = re.compile(
 GENERAL_CONTEXT = re.compile(
     r"\b(?:pergunta|duvida|consulta|informacao) (?:e )?(?:apenas )?geral\b|\b(?:de forma|em termos) gerais?\b"
 )
-IDENTITY_FIELD = re.compile(
-    r"\bcpf\b|nome completo|data de nascimento|4 primeiros digitos|quatro primeiros digitos|numero do documento"
+IDENTITY_OBJECT = (
+    r"(?:\bcpf\b|nome completo|data de nascimento|4 primeiros digitos|"
+    r"quatro primeiros digitos|numero do documento|dados de identificacao|"
+    r"validar sua identidade|protocolo de identificacao)"
+)
+IDENTITY_NEGATION = re.compile(
+    rf"\bnao .{{0,50}}(?:necessario|preciso|permitido).{{0,80}}{IDENTITY_OBJECT}"
 )
 IDENTITY_REQUEST = re.compile(
-    r"informe|forneca|envie|digite|mande|compartilhe|confirme|preciso|necessario|por favor|solicito"
+    rf"(?:informe|forneca|envie|digite|mande|compartilhe|confirme|preciso que|"
+    rf"precisarei que|necessito que).{{0,120}}{IDENTITY_OBJECT}"
+)
+IDENTITY_OFFER = re.compile(
+    rf"(?:se desejar|caso queira|me avise|podemos|posso).{{0,180}}(?:{IDENTITY_OBJECT}|"
+    r"acessar sua conta|consultar seu caso|verificar seu caso)"
 )
 GENERAL_SCOPE_INSTRUCTION = """# Current turn scope: general information
 
@@ -322,14 +332,9 @@ def _requests_personal_action(text: str) -> bool:
 
 def _asks_for_identity(text: str) -> bool:
     normalized = _normalize(text)
-    if re.search(
-        r"\bnao (?:e )?(?:preciso|necessario).{0,50}(?:cpf|nome completo|data de nascimento)",
-        normalized,
-    ):
+    if IDENTITY_NEGATION.search(normalized):
         return False
-    return bool(
-        IDENTITY_FIELD.search(normalized) and IDENTITY_REQUEST.search(normalized)
-    )
+    return bool(IDENTITY_REQUEST.search(normalized) or IDENTITY_OFFER.search(normalized))
 
 
 def _sanitize_general_response(text: str) -> str:

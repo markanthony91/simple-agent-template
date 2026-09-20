@@ -40,3 +40,18 @@ def test_obfuscated_document_request_is_removed_from_general_answer() -> None:
     response = "Para continuar, envie os quatro primeiros dígitos do número do documento."
 
     assert "documento" not in _sanitize_general_response(response)
+
+
+def test_negative_identity_explanation_is_preserved() -> None:
+    response = "Não é necessário solicitar seu CPF para responder esta pergunta geral."
+
+    assert _sanitize_general_response(response) == response
+
+
+def test_unsolicited_identity_offer_is_removed() -> None:
+    response = (
+        "O prazo ainda está a definir pela operação.\n\n"
+        "Se desejar verificar seu caso, me avise para iniciarmos o protocolo de identificação."
+    )
+
+    assert _sanitize_general_response(response) == "O prazo ainda está a definir pela operação."
