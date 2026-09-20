@@ -139,7 +139,9 @@ Coordinate PR integration before another main autodeploy.
 - [x] Render identity and proposal results from backend output without a post-tool model call.
 - [x] Keep customer eligibility in the pinned session and commercial conditions in the matching published OKF policy.
 - [x] Add regression coverage for identity data isolation, exact installment rendering and one-call graph routing.
-- [ ] Deploy Railway, version the managed Assistant and repeat live happy/unhappy timing tests.
+- [x] Deploy Railway 0.9.1 and version the managed Assistant from 24 to 25 with exact read-back.
+- [x] Repeat live happy/unhappy paths; identity reached 2.40 s and negotiation 3.15 s with one Gemini call each.
+- [x] Remove three synthetic conversations and return persistent sessions to the 52-row baseline.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy
