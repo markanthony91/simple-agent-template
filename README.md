@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.6.1)
+# Agent Runtime — OKF simulator (0.7.0)
 
 The synthetic negotiation flow now generates the offer, agreement and invalid
 dummy PIX/boleto in one transaction after the customer requests complete terms.
@@ -6,6 +6,9 @@ There is no internal human approval or separate confirmation. Local email outbox
 capture and operator-only settlement simulation remain session-bound and idempotent.
 No payment or email is sent externally.
 The pilot uses the canonical test scope `Will Bank` / `cartao_de_credito`.
+Institutional negotiation lookup uses one scoped search after customer resolution.
+Search ranks complete documents, returns each path once and normalizes common
+installment terms such as `3x`, `parcelas`, `parcelado` and `installment`.
 
 The backend now has a create-only contract for a future Demo form. It accepts
 full name, CPF, E.164 phone, debt amount and days overdue, resolves the creditor

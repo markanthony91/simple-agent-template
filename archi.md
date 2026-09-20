@@ -1,4 +1,4 @@
-# Architecture — 0.6.1
+# Architecture — 0.7.0
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →
@@ -18,6 +18,12 @@ OKF provides policy, not account balances. No RAG, embeddings or vector database
 Snapshot and fixture are pinned at the first inference; publication does not
 silently change an ongoing conversation. SQLite transactions serialize short
 state operations only; no transaction holds a network LLM call.
+
+After customer resolution, negotiation policy discovery uses one root index and
+one `COMPANIES`-scoped lexical search. Ranking aggregates matches per document,
+normalizes installment synonyms and returns each canonical path once. This avoids
+repeated lines crowding out the institution-specific policy and reduces model
+round trips before the policy read.
 
 The future Demo form uses the existing admin graph only as a server-side contract:
 it resolves `creditor_name` from Zerai Canais, then creates one new row keyed by

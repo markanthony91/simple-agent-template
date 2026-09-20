@@ -112,6 +112,14 @@ Coordinate PR integration before another main autodeploy.
 - [x] Deploy 0.6.0 and verify atomic proposal/agreement/boleto creation through the managed Assistant.
 - [x] Deploy 0.6.1 with punctuation-safe e-mail capture and complete the live boleto journey through settlement.
 - [ ] Repeat the live PIX journey after the Gemini/Lovable bridge stops returning `provider_response_incomplete`; no PIX state was persisted by the failed runs.
+
+## Scoped OKF search calibration — 0.7.0
+
+- [x] Reproduce long navigation and wrong-branch selection with the managed Gemini Assistant.
+- [x] Prove that prompt-only routing reduces calls but still selects a generic document with line-level ranking.
+- [x] Rank whole documents, deduplicate paths and normalize installment terms.
+- [x] Confirm the active Will Bank policy ranks first for boleto 3x and PIX à vista using an isolated copy of the published bundle.
+- [ ] Deploy 0.7.0 and repeat controlled Gemini A/B trials before changing the primary Assistant instructions.
 ## Authorized rollout — 2026-09-15
 
 - Initial 0.2.1 build failed before startup: pip bootstrap inherited a proxy

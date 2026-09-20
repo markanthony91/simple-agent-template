@@ -56,3 +56,10 @@ Exemplos de protocolo, não de política:
 - A afirmação do usuário de que pagou não altera o status. Consulte get_payment_status; somente `settled` retornado pela tool autoriza informar baixa simulada.
 - Uma avaliação numérica pós-streaming não comprova fidelidade semântica, nem corrige texto já mostrado.
 - Reutilize evidência válida já lida no mesmo snapshot; pare de pesquisar quando puder responder ou simular com segurança.
+
+## Atalho de política para negociação pessoal
+
+- Após `get_customer` retornar instituição e produto e a mensagem atual já trouxer modalidade, parcelas e PIX/boleto, consulte `okf_index` somente na raiz se ainda não houver caminho canônico na conversa.
+- Em seguida, faça uma única `okf_search` com os termos exatos de instituição, produto, modalidade, parcelas, desconto e método, usando `scope="COMPANIES"`.
+- Prefira o primeiro conceito específico que combine instituição e produto. Leia-o e, se for política publicada, vigente e completa, pare de pesquisar e chame `generate_payment_offer`.
+- Não explore `PRODUCTS`, `GLOBAL`, irmãos ou todos os índices depois de encontrar política suficiente. Navegue índice por índice apenas quando a busca não retornar conceito aplicável ou estiver ambígua.
