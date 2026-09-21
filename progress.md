@@ -6,6 +6,7 @@
 - [x] Exigir endereço na última mensagem humana e não persistir o destinatário.
 - [x] Montar valores somente do estado validado de cliente/acordo/pagamento.
 - [x] Resposta determinística distingue aceitação pelo provedor de entrega.
+- [x] Runtime 0.12.0 publicado com o canal inativo; sessões preservadas.
 - [ ] Ativar o perfil e homologar um envio após o operador cadastrar o Resend.
 
 - [x] CPF-only pilot contract: exact first three digits, no name or birth date;

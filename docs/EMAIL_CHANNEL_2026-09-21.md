@@ -31,3 +31,15 @@ O Runtime reserva um request ID antes do POST, não persiste o endereço e não
 repete resultado incerto. `sent=true` significa somente que o Resend aceitou o
 pedido. Uma resposta determinística informa essa condição sem afirmar entrega.
 Webhook de entrega/bounce permanece fora desta versão.
+
+## Publicação inativa
+
+PR [#31](https://github.com/markanthony91/simple-agent-template/pull/31)
+mesclado no commit `69efe8f0c4d30038c90ace1fe446d64bd9cf0ca9`. Runtime 0.12.0
+publicado no Railway no deployment `6da9eb39-14af-4f45-9f68-27815d488050`.
+
+Antes do deploy, o backup `/data/backups/pre-email-20260921` passou no
+`integrity_check`. Depois do deploy, as seis tabelas mantiveram as mesmas contagens:
+160 sessões, 12 clientes, 12 dívidas, 12 contextos, uma carteira e um tenant. A
+consulta Runtime → Console funcionou e confirmou `email_active=false`; nenhum
+provedor foi acionado.
