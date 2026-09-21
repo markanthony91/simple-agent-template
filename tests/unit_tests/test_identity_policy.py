@@ -97,6 +97,25 @@ def test_policy_pin_and_prompt_no_expected_values(isolated):
         assert "CPF completo" in instructions(old)
 
 
+def test_first3_only_accepts_exact_segment_without_secondary_factor(isolated):
+    fixture = SimulatorStore().load()
+    fixture["identity_policy"] = {
+        "cpf_mode": "first3",
+        "secondary": "none",
+        "max_attempts": 3,
+    }
+    state = {"fixture": fixture, "identity_attempts": 0, "identity_verified": False}
+
+    assert matches(state, "123", "", "")
+    assert not matches(state, "1234", "", "")
+    assert not matches(state, "12345678900", "", "")
+    prompt = instructions(state)
+    assert "Solicite somente os 3 primeiros dígitos do CPF" in prompt
+    assert "Não solicite nome completo" in prompt
+    assert "somente com o argumento cpf" in prompt
+    assert "birth_date" not in prompt
+
+
 @pytest.mark.parametrize(
     "invalid",
     [

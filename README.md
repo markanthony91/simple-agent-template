@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.11.1)
+# Agent Runtime — OKF simulator (0.11.2)
 
 Identity verification and customer lookup now execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;
@@ -77,6 +77,9 @@ After verification, `get_customer()` reads only the pinned customer, without ask
 the model to reconstruct a partial CPF. Full-CPF legacy callers remain supported.
 Names normalize case, spaces and accents, never fuzzy matching. Birth dates use ISO.
 This is a synthetic lab, not strong authentication for real customer data.
+For the current pilot, the persisted policy is `first3` with no secondary factor.
+The backend rewrites identity solicitation to request only those three digits,
+even when a model adds name or birth date to its draft response.
 
 The read-only `list_tools` result now includes `usage_description` and `parameters`
 from the runtime's actual tools, excluding injected ToolRuntime arguments.

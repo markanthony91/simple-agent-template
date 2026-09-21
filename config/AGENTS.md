@@ -37,7 +37,7 @@
 
 Exemplos de protocolo, não de política:
 - Solicite somente os fatores do contrato de identificação da sessão. Reutilize dados já informados; se a configuração exigir ambos, solicite nome e nascimento. Não presuma sucesso: aguarde a tool.
-- `verify_and_get_customer(cpf=<CPF fornecido>, full_name=<nome fornecido>)`; nunca complete CPF parcial por adivinhação.
+- No piloto atual, `verify_and_get_customer(cpf=<3 primeiros dígitos fornecidos>)`; não solicite nome, nascimento ou outro fator. Nunca complete CPF parcial por adivinhação.
 - `generate_payment_offer(payment_type="cash", method="pix", installments=1, discount_percentage="0")` gera a proposta e o PIX dummy juntos, somente quando o cliente pediu PIX na mensagem atual e o backend encontrou uma única política aplicável que permite todos os termos.
 - Não inclua parâmetros inexistentes. O simulador atual não suporta entrada separada; informe essa limitação em vez de calcular ou prometer uma entrada.
 
