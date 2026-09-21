@@ -1,9 +1,9 @@
 import json
 import sqlite3
-from io import BytesIO
 from types import SimpleNamespace
 
 import pytest
+import httpx
 from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.graph.message import add_messages
 
@@ -228,20 +228,26 @@ def test_form_rejects_invalid_data_without_writing(isolated, tmp_path, change):
 def test_channel_creditor_uses_server_configuration(monkeypatch):
     captured = {}
 
-    def open_request(request, timeout):
-        captured["authorization"] = request.headers["Authorization"]
-        captured["url"] = request.full_url
-        captured["timeout"] = timeout
-        return BytesIO(b'{"creditor_name":"Fastpay / Willbank"}')
+    def open_request(method, url, **kwargs):
+        captured["authorization"] = kwargs["headers"]["Authorization"]
+        captured["url"] = url
+        captured["timeout"] = kwargs["timeout"]
+        captured["follow_redirects"] = kwargs["follow_redirects"]
+        return httpx.Response(
+            200,
+            json={"creditor_name": "Fastpay / Willbank"},
+            request=httpx.Request(method, url),
+        )
 
     monkeypatch.setenv("CHANNEL_CONSOLE_URL", "channels.example.test")
     monkeypatch.setenv("CHANNEL_CONSOLE_ENGINE_TOKEN", "synthetic-token")
-    monkeypatch.setattr("urllib.request.urlopen", open_request)
+    monkeypatch.setattr("httpx.request", open_request)
     assert channel_creditor() == "Fastpay / Willbank"
     assert captured == {
         "authorization": "Bearer synthetic-token",
         "url": "https://channels.example.test/api/engine/v1/channels",
         "timeout": 5,
+        "follow_redirects": False,
     }
 
 

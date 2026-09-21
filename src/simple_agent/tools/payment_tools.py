@@ -1,16 +1,18 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import re
 import unicodedata
 from datetime import datetime, timezone
 from typing import Literal
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
 from simple_agent.services.offer_policy import money
+from simple_agent.services.channel_console import ChannelConsoleError, request_json
 from simple_agent.services.payment_policy import (
     resolve_payment_policy,
     validate_payment_policy,
@@ -213,36 +215,87 @@ def create_payment_instruction(
         return _json(_create_payment(state, agreement, method, installment_number))
 
 
-@tool
-def send_payment_instruction(payment_id: str, email: str, runtime: ToolRuntime) -> str:
-    """Capture a dummy payment instruction in the local outbox for an explicit email.
+def _email_context(state: dict, payment: dict, agreement: dict) -> dict[str, str]:
+    fixture = state["fixture"]
+    return {
+        "nome": str(fixture["full_name"]),
+        "credor": str(fixture.get("creditor_name") or fixture.get("institution") or ""),
+        "produto": str(fixture.get("product") or ""),
+        "forma_pagamento": str(payment["method"]).upper(),
+        "valor": f"R$ {str(payment['amount']).replace('.', ',')}",
+        "codigo_pagamento": str(payment["payment_code"]),
+        "payment_id": str(payment["payment_id"]),
+        "agreement_id": str(payment["agreement_id"]),
+        "numero_parcela": str(payment["installment_number"]),
+        "parcelas": str(agreement["installments"]),
+        "aviso_simulacao": "SIMULAÇÃO — código inválido, não efetuar pagamento.",
+        "is_simulation": "true",
+    }
 
-    No email is transmitted. The exact address must appear in the latest human
-    message. Only captured=true confirms the simulated outbox record.
+
+def _email_plan(context: dict[str, str]) -> tuple[dict, dict[str, str]]:
+    catalog = request_json("/api/engine/v1/channels", timeout=5)
+    channels = catalog.get("channels")
+    if (
+        not isinstance(channels, list)
+        or type(catalog.get("scope_id")) is not int
+        or type(catalog.get("scope_revision")) is not int
+    ):
+        raise ChannelConsoleError("email_catalog_invalid")
+    channel = next(
+        (
+            item
+            for item in channels
+            if isinstance(item, dict) and item.get("channel") == "email"
+        ),
+        None,
+    )
+    if not channel or channel.get("enabled") is not True:
+        raise ChannelConsoleError("email_channel_not_configured")
+    required = channel.get("required")
+    if (
+        not isinstance(channel.get("template_id"), str)
+        or type(channel.get("template_revision")) is not int
+        or not isinstance(required, list)
+        or not all(isinstance(x, str) for x in required)
+    ):
+        raise ChannelConsoleError("email_template_invalid")
+    missing = [name for name in required if name not in context]
+    if missing:
+        raise ChannelConsoleError("email_template_unsupported_variables")
+    return catalog, {name: context[name] for name in required}
+
+
+@tool(return_direct=True)
+def send_payment_instruction(payment_id: str, email: str, runtime: ToolRuntime) -> str:
+    """Send a simulated payment instruction to an explicitly supplied email.
+
+    The exact address must appear in the latest human message. The backend uses
+    the saved Zerai Channels email template and never persists the address.
+    Only sent=true confirms provider acceptance; it does not confirm delivery.
     """
-    with SessionStore().transaction(thread_id(runtime)) as state:
+    session_id = thread_id(runtime)
+    address = email.strip().casefold()
+    _, user_text = latest_user_message(runtime)
+    supplied = {match.group(0).casefold() for match in EMAIL_RE.finditer(user_text)}
+    if (
+        not 3 <= len(address) <= 254
+        or not EMAIL_RE.fullmatch(address)
+        or address not in supplied
+    ):
+        return _json({"sent": False, "reason": "explicit_email_required"})
+    key = hashlib.sha256(f"{payment_id}:{address}".encode()).hexdigest()
+    with SessionStore().transaction(session_id) as state:
         if not state.get("identity_verified"):
-            return _json(
-                {"captured": False, "reason": "identity_verification_required"}
-            )
+            return _json({"sent": False, "reason": "identity_verification_required"})
         payment = state["payments"].get(payment_id)
         if not payment:
-            return _json({"captured": False, "reason": "valid_payment_required"})
-        address = email.strip().casefold()
-        _, user_text = latest_user_message(runtime)
-        supplied = {match.group(0).casefold() for match in EMAIL_RE.finditer(user_text)}
-        if (
-            not 3 <= len(address) <= 254
-            or not EMAIL_RE.fullmatch(address)
-            or address not in supplied
-        ):
-            return _json({"captured": False, "reason": "explicit_email_required"})
+            return _json({"sent": False, "reason": "valid_payment_required"})
         agreement = _agreement(state, payment["agreement_id"])
         try:
             validate_payment_policy(state, agreement or {}, payment["method"], "email")
         except (ValueError, ArithmeticError) as exc:
-            return _json({"captured": False, "reason": str(exc)})
-        key = f"{payment_id}:{address}"
+            return _json({"sent": False, "reason": str(exc)})
         previous = next(
             (
                 item
@@ -253,20 +306,78 @@ def send_payment_instruction(payment_id: str, email: str, runtime: ToolRuntime) 
         )
         if previous:
             return _json(_public(previous))
-        delivery_id = f"OUT-{uuid4().hex}"
-        delivery = {
-            "captured": True,
-            "delivery_id": delivery_id,
-            "payment_id": payment_id,
-            "channel": "email",
-            "recipient": "<redacted>",
-            "status": "captured",
-            "is_simulation": True,
-            "captured_at": datetime.now(timezone.utc).isoformat(),
-            "idempotency_key": key,
-        }
+        context = _email_context(state, payment, agreement)
+    try:
+        catalog, values = _email_plan(context)
+    except ChannelConsoleError as exc:
+        return _json({"sent": False, "reason": exc.code})
+    delivery_id = f"OUT-{uuid4().hex}"
+    request_id = str(uuid4())
+    decision_id = str(uuid5(NAMESPACE_URL, f"{session_id}:{payment_id}:email"))
+    delivery = {
+        "sent": False,
+        "delivery_id": delivery_id,
+        "payment_id": payment_id,
+        "channel": "email",
+        "recipient": "<redacted>",
+        "status": "processing",
+        "is_simulation": True,
+        "requested_at": datetime.now(timezone.utc).isoformat(),
+        "request_id": request_id,
+        "idempotency_key": key,
+    }
+    with SessionStore().transaction(session_id) as state:
+        previous = next(
+            (
+                item
+                for item in state["deliveries"].values()
+                if item["idempotency_key"] == key
+            ),
+            None,
+        )
+        if previous:
+            return _json(_public(previous))
         state["deliveries"][delivery_id] = delivery
-        return _json(_public(delivery))
+    channel = next(item for item in catalog["channels"] if item["channel"] == "email")
+    try:
+        result = request_json(
+            "/api/engine/v1/dispatch",
+            {
+                "dry_run": False,
+                "request_id": request_id,
+                "decision_id": decision_id,
+                "scope_id": catalog["scope_id"],
+                "scope_revision": catalog["scope_revision"],
+                "channel": "email",
+                "template_id": channel["template_id"],
+                "template_revision": channel["template_revision"],
+                "to": address,
+                "values": values,
+            },
+        )
+        accepted = result.get("status") == "accepted"
+        update = {
+            "sent": accepted,
+            "status": result.get("status")
+            if result.get("status") in {"accepted", "failed", "unknown"}
+            else "unknown",
+            "provider_id": result.get("provider_id"),
+            "code": result.get("code", "channel_console_invalid_response"),
+        }
+    except ChannelConsoleError as exc:
+        update = {
+            "sent": False,
+            "status": "unknown" if exc.outcome_unknown else "failed",
+            "code": exc.code,
+        }
+    with SessionStore().transaction(session_id) as state:
+        stored = state["deliveries"].get(delivery_id)
+        if stored is None:
+            return _json({**_public(delivery), **update})
+        stored.update(
+            {key: value for key, value in update.items() if value is not None}
+        )
+        return _json(_public(stored))
 
 
 @tool

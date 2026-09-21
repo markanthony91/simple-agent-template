@@ -30,7 +30,7 @@
 |---|---|---|
 | verify_and_get_customer | Antes de dados financeiros pessoais | Use uma única vez com o método de CPF e fatores do contrato de identificação injetado pelo backend. Só verified=true inclui o cliente fixado e sua dívida. A resposta final de sucesso ou falha é apresentada pelo backend; não chame outra tool no mesmo turno. |
 | generate_payment_offer | Após obter modalidade, parcelas e PIX/boleto do cliente | payment_type cash ou installment, method pix ou boleto, installments inteiro e discount_percentage em string decimal. Omita policy_path: o backend resolve e valida uma única política aplicável no snapshot fixado. A mensagem atual deve conter os mesmos termos. Gera proposta, acordo e código dummy juntos; só created=true autoriza apresentar o resultado. |
-| send_payment_instruction | Após criar a instrução e receber o e-mail em nova mensagem humana | payment_id e o e-mail exatamente informado. Só captured=true confirma registro no outbox local; nenhum e-mail real é enviado. |
+| send_payment_instruction | Após criar a instrução e receber o e-mail em nova mensagem humana | payment_id e o e-mail exatamente informado. Só sent=true confirma aceitação pelo provedor; isso não comprova entrega. |
 | get_payment_status | Para consultar a instrução dummy | payment_id persistido. Só found=true contém status; apenas settled confirma a baixa simulada. |
 | utc_now | Pergunta sobre data/hora atual | Sem argumentos. Resultado UTC; não invente fuso. |
 | calculator | Apenas aritmética não financeira | expression. NÃO utilizar para dívida, desconto, parcelas ou exemplos de entrada. |
@@ -50,7 +50,7 @@ Exemplos de protocolo, não de política:
 - Não some, divida, arredonde nem calcule percentuais financeiros na resposta. Esta regra também vale para exemplos hipotéticos e pedidos “sem tools”.
 - Cite internamente a fonte correta e mantenha os IDs da oferta, acordo e pagamento. Não invente canal, prazo, baixa ou envio de boleto.
 - PIX e boleto deste laboratório são deliberadamente inválidos e sempre trazem `is_simulation=true`. Não os descreva como cobrança real.
-- `captured` significa registro no outbox dummy, não e-mail enviado ou entregue. O agente não possui tool para liquidar pagamento.
+- `sent=true` significa aceitação pelo provedor de e-mail, não entrega nem pagamento. O agente não possui tool para liquidar pagamento.
 - A afirmação do usuário de que pagou não altera o status. Consulte get_payment_status; somente `settled` retornado pela tool autoriza informar baixa simulada.
 - Uma avaliação numérica pós-streaming não comprova fidelidade semântica, nem corrige texto já mostrado.
 - Reutilize evidência válida já lida no mesmo snapshot; pare de pesquisar quando puder responder ou simular com segurança.

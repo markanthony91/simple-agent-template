@@ -1,4 +1,4 @@
-# Architecture — 0.11.1
+# Architecture — 0.12.0
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →
@@ -10,7 +10,7 @@ OKF provides policy, not account balances. No RAG, embeddings or vector database
 - /data/okf: immutable bundles, active pointer, drafts and preserved RAW.
 - /data/sessions/sessions.sqlite3: Playground fixture/session state and normalized
   Demo tenant, portfolio, customer, debt and session context. Identity, receipts,
-  offers, idempotent agreements, dummy payments and local outbox remain keyed by
+  offers, idempotent agreements, dummy payments and e-mail dispatch records remain keyed by
   server `thread_id`.
 - /data/simulator: editable synthetic fixture for NEW conversations.
 - /data/tools: tool enablement checked on execution as well as model request.
@@ -61,10 +61,12 @@ Text still streams before semantic validation; this release does not implement
 an output Evidence Gate. Backend action validation is not proof of text fidelity.
 
 Customer-requested terms including PIX/boleto → one policy-gated transaction that
-creates offer, agreement and invalid dummy payment → local outbox capture. There
-is no internal approval or second customer confirmation. The agent can only read
-payment status. Settlement is an authenticated `okf_admin` operation standing in
-for the future provider webhook and is not registered as an agent tool.
+creates offer, agreement and invalid dummy payment → explicit e-mail address →
+idempotent dispatch through Zerai Canais. The e-mail address is sent to the channel
+provider but is not persisted in the session. Provider acceptance is rendered by
+the backend and never described as delivery. The agent can only read payment status.
+Settlement is an authenticated `okf_admin` operation standing in for the future
+payment-provider webhook and is not registered as an agent tool.
 
 For identity and payment transactions, return-direct routing skips the post-tool
 model call and middleware appends a deterministic AI message from the tool result.

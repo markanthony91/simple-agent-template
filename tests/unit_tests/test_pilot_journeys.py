@@ -6,6 +6,7 @@ import pytest
 
 from .test_collection_identity_gates import runtime, call, verify
 from simple_agent.services.session_store import SessionStore
+from simple_agent.services.channel_console import ChannelConsoleError
 from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.services.okf_validator import validate_okf_files
 from simple_agent.tools import collection_tools as tools, okf_tools
@@ -29,7 +30,39 @@ def seed(store, approve=False):
 
 
 @pytest.mark.parametrize("method", ["pix", "boleto"])
-def test_happy_pilot_generates_offer_agreement_and_payment(isolated, method):
+def test_happy_pilot_generates_offer_agreement_and_payment(
+    isolated, method, monkeypatch
+):
+    def channel_request(path, payload=None, timeout=15):
+        if path.endswith("/channels"):
+            return {
+                "scope_id": 1,
+                "scope_revision": 7,
+                "channels": [
+                    {
+                        "channel": "email",
+                        "enabled": True,
+                        "template_id": "7ce8c81b-ed88-41c2-bd72-1a8d5d536aaa",
+                        "template_revision": 2,
+                        "required": [
+                            "nome",
+                            "forma_pagamento",
+                            "valor",
+                            "codigo_pagamento",
+                            "aviso_simulacao",
+                        ],
+                    }
+                ],
+            }
+        assert payload["to"] == "teste@example.com"
+        assert payload["values"]["codigo_pagamento"].startswith("DUMMY-")
+        return {
+            "status": "accepted",
+            "code": "accepted_not_delivery",
+            "provider_id": "email-synthetic",
+        }
+
+    monkeypatch.setattr(payment_tools, "request_json", channel_request)
     seed(isolated, approve=True)
     key = f"pilot-happy-{method}"
     rt = runtime(key, f"Quero pagar em 3x por {method}")
@@ -79,8 +112,10 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, method):
         payment_id=payment["payment_id"],
         email="teste@example.com",
     )
-    assert delivery["captured"] and delivery["status"] == "captured"
+    assert delivery["sent"] and delivery["status"] == "accepted"
     assert delivery["recipient"] == "<redacted>"
+    assert delivery["provider_id"] == "email-synthetic"
+    assert b"teste@example.com" not in SessionStore().database.read_bytes()
     assert (
         call(
             payment_tools.send_payment_instruction,
@@ -108,6 +143,34 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, method):
         )["status"]
         == "settled"
     )
+
+
+def test_email_plan_rejects_untrusted_catalog_and_unknown_template_values(monkeypatch):
+    monkeypatch.setattr(payment_tools, "request_json", lambda *args, **kwargs: {})
+    with pytest.raises(ChannelConsoleError, match="email_catalog_invalid"):
+        payment_tools._email_plan({})
+
+    monkeypatch.setattr(
+        payment_tools,
+        "request_json",
+        lambda *args, **kwargs: {
+            "scope_id": 1,
+            "scope_revision": 1,
+            "channels": [
+                {
+                    "channel": "email",
+                    "enabled": True,
+                    "template_id": "template",
+                    "template_revision": 1,
+                    "required": ["vencimento"],
+                }
+            ],
+        },
+    )
+    with pytest.raises(
+        ChannelConsoleError, match="email_template_unsupported_variables"
+    ):
+        payment_tools._email_plan({"nome": "Cliente"})
 
 
 def test_negative_draft_identity_and_excess_terms(isolated):

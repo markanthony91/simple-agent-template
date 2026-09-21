@@ -1,4 +1,12 @@
-# Future Demo form backend — 0.11.4
+# Future Demo form backend — 0.12.0
+
+## E-mail pelo Zerai Channel Console
+
+- [x] Substituir o outbox local pela chamada M2M idempotente ao perfil `email`.
+- [x] Exigir endereço na última mensagem humana e não persistir o destinatário.
+- [x] Montar valores somente do estado validado de cliente/acordo/pagamento.
+- [x] Resposta determinística distingue aceitação pelo provedor de entrega.
+- [ ] Ativar o perfil e homologar um envio após o operador cadastrar o Resend.
 
 - [x] CPF-only pilot contract: exact first three digits, no name or birth date;
   backend response guard removes extra identity factors added by the model and

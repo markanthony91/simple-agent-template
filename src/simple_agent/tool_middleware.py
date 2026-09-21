@@ -41,7 +41,11 @@ RESET_DEMO_REPLY = (
     "estado operacional foi limpo."
 )
 RESET_DEMO_UNAVAILABLE = "Comando indisponível nesta sessão."
-DIRECT_REPLY_TOOLS = {"verify_and_get_customer", "generate_payment_offer"}
+DIRECT_REPLY_TOOLS = {
+    "verify_and_get_customer",
+    "generate_payment_offer",
+    "send_payment_instruction",
+}
 FINANCIAL_TOOLS = {
     "verify_and_get_customer",
     "generate_payment_offer",
@@ -157,6 +161,16 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
             f"{_brl(debt.get('current_amount'))}.\n\n"
             "Para negociar, informe se deseja pagar à vista ou parcelado, a quantidade "
             "de parcelas e escolha PIX ou boleto."
+        )
+    if tool_name == "send_payment_instruction":
+        if not payload.get("sent"):
+            return (
+                "Não foi possível solicitar o envio por e-mail com segurança. "
+                "Confira o endereço e a configuração do canal."
+            )
+        return (
+            "O provedor aceitou o envio das instruções simuladas por e-mail. "
+            "Isso ainda não confirma a entrega."
         )
     if tool_name != "generate_payment_offer":
         return None
