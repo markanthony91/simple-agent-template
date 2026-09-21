@@ -179,6 +179,18 @@ def test_direct_whatsapp_session_has_no_customer_or_debt(isolated, tmp_path):
         )
 
 
+def test_existing_legacy_session_must_reset_before_whatsapp(isolated, tmp_path):
+    store = SessionStore(tmp_path / "legacy-whatsapp")
+    fixture = SimulatorStore(tmp_path / "legacy-simulator").load()
+    store.create("legacy-thread", fixture)
+
+    with pytest.raises(ValueError, match="whatsapp_session_requires_reset"):
+        store.ensure_unbound("legacy-thread")
+    with store.transaction("legacy-thread") as state:
+        assert state["fixture"] == fixture
+        assert "unbound_session" not in state
+
+
 @pytest.mark.parametrize(
     "change",
     [

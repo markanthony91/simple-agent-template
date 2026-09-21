@@ -1,4 +1,4 @@
-# Architecture — 0.11.0
+# Architecture — 0.11.1
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →
@@ -42,6 +42,9 @@ unbound session only when that thread has no stored context. Unbound sessions ha
 no fixture or normalized debt relationship; middleware removes financial tools and
 the execution guard rejects them even if a model attempts a stale tool call. An
 existing form-backed session is never replaced.
+An older plain session cannot be classified safely, so preparation returns
+`whatsapp_session_requires_reset` before inference. The Console pauses it; the
+existing `/reset-demo` path rotates to a fresh thread while retaining audit history.
 
 RAW → immutable source/hash → lexical manifest + selected concepts → create,
 append or noop → incomplete draft → index/log → validation → human review →
