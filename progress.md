@@ -1,4 +1,10 @@
-# Future Demo form backend — 0.4.2
+# Future Demo form backend — 0.10.0
+
+- [x] Normalize Demo tenant, portfolio, customer, debt and session context in the
+  existing persistent store without changing tool schemas or Playground data.
+- [x] Make exact form/thread replay idempotent and reject changed data for an
+  existing thread.
+- [x] Define `thread_id = WhatsApp decision_id` as the channel binding contract.
 
 - [x] Five-field server contract: full name, CPF, phone, amount and days overdue.
 - [x] Creditor resolved from Zerai Canais with a server-only token.

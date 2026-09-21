@@ -1,4 +1,4 @@
-# Architecture — 0.9.1
+# Architecture — 0.10.0
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →
@@ -8,9 +8,10 @@ System prompt, AGENTS.md and WORKFLOW.md remain external operational instruction
 OKF provides policy, not account balances. No RAG, embeddings or vector database.
 
 - /data/okf: immutable bundles, active pointer, drafts and preserved RAW.
-- /data/sessions/sessions.sqlite3: fixture copy, identity, read receipts, expiring
-  offers, idempotent agreements, dummy payments and local outbox records per
-  server thread_id.
+- /data/sessions/sessions.sqlite3: Playground fixture/session state and normalized
+  Demo tenant, portfolio, customer, debt and session context. Identity, receipts,
+  offers, idempotent agreements, dummy payments and local outbox remain keyed by
+  server `thread_id`.
 - /data/simulator: editable synthetic fixture for NEW conversations.
 - /data/tools: tool enablement checked on execution as well as model request.
 - /data/langgraph: LangGraph dev-server checkpoints, linked by startup.
@@ -30,9 +31,11 @@ the OKF policy limits commercial terms, payment methods and delivery channels.
 Either source may restrict a request and neither may broaden the other.
 
 The future Demo form uses the existing admin graph only as a server-side contract:
-it resolves `creditor_name` from Zerai Canais, then creates one new row keyed by
-the target `thread_id` in the same sessions SQLite database. It never updates the
-global Playground fixture and never overwrites an existing session.
+it resolves `creditor_name` from Zerai Canais, then atomically creates the normalized
+tenant/portfolio/customer/debt records and their session binding keyed by the target
+`thread_id`. Tools reconstruct the same fixture contract from those rows, so their
+schemas do not change. It never updates the global Playground fixture. An exact
+repeat is idempotent; different data cannot overwrite an existing session.
 
 RAW → immutable source/hash → lexical manifest + selected concepts → create,
 append or noop → incomplete draft → index/log → validation → human review →
