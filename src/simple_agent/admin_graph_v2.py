@@ -8,6 +8,7 @@ from simple_agent.services.tool_registry import ToolRegistry
 from simple_agent.services.dataset_catalog import catalog, read_document
 from simple_agent.runtime_settings import llm_configuration, validate_settings
 from simple_agent.services.future_demo import create_future_demo_session
+from simple_agent.services.session_store import SessionStore
 
 
 class AdminState(TypedDict, total=False):
@@ -55,6 +56,7 @@ def execute(state: AdminState) -> AdminState:
                 "publish_draft",
                 "activate_bundle",
                 "create_future_demo_session",
+                "ensure_whatsapp_session",
                 "simulate_payment_settled",
             }
             and state.get("approved") is not True
@@ -168,6 +170,12 @@ def execute(state: AdminState) -> AdminState:
             if not isinstance(form, dict):
                 raise ValueError("demo_form must be an object")
             result = create_future_demo_session(required_text(state, "thread_id"), form)
+        elif operation == "ensure_whatsapp_session":
+            thread = required_text(state, "thread_id")
+            result = {
+                "thread_id": thread,
+                "created": SessionStore().ensure_unbound(thread),
+            }
         elif operation == "simulate_payment_settled":
             from simple_agent.tools.payment_tools import simulate_payment_settled
 

@@ -1,4 +1,4 @@
-# Future Demo form backend — 0.10.0
+# Future Demo form backend — 0.11.0
 
 Version 0.4.2 prepares the current Railway agent runtime for a separate future
 interface. It does not change the existing Playground or its Simulator panel.
@@ -84,6 +84,10 @@ Do not place the token in Next.js public variables, graph input, logs or tickets
 - The Visualizer must reuse this `thread_id` as the WhatsApp dispatch
   `decision_id`; Zerai Canais binds a later reply from that recipient to this
   session before sending the approved template.
+- A contact who writes directly, without that binding, gets an unbound session.
+  It contains no customer/debt fixture, exposes only institutional OKF tools and
+  cannot execute identity, offer or payment tools. A later form cannot overwrite
+  the same thread.
 
 ## Validation
 
@@ -93,3 +97,5 @@ non-overwrite, Playground preservation,
 CPF-first-3 identity and tool reads without external calls.
 They also verify exact-command matching, Demo-only isolation, operational reset
 and removal of prior messages from the active model context.
+They also verify unbound WhatsApp idempotency and both model-time and execution-time
+financial-tool blocking.

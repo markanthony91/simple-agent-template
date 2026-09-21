@@ -1,4 +1,8 @@
-# Future Demo form backend — 0.10.0
+# Future Demo form backend — 0.11.0
+
+- [x] Direct inbound WhatsApp threads are created without customer/debt context;
+  institutional OKF remains available and financial tools fail closed. Existing
+  form-backed threads are preserved.
 
 - [x] Railway 0.10.0 publicado no deployment
   `59600615-4ced-4760-b26b-5824f9e1d9d4` a partir do merge `86e973d`.

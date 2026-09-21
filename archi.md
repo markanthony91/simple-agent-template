@@ -1,4 +1,4 @@
-# Architecture — 0.10.0
+# Architecture — 0.11.0
 
 Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI adapter.
 Model tool calls → LangChain schema validation → enabled-tool middleware →
@@ -36,6 +36,12 @@ tenant/portfolio/customer/debt records and their session binding keyed by the ta
 `thread_id`. Tools reconstruct the same fixture contract from those rows, so their
 schemas do not change. It never updates the global Playground fixture. An exact
 repeat is idempotent; different data cannot overwrite an existing session.
+
+Before inbound WhatsApp inference, `okf_admin.ensure_whatsapp_session` creates an
+unbound session only when that thread has no stored context. Unbound sessions have
+no fixture or normalized debt relationship; middleware removes financial tools and
+the execution guard rejects them even if a model attempts a stale tool call. An
+existing form-backed session is never replaced.
 
 RAW → immutable source/hash → lexical manifest + selected concepts → create,
 append or noop → incomplete draft → index/log → validation → human review →
