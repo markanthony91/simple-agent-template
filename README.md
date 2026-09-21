@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.11.4)
+# Agent Runtime — OKF simulator (0.12.0)
 
 Identity verification and customer lookup now execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;
@@ -15,9 +15,11 @@ the applicable conditions.
 
 The synthetic negotiation flow now generates the offer, agreement and invalid
 dummy PIX/boleto in one transaction after the customer requests complete terms.
-There is no internal human approval or separate confirmation. Local email outbox
-capture and operator-only settlement simulation remain session-bound and idempotent.
-No payment or email is sent externally.
+There is no internal human approval or separate offer confirmation. After the
+customer explicitly supplies an email, the runtime can send the simulated payment
+instruction through the configured Zerai Channel Console. Provider acceptance is
+session-bound and idempotent; it is never presented as delivery. PIX/boleto remain
+invalid simulations, and settlement remains operator-only.
 The pilot uses the canonical test scope `Will Bank` / `cartao_de_credito`.
 For a personal negotiation, the payment tool resolves and validates exactly one
 applicable policy inside the session's pinned snapshot. This removes model-managed

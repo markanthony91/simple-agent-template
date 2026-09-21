@@ -38,7 +38,7 @@ def tool_outcome(result: Any) -> dict[str, str]:
     if isinstance(data, dict):
         if data.get("error") or data.get("ok") is False:
             outcome = "error"
-        elif any(data.get(key) is False for key in ("available", "created", "captured", "verified", "found", "financial_data_available")):
+        elif any(data.get(key) is False for key in ("available", "created", "captured", "sent", "verified", "found", "financial_data_available")):
             outcome = "denied"
         else:
             outcome = "allowed"

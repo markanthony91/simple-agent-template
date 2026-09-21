@@ -55,7 +55,9 @@ def test_transactional_result_is_rendered_without_second_model_call(isolated):
             )
         ]
     )
-    graph = create_agent(model=model, tools=[synthetic_payment], middleware=[direct_reply])
+    graph = create_agent(
+        model=model, tools=[synthetic_payment], middleware=[direct_reply]
+    )
     result = graph.invoke(
         {"messages": [{"role": "user", "content": "Quero boleto em 3x"}]},
         {"configurable": {"thread_id": "direct-reply"}},
@@ -81,3 +83,17 @@ def test_direct_failures_never_expose_financial_values():
         "Informe outra opção."
     )
     assert "R$" not in text
+
+
+def test_email_reply_reports_provider_acceptance_without_claiming_delivery():
+    accepted = render_direct_reply(
+        "send_payment_instruction",
+        json.dumps({"sent": True, "status": "accepted"}),
+    )
+    assert "provedor aceitou" in accepted
+    assert "não confirma a entrega" in accepted
+    denied = render_direct_reply(
+        "send_payment_instruction",
+        json.dumps({"sent": False, "reason": "email_channel_not_configured"}),
+    )
+    assert "Não foi possível" in denied

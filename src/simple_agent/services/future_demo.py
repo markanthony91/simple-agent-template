@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-import json
-import os
-import urllib.error
-import urllib.request
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated, Callable
@@ -14,6 +10,7 @@ from uuid import NAMESPACE_URL, uuid5
 from pydantic import BaseModel, Field, StrictInt, ValidationError, field_validator
 
 from simple_agent.services.session_store import SessionStore, validate_thread_id
+from simple_agent.services.channel_console import ChannelConsoleError, request_json
 from simple_agent.services.simulator_schema import normalize_fixture
 from simple_agent.services.simulator_store import SimulatorStore
 
@@ -67,29 +64,15 @@ class FutureDemoForm(BaseModel):
 
 
 def channel_creditor() -> str:
-    base = (
-        (
-            os.getenv("CHANNEL_CONSOLE_URL")
-            or os.getenv("RAILWAY_SERVICE_ZERAI_CHANNEL_CONSOLE_URL")
-            or ""
-        )
-        .strip()
-        .rstrip("/")
-    )
-    token = os.getenv("CHANNEL_CONSOLE_ENGINE_TOKEN", "").strip()
-    if not base or not token:
-        raise ValueError("channel_catalog_not_configured")
-    if "://" not in base:
-        base = ("http://" if base.endswith(".railway.internal") else "https://") + base
-    request = urllib.request.Request(
-        f"{base}/api/engine/v1/channels",
-        headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
-    )
     try:
-        with urllib.request.urlopen(request, timeout=5) as response:
-            payload = json.load(response)
-    except (OSError, ValueError, urllib.error.HTTPError) as exc:
-        raise ValueError("channel_catalog_unavailable") from exc
+        payload = request_json("/api/engine/v1/channels", timeout=5)
+    except ChannelConsoleError as exc:
+        code = (
+            "channel_catalog_not_configured"
+            if exc.code == "channel_console_not_configured"
+            else "channel_catalog_unavailable"
+        )
+        raise ValueError(code) from exc
     creditor = (
         str(payload.get("creditor_name") or "").strip()
         if isinstance(payload, dict)

@@ -90,6 +90,7 @@ def run() -> None:
                     "available": body.get("available"),
                     "created": body.get("created"),
                     "captured": body.get("captured"),
+                    "sent": body.get("sent"),
                     "status": body.get("status"),
                     "verified": body.get("verified"),
                 }
