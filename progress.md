@@ -3,6 +3,14 @@
 - [x] Direct inbound WhatsApp threads are created without customer/debt context;
   institutional OKF remains available and financial tools fail closed. Existing
   form-backed threads are preserved.
+- [x] Railway 0.11.0 publicado no deployment
+  `56d90db5-b283-4eea-9242-49d0ab9a48e3` a partir do merge `8f856bd`.
+  PR [#24](https://github.com/markanthony91/simple-agent-template/pull/24);
+  225 testes passaram, um foi ignorado, com 87,54% de cobertura; Ruff e imagem
+  Docker 0.11.0 passaram.
+  Backup `/data/backups/pre-whatsapp-unbound-0110-20260921` validado por
+  integridade e hash lógico; 101 sessões, seis tabelas e zero falhas de chave
+  estrangeira após o deploy. Nenhum canal foi acionado.
 
 - [x] Railway 0.10.0 publicado no deployment
   `59600615-4ced-4760-b26b-5824f9e1d9d4` a partir do merge `86e973d`.
