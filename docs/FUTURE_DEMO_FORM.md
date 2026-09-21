@@ -1,4 +1,4 @@
-# Future Demo form backend — 0.11.0
+# Future Demo form backend — 0.11.1
 
 Version 0.4.2 prepares the current Railway agent runtime for a separate future
 interface. It does not change the existing Playground or its Simulator panel.
@@ -88,6 +88,8 @@ Do not place the token in Next.js public variables, graph input, logs or tickets
   It contains no customer/debt fixture, exposes only institutional OKF tools and
   cannot execute identity, offer or payment tools. A later form cannot overwrite
   the same thread.
+- A legacy direct thread without either marker fails before inference with
+  `whatsapp_session_requires_reset`; `/reset-demo` rotates it to a clean thread.
 
 ## Validation
 

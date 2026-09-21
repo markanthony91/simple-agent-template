@@ -1,8 +1,10 @@
-# Future Demo form backend — 0.11.0
+# Future Demo form backend — 0.11.1
 
 - [x] Direct inbound WhatsApp threads are created without customer/debt context;
   institutional OKF remains available and financial tools fail closed. Existing
   form-backed threads are preserved.
+- [x] Legacy unclassified WhatsApp threads fail closed before inference and must
+  use the existing `/reset-demo` rotation instead of reusing old fixture/history.
 - [x] Railway 0.11.0 publicado no deployment
   `56d90db5-b283-4eea-9242-49d0ab9a48e3` a partir do merge `8f856bd`.
   PR [#24](https://github.com/markanthony91/simple-agent-template/pull/24);

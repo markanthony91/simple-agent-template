@@ -275,8 +275,14 @@ class SessionStore:
         try:
             with self._connect() as db:
                 db.execute("BEGIN IMMEDIATE")
-                if db.execute("SELECT 1 FROM sessions WHERE id=?", (key,)).fetchone():
-                    return False
+                previous = db.execute(
+                    "SELECT data FROM sessions WHERE id=?", (key,)
+                ).fetchone()
+                if previous:
+                    current = json.loads(previous[0])
+                    if current.get("demo_session") or current.get("unbound_session"):
+                        return False
+                    raise ValueError("whatsapp_session_requires_reset")
                 db.execute(
                     "INSERT INTO sessions(id,data) VALUES(?,?)",
                     (key, json.dumps(state)),

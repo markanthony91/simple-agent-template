@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.11.0)
+# Agent Runtime — OKF simulator (0.11.1)
 
 Identity verification and customer lookup now execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;
@@ -39,6 +39,8 @@ An inbound WhatsApp thread without a prior form is persisted as unbound: it has 
 customer or debt fixture, may use only institutional OKF tools, and cannot execute
 identity, offer or payment tools. Preparing an existing form-backed thread is a
 no-op and preserves its normalized context.
+Legacy direct threads that predate this marker fail before inference and require
+the existing `/reset-demo` rotation; their old context is never reused silently.
 For future-form sessions, the presentation uses the Canais **Cedente** as creditor
 and the selected Assistant's `agent_profile.name` as the agent name. The backend
 renders only `{{credor}}` and `{{nome_agente}}`; this is not delegated to the LLM.
