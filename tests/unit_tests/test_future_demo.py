@@ -31,9 +31,11 @@ FORM = {
 }
 
 
-def runtime(key: str, call: str = "call-1"):
+def runtime(key: str, call: str = "call-1", text: str = ""):
     return SimpleNamespace(
-        config={"configurable": {"thread_id": key}}, tool_call_id=call
+        config={"configurable": {"thread_id": key}},
+        tool_call_id=call,
+        state={"messages": [HumanMessage(content=text)]},
     )
 
 
@@ -81,7 +83,9 @@ def test_form_creates_isolated_tool_session_without_changing_playground(
         }
 
     verified = json.loads(
-        verify_customer_identity.func(runtime=runtime("future-form-thread"), cpf="529")
+        verify_customer_identity.func(
+            runtime=runtime("future-form-thread", text="529"), cpf="529"
+        )
     )
     assert verified["verified"] is True
     customer = json.loads(

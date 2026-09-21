@@ -81,8 +81,16 @@ def _verify_identity(
     fixture = state["fixture"]
     policy = policy_for(state)
     attempts = state.get("identity_attempts", 0)
-    verified = attempts < policy.max_attempts and matches(
-        state, cpf, full_name, birth_date
+    supplied_by_user = True
+    if policy.cpf_mode == "first3" and policy.secondary == "none":
+        _, user_text = latest_user_message(runtime)
+        supplied_by_user = (
+            _digits(user_text) == _digits(cpf) and len(_digits(user_text)) == 3
+        )
+    verified = (
+        attempts < policy.max_attempts
+        and supplied_by_user
+        and matches(state, cpf, full_name, birth_date)
     )
     state["identity_verified"] = verified
     if not verified:

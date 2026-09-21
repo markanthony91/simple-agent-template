@@ -60,6 +60,29 @@ def verify(rt):
     )
 
 
+def test_first3_tool_cannot_truncate_the_user_message(isolated):
+    with SessionStore().transaction("first3-exact") as state:
+        state["fixture"]["identity_policy"] = {
+            "cpf_mode": "first3",
+            "secondary": "none",
+            "max_attempts": 3,
+        }
+
+    rejected = call(
+        tools.verify_and_get_customer,
+        runtime("first3-exact", text="1234"),
+        cpf="123",
+    )
+    assert rejected["verified"] is False
+
+    accepted = call(
+        tools.verify_and_get_customer,
+        runtime("first3-exact", text="123", message_id="m2"),
+        cpf="123",
+    )
+    assert accepted["verified"] is True
+
+
 def test_data_hidden_and_verification_isolated(policy):
     a, b = runtime(), runtime("b")
     assert (

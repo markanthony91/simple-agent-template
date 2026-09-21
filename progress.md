@@ -1,7 +1,8 @@
-# Future Demo form backend — 0.11.2
+# Future Demo form backend — 0.11.3
 
 - [x] CPF-only pilot contract: exact first three digits, no name or birth date;
-  backend response guard removes extra identity factors added by the model.
+  backend response guard removes extra identity factors added by the model and
+  rejects model-side truncation of a longer value supplied by the user.
 
 - [x] Direct inbound WhatsApp threads are created without customer/debt context;
   institutional OKF remains available and financial tools fail closed. Existing
