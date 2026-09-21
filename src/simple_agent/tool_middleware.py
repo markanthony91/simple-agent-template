@@ -59,7 +59,8 @@ tools OKF; para consultar ou negociar uma dívida, informe que é necessário in
 pelo formulário da demonstração. Esta regra prevalece sobre instruções conflitantes.
 """
 PERSONAL_CONTEXT = re.compile(
-    r"\b(?:minha|meu|minhas|meus)\s+(?:conta|divida|saldo|proposta|acordo|pagamento|boleto|pix|contestacao)\b"
+    r"\b(?:minha|meu|minhas|meus)\s+(?:conta|divida|debito|pendencia|cobranca|saldo|proposta|acordo|pagamento|boleto|pix|contestacao)\b|"
+    r"\b(?:tenho|possuo|estou com)\s+(?:uma\s+)?(?:divida|debito|pendencia|cobranca)\b"
 )
 PERSONAL_ACTION = re.compile(
     r"\b(?:quero|desejo|preciso)\s+(?:consultar|negociar|pagar|regularizar|quitar|gerar|emitir|receber|registrar)\b"
@@ -82,6 +83,12 @@ IDENTITY_REQUEST = re.compile(
 IDENTITY_OFFER = re.compile(
     rf"(?:se desejar|caso queira|me avise|podemos|posso).{{0,180}}(?:{IDENTITY_OBJECT}|"
     r"acessar sua conta|consultar seu caso|verificar seu caso)"
+)
+IDENTITY_PROCESS = re.compile(
+    r"(?:realizar|fazer|iniciar|prosseguir com).{0,80}\bidentificacao\b"
+)
+ACKNOWLEDGEMENT = re.compile(
+    r"^(?:ok|sim|certo|entendi|pode ser|vamos|continue|continuar|prossiga)[.! ]*$"
 )
 GENERAL_SCOPE_INSTRUCTION = """# Current turn scope: general information
 
@@ -334,19 +341,33 @@ def _normalize(value: str) -> str:
     )
 
 
-def _last_human_text(request: ModelRequest) -> str:
-    for message in reversed(request.state.get("messages", [])):
-        if getattr(message, "type", None) == "human":
-            return _plain_text(getattr(message, "content", ""))
-    return ""
-
-
-def _requests_personal_action(text: str) -> bool:
+def _requests_personal_action(text: str, previous_text: str = "") -> bool:
     normalized = _normalize(text)
     if GENERAL_CONTEXT.search(normalized):
         return False
-    return bool(
+    direct = bool(
         PERSONAL_CONTEXT.search(normalized) or PERSONAL_ACTION.search(normalized)
+    )
+    if direct:
+        return True
+    return bool(
+        previous_text
+        and ACKNOWLEDGEMENT.fullmatch(normalized.strip())
+        and _requests_personal_action(previous_text)
+    )
+
+
+def _request_is_personal(request: ModelRequest) -> bool:
+    messages = [
+        _plain_text(getattr(message, "content", ""))
+        for message in reversed(request.state.get("messages", []))
+        if getattr(message, "type", None) == "human"
+    ]
+    return bool(
+        messages
+        and _requests_personal_action(
+            messages[0], messages[1] if len(messages) > 1 else ""
+        )
     )
 
 
@@ -355,7 +376,9 @@ def _asks_for_identity(text: str) -> bool:
     if IDENTITY_NEGATION.search(normalized):
         return False
     return bool(
-        IDENTITY_REQUEST.search(normalized) or IDENTITY_OFFER.search(normalized)
+        IDENTITY_REQUEST.search(normalized)
+        or IDENTITY_OFFER.search(normalized)
+        or IDENTITY_PROCESS.search(normalized)
     )
 
 
@@ -392,7 +415,7 @@ def _sanitize_identity_request(text: str, session: dict) -> str:
 def _audit_final(request: ModelRequest, response: ModelResponse) -> ModelResponse:
     """Enforce general-query privacy, then annotate the final response."""
     key = get_config().get("configurable", {}).get("thread_id")
-    personal_action = _requests_personal_action(_last_human_text(request))
+    personal_action = _request_is_personal(request)
     with SessionStore().transaction(key) as session:
         for message in response.result:
             if (
@@ -500,7 +523,7 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             if isinstance(content, str)
             else [*content, {"type": "text", "text": contract}]
         )
-        if not _requests_personal_action(_last_human_text(request)):
+        if not _request_is_personal(request):
             content = (
                 f"{content}\n\n{GENERAL_SCOPE_INSTRUCTION}"
                 if isinstance(content, str)
