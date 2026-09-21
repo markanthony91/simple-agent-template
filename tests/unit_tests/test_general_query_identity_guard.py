@@ -35,6 +35,8 @@ def test_only_explicit_personal_request_enters_identity_flow() -> None:
     assert _requests_personal_action(
         "Quero consultar a minha dívida e negociar um pagamento."
     )
+    assert _requests_personal_action("Tenho uma pendência")
+    assert _requests_personal_action("ok", "Tenho uma pendência")
 
 
 def test_obfuscated_document_request_is_removed_from_general_answer() -> None:
@@ -96,3 +98,24 @@ def test_first3_only_identity_request_drops_other_factors() -> None:
     assert "3 primeiros dígitos" in sanitized
     assert "nome completo" not in sanitized
     assert "data de nascimento" not in sanitized
+
+
+def test_vague_identity_process_becomes_exact_cpf_request() -> None:
+    response = (
+        "Para consultar os detalhes, preciso primeiro realizar a sua identificação."
+    )
+    session = {
+        "identity_verified": False,
+        "fixture": {
+            "identity_policy": {
+                "cpf_mode": "first3",
+                "secondary": "none",
+                "max_attempts": 3,
+            }
+        },
+    }
+
+    assert _sanitize_identity_request(response, session) == (
+        "Para consultar sua dívida, preciso validar sua identidade. "
+        "Informe apenas os 3 primeiros dígitos do seu CPF."
+    )
