@@ -2,6 +2,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from langchain_core.messages import HumanMessage
 from pydantic import ValidationError
 
 from simple_agent.services.identity_policy import instructions, matches
@@ -11,9 +12,11 @@ from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.tools.collection_tools import get_customer, verify_customer_identity
 
 
-def runtime(key="identity", call="call-1"):
+def runtime(key="identity", call="call-1", text=""):
     return SimpleNamespace(
-        config={"configurable": {"thread_id": key}}, tool_call_id=call
+        config={"configurable": {"thread_id": key}},
+        tool_call_id=call,
+        state={"messages": [HumanMessage(content=text)]},
     )
 
 
@@ -45,7 +48,7 @@ def test_methods_and_authorized_debt(isolated, mode, cpf, secondary, args):
         "max_attempts": 3,
     }
     store.save(fixture)
-    rt = runtime()
+    rt = runtime(text=cpf)
     assert "debt" not in json.loads(get_customer.func(runtime=rt))
     result = json.loads(verify_customer_identity.func(runtime=rt, cpf=cpf, **args))
     assert result["verified"] is True
