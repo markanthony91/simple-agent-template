@@ -5,6 +5,10 @@
   form-backed threads are preserved.
 - [x] Legacy unclassified WhatsApp threads fail closed before inference and must
   use the existing `/reset-demo` rotation instead of reusing old fixture/history.
+- [x] Railway 0.11.1 publicado no deployment
+  `5750c955-e072-42ee-a7a6-699e293f8c41` a partir do merge `8774b54`.
+  Uma sessão legada real retornou `whatsapp_session_requires_reset` sem alterar a
+  contagem de 101 sessões; integridade permaneceu OK e nenhum canal foi acionado.
 - [x] Railway 0.11.0 publicado no deployment
   `56d90db5-b283-4eea-9242-49d0ab9a48e3` a partir do merge `8f856bd`.
   PR [#24](https://github.com/markanthony91/simple-agent-template/pull/24);
