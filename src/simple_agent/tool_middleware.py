@@ -27,7 +27,7 @@ from simple_agent.tool_observability import (
     tool_outcome,
 )
 from simple_agent.services.session_store import SessionStore
-from simple_agent.services.identity_policy import instructions
+from simple_agent.services.identity_policy import instructions, policy_for
 from simple_agent.services.response_audit import audit_response
 from langgraph.config import get_config
 from simple_agent.runtime_settings import LLMSettings
@@ -120,7 +120,9 @@ def _direct_failure(reason: str) -> str:
         "payment_terms_invalid": "Os meios de pagamento publicados estão inválidos.",
         "payment_method_not_allowed": "O meio de pagamento solicitado não é permitido pela política aplicável.",
         "invalid_financial_value": "O valor informado é inválido.",
-    }.get(reason, "Não foi possível gerar a proposta com segurança. Tente outra condição.")
+    }.get(
+        reason, "Não foi possível gerar a proposta com segurança. Tente outra condição."
+    )
 
 
 def render_direct_reply(tool_name: str, content: Any) -> str | None:
@@ -161,7 +163,9 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         for index, amount in enumerate(offer["installment_schedule"], 1)
     )
     payment_label = (
-        "à vista" if offer["payment_type"] == "cash" else f"{offer['installments']} parcelas"
+        "à vista"
+        if offer["payment_type"] == "cash"
+        else f"{offer['installments']} parcelas"
     )
     return (
         "Proposta simulada criada com sucesso.\n\n"
@@ -350,7 +354,9 @@ def _asks_for_identity(text: str) -> bool:
     normalized = _normalize(text)
     if IDENTITY_NEGATION.search(normalized):
         return False
-    return bool(IDENTITY_REQUEST.search(normalized) or IDENTITY_OFFER.search(normalized))
+    return bool(
+        IDENTITY_REQUEST.search(normalized) or IDENTITY_OFFER.search(normalized)
+    )
 
 
 def _sanitize_general_response(text: str) -> str:
@@ -370,6 +376,19 @@ def _sanitize_general_response(text: str) -> str:
     )
 
 
+def _sanitize_identity_request(text: str, session: dict) -> str:
+    """Render the active CPF-only contract deterministically."""
+    if session.get("identity_verified") or not _asks_for_identity(text):
+        return text
+    policy = policy_for(session)
+    if policy.cpf_mode != "first3" or policy.secondary != "none":
+        return text
+    return (
+        "Para consultar sua dívida, preciso validar sua identidade. "
+        "Informe apenas os 3 primeiros dígitos do seu CPF."
+    )
+
+
 def _audit_final(request: ModelRequest, response: ModelResponse) -> ModelResponse:
     """Enforce general-query privacy, then annotate the final response."""
     key = get_config().get("configurable", {}).get("thread_id")
@@ -384,6 +403,8 @@ def _audit_final(request: ModelRequest, response: ModelResponse) -> ModelRespons
                 continue
             if not personal_action:
                 message.content = _sanitize_general_response(message.content)
+            else:
+                message.content = _sanitize_identity_request(message.content, session)
             report = audit_response(message.content, session)
             message.additional_kwargs["response_audit"] = report
             logger.info(

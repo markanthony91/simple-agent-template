@@ -74,17 +74,31 @@ def instructions(state: dict) -> str:
         "either": "nome completo OU data de nascimento",
     }[policy.secondary]
     remaining = max(0, policy.max_attempts - state.get("identity_attempts", 0))
-    return presentation + (
-        "\n\n# Contrato de identificação da sessão (configuração do backend)\n"
-        f"Solicite {cpf}{' e ' + factor if policy.secondary != 'none' else ''}. "
-        "Todos os fatores selecionados são obrigatórios. "
-        "Este contrato prevalece sobre instruções conflitantes de identificação. "
-        "Use verify_and_get_customer com cpf e os fatores selecionados; birth_date "
-        "em YYYY-MM-DD. Não invente nem complete dados ausentes. "
-        f"Tentativas restantes: {remaining}. Identidade validada: "
-        f"{'sim' if state.get('identity_verified') else 'não'}. "
-        "Só verified=true inclui os dados do cliente fixado na mesma resposta. "
-        "Em falha, não indique qual fator errou nem revele valores esperados. "
-        "Se requires_human=true, ofereça atendimento humano sem alegar transferência. "
-        "Nunca mostre placeholders como {{nome_cliente}}: sem nome conhecido, omita-o."
+    if policy.cpf_mode == "first3" and policy.secondary == "none":
+        request = (
+            "Solicite somente os 3 primeiros dígitos do CPF. "
+            "Não solicite nome completo, data de nascimento nem outro dado de identidade. "
+            "Use verify_and_get_customer somente com o argumento cpf. "
+        )
+    else:
+        request = (
+            f"Solicite {cpf}{' e ' + factor if policy.secondary != 'none' else ''}. "
+            "Todos os fatores selecionados são obrigatórios. "
+            "Use verify_and_get_customer com cpf e os fatores selecionados; birth_date "
+            "em YYYY-MM-DD. "
+        )
+    return (
+        presentation
+        + "\n\n# Contrato de identificação da sessão (configuração do backend)\n"
+        + request
+        + (
+            "Este contrato prevalece sobre instruções conflitantes de identificação. "
+            "Não invente nem complete dados ausentes. "
+            f"Tentativas restantes: {remaining}. Identidade validada: "
+            f"{'sim' if state.get('identity_verified') else 'não'}. "
+            "Só verified=true inclui os dados do cliente fixado na mesma resposta. "
+            "Em falha, não indique qual fator errou nem revele valores esperados. "
+            "Se requires_human=true, ofereça atendimento humano sem alegar transferência. "
+            "Nunca mostre placeholders como {{nome_cliente}}: sem nome conhecido, omita-o."
+        )
     )

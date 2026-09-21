@@ -1,6 +1,7 @@
 from simple_agent.tool_middleware import (
     _requests_personal_action,
     _sanitize_general_response,
+    _sanitize_identity_request,
 )
 
 
@@ -37,7 +38,9 @@ def test_only_explicit_personal_request_enters_identity_flow() -> None:
 
 
 def test_obfuscated_document_request_is_removed_from_general_answer() -> None:
-    response = "Para continuar, envie os quatro primeiros dígitos do número do documento."
+    response = (
+        "Para continuar, envie os quatro primeiros dígitos do número do documento."
+    )
 
     assert "documento" not in _sanitize_general_response(response)
 
@@ -54,7 +57,10 @@ def test_unsolicited_identity_offer_is_removed() -> None:
         "Se desejar verificar seu caso, me avise para iniciarmos o protocolo de identificação."
     )
 
-    assert _sanitize_general_response(response) == "O prazo ainda está a definir pela operação."
+    assert (
+        _sanitize_general_response(response)
+        == "O prazo ainda está a definir pela operação."
+    )
 
 
 def test_personal_account_offer_is_removed_after_general_answer() -> None:
@@ -63,4 +69,30 @@ def test_personal_account_offer_is_removed_after_general_answer() -> None:
         "Se desejar saber o prazo do seu caso, solicite atendimento da conta pessoal para realizarmos a identificação segura."
     )
 
-    assert _sanitize_general_response(response) == "O prazo ainda está a definir pela operação."
+    assert (
+        _sanitize_general_response(response)
+        == "O prazo ainda está a definir pela operação."
+    )
+
+
+def test_first3_only_identity_request_drops_other_factors() -> None:
+    response = (
+        "Para validar sua identidade, informe os 3 primeiros dígitos do CPF, "
+        "nome completo e data de nascimento."
+    )
+    session = {
+        "identity_verified": False,
+        "fixture": {
+            "identity_policy": {
+                "cpf_mode": "first3",
+                "secondary": "none",
+                "max_attempts": 3,
+            }
+        },
+    }
+
+    sanitized = _sanitize_identity_request(response, session)
+
+    assert "3 primeiros dígitos" in sanitized
+    assert "nome completo" not in sanitized
+    assert "data de nascimento" not in sanitized
