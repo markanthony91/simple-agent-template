@@ -1,4 +1,5 @@
 import json
+import sqlite3
 from io import BytesIO
 from types import SimpleNamespace
 
@@ -91,14 +92,72 @@ def test_form_creates_isolated_tool_session_without_changing_playground(
     assert customer["debt"]["days_overdue"] == 42
     assert customer["debt"]["current_amount"] == "850.00"
 
+    replay = create_future_demo_session(
+        "future-form-thread",
+        FORM,
+        creditor_loader=lambda: "Credor cadastrado em Canais",
+        session_store=SessionStore(session_root),
+        simulator_store=simulator,
+    )
+    assert replay["created"] is False
+
+    with sqlite3.connect(SessionStore(session_root).database) as database:
+        assert database.execute("select count(*) from tenants").fetchone()[0] == 1
+        assert database.execute("select count(*) from portfolios").fetchone()[0] == 1
+        assert database.execute("select count(*) from customers").fetchone()[0] == 1
+        assert database.execute("select count(*) from debts").fetchone()[0] == 1
+        assert (
+            database.execute("select count(*) from session_contexts").fetchone()[0] == 1
+        )
+        assert database.execute("pragma foreign_key_check").fetchall() == []
+        stored = json.loads(
+            database.execute(
+                "select data from sessions where id='future-form-thread'"
+            ).fetchone()[0]
+        )
+        assert "fixture" not in stored
+
     with pytest.raises(ValueError, match="session_already_exists"):
         create_future_demo_session(
             "future-form-thread",
-            FORM,
+            {**FORM, "amount": "851.00"},
             creditor_loader=lambda: "Credor cadastrado em Canais",
             session_store=SessionStore(session_root),
             simulator_store=simulator,
         )
+
+
+def test_schema_upgrade_preserves_existing_playground_sessions(isolated, tmp_path):
+    root = tmp_path / "legacy-sessions"
+    root.mkdir()
+    database = root / "sessions.sqlite3"
+    fixture = SimulatorStore(tmp_path / "legacy-simulator").load()
+    state = {
+        "fixture": fixture,
+        "identity_verified": False,
+        "offers": {},
+        "agreements": {},
+        "payments": {},
+        "deliveries": {},
+        "receipts": {},
+        "snapshot_id": "legacy-snapshot",
+    }
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "create table sessions (id text primary key, data text not null)"
+        )
+        connection.execute(
+            "insert into sessions(id,data) values(?,?)",
+            ("legacy-thread", json.dumps(state)),
+        )
+
+    store = SessionStore(root)
+    with store.transaction("legacy-thread") as preserved:
+        assert preserved["fixture"] == fixture
+        assert preserved["snapshot_id"] == "legacy-snapshot"
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("select count(*) from sessions").fetchone()[0] == 1
+        assert connection.execute("select count(*) from tenants").fetchone()[0] == 0
 
 
 @pytest.mark.parametrize(

@@ -9,7 +9,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Annotated, Callable
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, Field, StrictInt, ValidationError, field_validator
 
@@ -119,9 +119,13 @@ def create_future_demo_session(
 
     defaults = (simulator_store or SimulatorStore()).load()
     today = datetime.now(timezone.utc).date()
+    customer_id = (
+        f"DEMO-{uuid5(NAMESPACE_URL, f'demo:{thread}:customer').hex[:12].upper()}"
+    )
+    debt_id = f"DEBT-{uuid5(NAMESPACE_URL, f'demo:{thread}:debt').hex[:12].upper()}"
     fixture = normalize_fixture(
         {
-            "customer_id": f"DEMO-{uuid4().hex[:12].upper()}",
+            "customer_id": customer_id,
             "full_name": form.full_name,
             "cpf": form.cpf,
             "phone": form.phone,
@@ -130,8 +134,8 @@ def create_future_demo_session(
             "creditor_name": creditor,
             "product": defaults.get("product", "cobranca"),
             "debt": {
-                "debt_id": f"DEBT-{uuid4().hex[:12].upper()}",
-                "contract_id": f"CTR-{uuid4().hex[:12].upper()}",
+                "debt_id": debt_id,
+                "contract_id": f"CTR-{uuid5(NAMESPACE_URL, f'demo:{thread}:contract').hex[:12].upper()}",
                 "original_amount": form.amount,
                 "current_amount": form.amount,
                 "due_date": (today - timedelta(days=form.days_overdue)).isoformat(),
@@ -146,7 +150,7 @@ def create_future_demo_session(
             },
         }
     )
-    (session_store or SessionStore()).create(thread, fixture, demo=True)
+    created = (session_store or SessionStore()).create(thread, fixture, demo=True)
     return {
         "thread_id": thread,
         "creditor": creditor,
@@ -155,5 +159,5 @@ def create_future_demo_session(
         "amount": str(form.amount.quantize(Decimal("0.01"))),
         "days_overdue": form.days_overdue,
         "identity_policy": "cpf_first3",
-        "created": True,
+        "created": created,
     }

@@ -1,4 +1,4 @@
-# Future Demo form backend
+# Future Demo form backend — 0.10.0
 
 Version 0.4.2 prepares the current Railway agent runtime for a separate future
 interface. It does not change the existing Playground or its Simulator panel.
@@ -25,7 +25,10 @@ with operator approval and this input:
 
 The backend validates every field, reads `creditor_name` from
 `GET /api/engine/v1/channels`, builds internal customer/debt/contract identifiers
-and inserts a new isolated session. An existing `thread_id` is never overwritten.
+and inserts a new isolated session. Tenant, portfolio, customer, debt and the
+session binding are normalized inside the existing persistent SQLite database.
+An exact repeat returns `created:false`; an existing `thread_id` with different
+data is never overwritten.
 The response masks CPF and phone and does not return the stored fixture.
 
 The pinned identity rule matches the Smart Debt Demo: three first CPF digits,
@@ -78,11 +81,15 @@ Do not place the token in Next.js public variables, graph input, logs or tickets
   Historical LangGraph checkpoints remain available for audit. Playground or
   unknown sessions receive `Comando indisponível nesta sessão.` and are unchanged.
 - No WhatsApp, SMS, call, offer or agreement is triggered by creating the session.
+- The Visualizer must reuse this `thread_id` as the WhatsApp dispatch
+  `decision_id`; Zerai Canais binds a later reply from that recipient to this
+  session before sending the approved template.
 
 ## Validation
 
 Tests use only temporary SQLite databases, a fake Canais response and synthetic
-identities. They verify validation, non-overwrite, Playground preservation,
+identities. They verify validation, idempotency, normalized tenant relationships,
+non-overwrite, Playground preservation,
 CPF-first-3 identity and tool reads without external calls.
 They also verify exact-command matching, Demo-only isolation, operational reset
 and removal of prior messages from the active model context.

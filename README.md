@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.9.5)
+# Agent Runtime — OKF simulator (0.10.0)
 
 Identity verification and customer lookup now execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;
@@ -30,6 +30,11 @@ The backend now has a create-only contract for a future Demo form. It accepts
 full name, CPF, E.164 phone, debt amount and days overdue, resolves the creditor
 server-side from Zerai Canais and pins the resulting fixture to one new LangGraph
 thread. Existing Playground fixture editing and existing conversations are unchanged.
+The same persistent SQLite database stores the Demo relationship as normalized
+tenant, portfolio, customer, debt and session rows. Existing tools keep reading the
+session by `thread_id`; no parallel customer tool or provider dependency was added.
+Repeating the exact form/thread is idempotent, while changing data under an existing
+thread is rejected.
 For future-form sessions, the presentation uses the Canais **Cedente** as creditor
 and the selected Assistant's `agent_profile.name` as the agent name. The backend
 renders only `{{credor}}` and `{{nome_agente}}`; this is not delegated to the LLM.
