@@ -1,5 +1,10 @@
 # Future Demo form backend — 0.10.0
 
+- [x] Railway 0.10.0 publicado no deployment
+  `59600615-4ced-4760-b26b-5824f9e1d9d4` a partir do merge `86e973d`.
+  Backup `/data/backups/pre-demo-context-0100-20260921-111500` validado por
+  SHA-256; 101 sessões anteriores preservadas, seis tabelas presentes e
+  `foreign_key_check` sem erros. Nenhum canal foi acionado.
 - [x] Normalize Demo tenant, portfolio, customer, debt and session context in the
   existing persistent store without changing tool schemas or Playground data.
 - [x] Make exact form/thread replay idempotent and reject changed data for an
