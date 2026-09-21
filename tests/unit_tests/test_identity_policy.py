@@ -192,6 +192,38 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
         tool_middleware.filter_enabled_tools._filtered_request(request)
 
 
+def test_unbound_whatsapp_hides_financial_tools_and_identity_prompt(
+    isolated, monkeypatch
+):
+    from langchain.agents.middleware import ModelRequest
+    from langgraph.runtime import Runtime
+    from simple_agent import managed_graph, tool_middleware
+
+    SessionStore().ensure_unbound("whatsapp-unbound")
+    monkeypatch.setattr(
+        tool_middleware,
+        "get_config",
+        lambda: {"configurable": {"thread_id": "whatsapp-unbound"}},
+    )
+    request = ModelRequest(
+        model=managed_graph.create_llm(),
+        messages=[],
+        tools=managed_graph.ALL_TOOLS,
+        runtime=Runtime(context={}),
+        state={"messages": []},
+    )
+    filtered = tool_middleware.filter_enabled_tools._filtered_request(request)
+    names = {tool.name for tool in filtered.tools}
+    assert names.isdisjoint(tool_middleware.FINANCIAL_TOOLS)
+    assert "okf_index" in names
+    assert "Sessão sem dívida vinculada" in filtered.system_message.content
+    assert "CPF completo" not in filtered.system_message.content
+    with pytest.raises(PermissionError, match="demo_session_required"):
+        tool_middleware.filter_enabled_tools._assert_tool_allowed(
+            "verify_and_get_customer", "whatsapp-unbound"
+        )
+
+
 @pytest.mark.anyio
 async def test_policy_io_is_off_event_loop(isolated, monkeypatch):
     import threading

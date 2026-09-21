@@ -160,6 +160,25 @@ def test_schema_upgrade_preserves_existing_playground_sessions(isolated, tmp_pat
         assert connection.execute("select count(*) from tenants").fetchone()[0] == 0
 
 
+def test_direct_whatsapp_session_has_no_customer_or_debt(isolated, tmp_path):
+    store = SessionStore(tmp_path / "unbound-sessions")
+    assert store.ensure_unbound("whatsapp-direct") is True
+    assert store.ensure_unbound("whatsapp-direct") is False
+    with store.transaction("whatsapp-direct") as state:
+        assert state["unbound_session"] is True
+        assert "fixture" not in state
+        assert state["identity_verified"] is False
+
+    with pytest.raises(ValueError, match="session_already_exists"):
+        create_future_demo_session(
+            "whatsapp-direct",
+            FORM,
+            creditor_loader=lambda: "Credor",
+            session_store=store,
+            simulator_store=SimulatorStore(tmp_path / "simulator-unbound"),
+        )
+
+
 @pytest.mark.parametrize(
     "change",
     [

@@ -86,6 +86,15 @@ def test_future_form_requires_approval_and_passes_exact_contract(admin, monkeypa
     }
 
 
+def test_whatsapp_session_requires_approval_and_is_idempotent(admin):
+    payload = {"operation": "ensure_whatsapp_session", "thread_id": "wa-thread"}
+    assert admin.execute(payload)["error"] == "human_approval_required"
+    first = admin.execute({**payload, "approved": True})
+    replay = admin.execute({**payload, "approved": True})
+    assert first["result"] == {"thread_id": "wa-thread", "created": True}
+    assert replay["result"] == {"thread_id": "wa-thread", "created": False}
+
+
 def test_dummy_settlement_requires_operator_approval(admin, monkeypatch):
     captured = {}
 

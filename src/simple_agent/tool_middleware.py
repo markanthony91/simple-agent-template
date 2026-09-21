@@ -42,6 +42,22 @@ RESET_DEMO_REPLY = (
 )
 RESET_DEMO_UNAVAILABLE = "Comando indisponível nesta sessão."
 DIRECT_REPLY_TOOLS = {"verify_and_get_customer", "generate_payment_offer"}
+FINANCIAL_TOOLS = {
+    "verify_and_get_customer",
+    "generate_payment_offer",
+    "send_payment_instruction",
+    "get_payment_status",
+}
+UNBOUND_SESSION_INSTRUCTION = """
+
+# Sessão sem dívida vinculada (regra do backend)
+
+Este contato iniciou a conversa sem uma sessão criada pelo formulário. Não há
+cliente, CPF, saldo, dívida, proposta ou pagamento disponível. Não solicite dados
+de identidade e não apresente valores. Responda apenas dúvidas institucionais pelas
+tools OKF; para consultar ou negociar uma dívida, informe que é necessário iniciar
+pelo formulário da demonstração. Esta regra prevalece sobre instruções conflitantes.
+"""
 PERSONAL_CONTEXT = re.compile(
     r"\b(?:minha|meu|minhas|meus)\s+(?:conta|divida|saldo|proposta|acordo|pagamento|boleto|pix|contestacao)\b"
 )
@@ -423,6 +439,16 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             message.response_metadata["finish_reason"] = match.group(1)
         return response
 
+    @staticmethod
+    def _assert_tool_allowed(tool_name: str, key: str) -> None:
+        if tool_name not in registry.enabled_names():
+            raise PermissionError("tool_disabled")
+        if tool_name not in FINANCIAL_TOOLS:
+            return
+        with SessionStore().transaction(key) as session:
+            if session.get("unbound_session") is True:
+                raise PermissionError("demo_session_required")
+
     def _filtered_request(self, request: ModelRequest) -> ModelRequest:
         context = request.runtime.context
         configured = context if isinstance(context, dict) else {}
@@ -431,8 +457,13 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         if not key:
             raise ValueError("server_thread_id_required")
         with SessionStore().transaction(key) as session:
-            contract = instructions(session)
-            creditor = str(session["fixture"].get("creditor_name") or "").strip()
+            unbound = session.get("unbound_session") is True
+            contract = UNBOUND_SESSION_INSTRUCTION if unbound else instructions(session)
+            creditor = (
+                ""
+                if unbound
+                else str(session["fixture"].get("creditor_name") or "").strip()
+            )
         message = request.system_message or SystemMessage(content="")
         profile = configured.get("agent_profile", {})
         agent_name = (
@@ -456,7 +487,10 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             )
         enabled = registry.enabled_names()
         tools = [
-            tool for tool in request.tools if getattr(tool, "name", None) in enabled
+            tool
+            for tool in request.tools
+            if getattr(tool, "name", None) in enabled
+            and (not unbound or getattr(tool, "name", None) not in FINANCIAL_TOOLS)
         ]
         return request.override(
             tools=tools,
@@ -486,8 +520,13 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         started = perf_counter()
         _log_event(request, "start")
         try:
-            if request.tool_call.get("name") not in registry.enabled_names():
-                raise PermissionError("tool_disabled")
+            tool_name = str(request.tool_call.get("name") or "")
+            key = (
+                get_config().get("configurable", {}).get("thread_id")
+                if tool_name in FINANCIAL_TOOLS
+                else ""
+            )
+            self._assert_tool_allowed(tool_name, key)
             result = handler(request)
         except RECOVERABLE_TOOL_ERRORS as error:
             _log_event(
@@ -504,10 +543,13 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         started = perf_counter()
         _log_event(request, "start")
         try:
-            if request.tool_call.get("name") not in await asyncio.to_thread(
-                registry.enabled_names
-            ):
-                raise PermissionError("tool_disabled")
+            tool_name = str(request.tool_call.get("name") or "")
+            key = (
+                get_config().get("configurable", {}).get("thread_id")
+                if tool_name in FINANCIAL_TOOLS
+                else ""
+            )
+            await asyncio.to_thread(self._assert_tool_allowed, tool_name, key)
             result = await handler(request)
         except RECOVERABLE_TOOL_ERRORS as error:
             _log_event(

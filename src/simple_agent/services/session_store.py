@@ -259,6 +259,32 @@ class SessionStore:
             raise ValueError("session_already_exists") from exc
         return True
 
+    def ensure_unbound(self, key: str) -> bool:
+        """Create a WhatsApp session with no customer or debt context."""
+        key = validate_thread_id(key)
+        state = {
+            "unbound_session": True,
+            "identity_verified": False,
+            "offers": {},
+            "agreements": {},
+            "payments": {},
+            "deliveries": {},
+            "receipts": {},
+            "snapshot_id": PersistentOKFStore().active_bundle_id(),
+        }
+        try:
+            with self._connect() as db:
+                db.execute("BEGIN IMMEDIATE")
+                if db.execute("SELECT 1 FROM sessions WHERE id=?", (key,)).fetchone():
+                    return False
+                db.execute(
+                    "INSERT INTO sessions(id,data) VALUES(?,?)",
+                    (key, json.dumps(state)),
+                )
+        except sqlite3.IntegrityError:
+            return False
+        return True
+
     def reset_demo(self, key: str) -> bool:
         """Reset an existing Demo session in place; never create or reset Playground."""
         key = validate_thread_id(key)
