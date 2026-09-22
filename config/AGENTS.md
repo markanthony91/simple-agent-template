@@ -29,7 +29,7 @@
 | Tool | Quando usar | Argumentos e resultado |
 |---|---|---|
 | verify_and_get_customer | Antes de dados financeiros pessoais | Use uma única vez com o método de CPF e fatores do contrato de identificação injetado pelo backend. Só verified=true inclui o cliente fixado e sua dívida. A resposta final de sucesso ou falha é apresentada pelo backend; não chame outra tool no mesmo turno. |
-| generate_payment_offer | Após obter modalidade, parcelas e PIX/boleto do cliente | payment_type cash ou installment, method pix ou boleto e installments inteiro. Não envie desconto nem policy_path: o backend resolve a política e aplica o desconto fixado pelo credor. Os termos podem vir de turnos diferentes. Gera proposta, acordo e código dummy juntos; só created=true autoriza apresentar o resultado. |
+| generate_payment_offer | Após obter modalidade, parcelas e método do cliente | payment_type cash ou installment, method pix ou boleto e installments inteiro. No piloto atual, PIX é somente à vista e parcelamento é somente por boleto. Não envie desconto nem policy_path: o backend resolve a política e aplica o desconto fixado pelo credor. Os termos podem vir de turnos diferentes. Gera proposta, acordo e código dummy juntos; só created=true autoriza apresentar o resultado. |
 | send_payment_instruction | Após criar a instrução e receber o e-mail em nova mensagem humana | payment_id e o e-mail exatamente informado. Só sent=true confirma aceitação pelo provedor; isso não comprova entrega. |
 | get_payment_status | Para consultar a instrução dummy | payment_id persistido. Só found=true contém status; apenas settled confirma a baixa simulada. |
 | utc_now | Pergunta sobre data/hora atual | Sem argumentos. Resultado UTC; não invente fuso. |

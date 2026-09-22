@@ -16,6 +16,9 @@ negotiation:
   payment_types: [cash, installment]
 payment:
   methods: [pix, boleto]
+  methods_by_payment_type:
+    cash: [pix, boleto]
+    installment: [boleto]
   delivery_channels: [email]
 ---
 
@@ -47,8 +50,9 @@ Apresentar o total e o cronograma retornados; parcelas podem diferir por centavo
 ## Confirmação
 
 Somente um resultado `created=true` retornado pelo motor pode ser apresentado.
-O cliente escolhe modalidade, parcelas e PIX ou boleto. O desconto da proposta
-vem de `offer_discount_percentage`, definido pelo credor; a tool gera proposta,
-acordo e pagamento juntos, sem aprovação humana adicional.
+O cliente escolhe modalidade e parcelas. À vista aceita PIX ou boleto;
+parcelamento aceita somente boleto. O desconto da proposta vem de
+`offer_discount_percentage`, definido pelo credor; a tool gera proposta, acordo
+e pagamento juntos, sem aprovação humana adicional.
 O fechamento permanece simulado. PIX, boleto e entrega por e-mail geram apenas
 registros dummy locais, com códigos deliberadamente inválidos e sem ação externa.

@@ -113,16 +113,28 @@ def validate_payment_policy(
         not isinstance(payment, dict)
         or not {
             "methods",
+            "methods_by_payment_type",
             "delivery_channels",
         }
         <= payment.keys()
     ):
         raise ValueError("payment_terms_undefined")
     methods = payment["methods"]
+    methods_by_type = payment["methods_by_payment_type"]
     channels = payment["delivery_channels"]
-    if not isinstance(methods, list) or not isinstance(channels, list):
+    allowed = (
+        methods_by_type.get(agreement["payment_type"])
+        if isinstance(methods_by_type, dict)
+        else None
+    )
+    if (
+        not isinstance(methods, list)
+        or not isinstance(channels, list)
+        or not isinstance(allowed, list)
+        or not all(isinstance(item, str) and item in methods for item in allowed)
+    ):
         raise ValueError("payment_terms_invalid")
-    if method not in methods:
+    if method not in allowed:
         raise ValueError("payment_method_not_allowed")
     if channel and channel not in channels:
         raise ValueError("delivery_channel_not_allowed")

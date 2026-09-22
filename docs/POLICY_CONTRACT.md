@@ -15,6 +15,12 @@ negotiation:
   max_discount_percentage: "0"
   offer_discount_percentage: "0"
   payment_types: [cash, installment]
+payment:
+  methods: [pix, boleto]
+  methods_by_payment_type:
+    cash: [pix, boleto]
+    installment: [boleto]
+  delivery_channels: [email]
 ```
 
 All values above are synthetic examples, NOT authorized commercial policy.
@@ -28,6 +34,8 @@ Account amounts stay outside OKF. Money and percentages travel as decimal string
 `offer_discount_percentage` is the exact creditor-owned discount used by the
 transactional tool and must not exceed `max_discount_percentage`. The customer
 does not supply or override it.
+`methods_by_payment_type` is mandatory and prevents a method allowed for one
+payment type from being reused for another.
 The returned cent-balanced schedule sums exactly to the negotiated total.
 
 Confirmation is a NEW actual HumanMessage with CONFIRMAR ACORDO and the exact
