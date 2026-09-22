@@ -1,4 +1,9 @@
-# Future Demo form backend — 0.12.2
+# Future Demo form backend — 0.12.3
+
+## Workflow-scoped identity contract — 0.12.3
+
+- [x] Inject CPF factors only after the active Workflow selects individual service.
+- [x] Keep greetings, isolated names and general queries outside identity collection.
 
 ## Workflow-owned intent — 0.12.2
 

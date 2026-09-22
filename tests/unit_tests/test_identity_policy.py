@@ -113,7 +113,9 @@ def test_first3_only_accepts_exact_segment_without_secondary_factor(isolated):
     assert not matches(state, "1234", "", "")
     assert not matches(state, "12345678900", "", "")
     prompt = instructions(state)
-    assert "Solicite somente os 3 primeiros dígitos do CPF" in prompt
+    assert "somente quando o Workflow ativo" in prompt
+    assert "Saudação, nome isolado e consulta geral não iniciam identificação" in prompt
+    assert "solicite somente os 3 primeiros dígitos do CPF" in prompt
     assert "Não solicite nome completo" in prompt
     assert "somente com o argumento cpf" in prompt
     assert "birth_date" not in prompt
