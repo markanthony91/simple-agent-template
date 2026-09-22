@@ -224,6 +224,7 @@ negotiation:
     - installment
   max_installments: 6
   max_discount_percentage: "10.00"
+  offer_discount_percentage: "5.00"
 verified:
   - by: "human:responsavel-operacional"
     at: "2026-09-20T00:00:00Z"
@@ -242,6 +243,8 @@ Uma política só pode ser classificada como executável quando:
 - `negotiation.payment_types` for uma lista de modalidades suportadas;
 - `negotiation.max_installments` for um inteiro entre 1 e 360;
 - `negotiation.max_discount_percentage` for um decimal entre 0 e 100;
+- `negotiation.offer_discount_percentage` for o desconto exato definido pelo
+  credor, entre 0 e `max_discount_percentage`;
 - não houver `A DEFINIR PELA OPERAÇÃO` em nenhum termo necessário;
 - houver aprovação humana registrada.
 
@@ -341,4 +344,3 @@ Usando somente `okf_wiki_2026-09-18.zip` como entrada de regressão:
 - Aprovar automaticamente documentos `draft`.
 - Alterar tools de consulta, geração de oferta ou formalização de acordo.
 - Usar valores do simulador como substitutos para política aprovada.
-

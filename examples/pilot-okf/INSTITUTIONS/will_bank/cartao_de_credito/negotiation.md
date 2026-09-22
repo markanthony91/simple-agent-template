@@ -12,6 +12,7 @@ source: Cenário sintético de validação, sem efeito comercial
 negotiation:
   max_installments: 3
   max_discount_percentage: "0"
+  offer_discount_percentage: "0"
   payment_types: [cash, installment]
 payment:
   methods: [pix, boleto]
@@ -46,7 +47,8 @@ Apresentar o total e o cronograma retornados; parcelas podem diferir por centavo
 ## Confirmação
 
 Somente um resultado `created=true` retornado pelo motor pode ser apresentado.
-O pedido atual do cliente deve conter os termos e PIX ou boleto; a tool gera
-proposta, acordo e pagamento juntos, sem aprovação humana adicional.
+O cliente escolhe modalidade, parcelas e PIX ou boleto. O desconto da proposta
+vem de `offer_discount_percentage`, definido pelo credor; a tool gera proposta,
+acordo e pagamento juntos, sem aprovação humana adicional.
 O fechamento permanece simulado. PIX, boleto e entrega por e-mail geram apenas
 registros dummy locais, com códigos deliberadamente inválidos e sem ação externa.

@@ -1,4 +1,9 @@
-# Agent Runtime — OKF simulator (0.12.6)
+# Agent Runtime — OKF simulator (0.12.7)
+
+O desconto da proposta agora pertence exclusivamente à política publicada do
+credor (`offer_discount_percentage`). O cliente escolhe modalidade, parcelas e
+PIX/boleto, inclusive em mensagens separadas; não informa nem substitui o
+percentual. Política sem desconto fixado falha fechada.
 
 Toda proposta simulada criada por PIX ou boleto agora solicita um e-mail para o envio das instruções.
 
@@ -16,8 +21,8 @@ call to restate values.
 Customer balance and eligibility come from the session fixture pinned by the
 backend. Commercial limits, validity, payment methods and delivery channels come
 from the single published OKF policy matching that session's institution and
-product. The model supplies the requested terms but neither calculates nor selects
-the applicable conditions.
+product. The model supplies only the customer's payment choices; the backend
+selects the creditor-owned discount and the applicable conditions.
 
 The synthetic negotiation flow now generates the offer, agreement and invalid
 dummy PIX/boleto in one transaction after the customer requests complete terms.

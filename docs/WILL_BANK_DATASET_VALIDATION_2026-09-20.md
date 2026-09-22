@@ -164,6 +164,7 @@ negotiation:
     - installment
   max_installments: 3
   max_discount_percentage: "0"
+  offer_discount_percentage: "0"
 verified:
   - by: "human:<responsável>"
     at: "<data ISO-8601 da aprovação>"

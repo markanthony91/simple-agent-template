@@ -82,6 +82,8 @@ IDENTITY_PROCESS = re.compile(
     r"(?:realizar|fazer|iniciar|prosseguir com).{0,80}"
     r"(?:\bidentificacao\b|\bverificacao (?:de seguranca|da? identidade)\b)"
 )
+
+
 def _brl(value: Any) -> str:
     try:
         number = Decimal(str(value)).quantize(Decimal("0.01"))
@@ -95,8 +97,7 @@ def _direct_failure(reason: str) -> str:
     return {
         "identity_verification_required": "Preciso confirmar sua identidade antes de negociar.",
         "explicit_offer_terms_required": (
-            "Informe na mesma mensagem se deseja pagar à vista ou em quantas parcelas, "
-            "e escolha PIX ou boleto."
+            "Informe se deseja pagar à vista ou em quantas parcelas e escolha PIX ou boleto."
         ),
         "customer_not_eligible": "Não há uma condição de negociação disponível para este cadastro.",
         "customer_eligibility_exceeded": "A condição solicitada está fora da elegibilidade deste cadastro. Informe outra opção.",

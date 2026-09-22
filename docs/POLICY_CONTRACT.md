@@ -13,6 +13,7 @@ effective_until: "2027-01-01T00:00:00Z"
 negotiation:
   max_installments: 3
   max_discount_percentage: "0"
+  offer_discount_percentage: "0"
   payment_types: [cash, installment]
 ```
 
@@ -24,6 +25,9 @@ Existing prose-only bundles remain readable but cannot authorize financial offer
 The tool checks published/current metadata, institution/product, a read receipt
 and snapshot/hash. Transactional eligibility can narrow, never enlarge policy.
 Account amounts stay outside OKF. Money and percentages travel as decimal strings.
+`offer_discount_percentage` is the exact creditor-owned discount used by the
+transactional tool and must not exceed `max_discount_percentage`. The customer
+does not supply or override it.
 The returned cent-balanced schedule sums exactly to the negotiated total.
 
 Confirmation is a NEW actual HumanMessage with CONFIRMAR ACORDO and the exact

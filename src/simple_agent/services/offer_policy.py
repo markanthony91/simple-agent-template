@@ -61,7 +61,12 @@ def validate_policy(
     policy = meta.get("negotiation")
     if (
         not isinstance(policy, dict)
-        or not {"max_installments", "max_discount_percentage", "payment_types"}
+        or not {
+            "max_installments",
+            "max_discount_percentage",
+            "offer_discount_percentage",
+            "payment_types",
+        }
         <= policy.keys()
     ):
         raise ValueError("policy_terms_undefined")
@@ -72,7 +77,8 @@ def validate_policy(
     ):
         raise ValueError("policy_terms_invalid")
     maximum = money(policy["max_discount_percentage"])
-    if maximum > 100:
+    offered = money(policy["offer_discount_percentage"])
+    if maximum > 100 or offered > maximum:
         raise ValueError("policy_terms_invalid")
     if (
         payment_type not in policy["payment_types"]
@@ -80,4 +86,9 @@ def validate_policy(
         or discount > maximum
     ):
         raise ValueError("policy_terms_exceeded")
-    return {"path": canonical, "content_hash": receipt["hash"], "snapshot_id": snapshot}
+    return {
+        "path": canonical,
+        "content_hash": receipt["hash"],
+        "snapshot_id": snapshot,
+        "offer_discount_percentage": format(offered.normalize(), "f"),
+    }

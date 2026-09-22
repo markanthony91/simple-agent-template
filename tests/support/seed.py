@@ -15,6 +15,7 @@ product: cartao_de_credito
 negotiation:
   max_installments: 10
   max_discount_percentage: "20"
+  offer_discount_percentage: "10"
   payment_types: [cash, installment]
 ---
 # Synthetic policy

@@ -13,9 +13,8 @@ def resolve_payment_policy(
     state: dict,
     payment_type: str,
     installments: int,
-    discount_percentage: str,
     method: str,
-) -> str:
+) -> tuple[str, str]:
     """Resolve one applicable policy inside the session's pinned snapshot."""
     snapshot = state.get("snapshot_id")
     if not snapshot:
@@ -23,7 +22,7 @@ def resolve_payment_policy(
     root = PersistentOKFStore().bundle_root(snapshot)
     fixture = state["fixture"]
     receipts = state.setdefault("receipts", {})
-    valid: list[str] = []
+    valid: list[tuple[str, str]] = []
     errors: list[str] = []
     previous_receipts: dict[str, tuple[bool, dict | None]] = {}
 
@@ -47,12 +46,15 @@ def resolve_payment_policy(
         previous_receipts[path] = (path in receipts, receipts.get(path))
         receipts[path] = {"hash": fingerprint(content), "snapshot_id": snapshot}
         try:
+            configured_discount = money(
+                metadata["negotiation"]["offer_discount_percentage"]
+            )
             evidence = validate_policy(
                 state,
                 path,
                 payment_type,
                 1 if payment_type == "cash" else installments,
-                money(discount_percentage),
+                configured_discount,
             )
             validate_payment_policy(
                 state,
@@ -60,18 +62,20 @@ def resolve_payment_policy(
                     "policy_source": evidence,
                     "payment_type": payment_type,
                     "installments": 1 if payment_type == "cash" else installments,
-                    "discount_percentage": discount_percentage,
+                    "discount_percentage": format(configured_discount.normalize(), "f"),
                 },
                 method,
             )
-        except (ValueError, ArithmeticError) as error:
-            errors.append(str(error))
+        except (KeyError, ValueError, ArithmeticError) as error:
+            errors.append(
+                "policy_terms_undefined" if isinstance(error, KeyError) else str(error)
+            )
             _restore_receipt(receipts, path, previous_receipts[path])
         else:
-            valid.append(path)
+            valid.append((path, format(configured_discount.normalize(), "f")))
 
     if len(valid) > 1:
-        for path in valid:
+        for path, _ in valid:
             _restore_receipt(receipts, path, previous_receipts[path])
         raise ValueError("policy_ambiguous")
     if not valid:
