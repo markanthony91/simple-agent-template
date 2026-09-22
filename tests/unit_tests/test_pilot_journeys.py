@@ -4,7 +4,9 @@ from pathlib import Path
 
 import pytest
 from langchain.tools import ToolRuntime
-from langchain_core.messages import HumanMessage
+from langchain.agents.middleware import ModelRequest, ModelResponse
+from langchain_core.messages import AIMessage, HumanMessage
+from langgraph.runtime import Runtime
 
 from .test_collection_identity_gates import runtime, call, verify
 from simple_agent.services.session_store import SessionStore
@@ -337,6 +339,85 @@ def test_installment_terms_reject_missing_or_different_count(messages):
         installments=3,
         method_required=False,
     )
+
+
+def test_installment_terms_use_latest_count():
+    rt = conversation_runtime(
+        "latest-installments", "Quero 2 parcelas", "Agora quero 3 parcelas"
+    )
+    assert not payment_tools._terms_explicit(
+        rt, "installment", "boleto", 2, method_required=False
+    )
+    assert payment_tools._terms_explicit(
+        rt, "installment", "boleto", 3, method_required=False
+    )
+
+
+def test_complete_offer_handoff_skips_redundant_confirmation(isolated, monkeypatch):
+    from simple_agent import managed_graph, tool_middleware
+
+    seed(isolated, approve=True)
+    key = "complete-offer-handoff"
+    rt = conversation_runtime(key, "Desejo parcelar em 3 vezes")
+    assert verify(rt)["verified"]
+    read_policy(rt)
+    monkeypatch.setattr(
+        tool_middleware,
+        "get_config",
+        lambda: {"configurable": {"thread_id": key}},
+    )
+    request = ModelRequest(
+        model=managed_graph.create_llm(),
+        messages=rt.state["messages"],
+        runtime=Runtime(context={}),
+        state=rt.state,
+    )
+    response = ModelResponse(
+        result=[
+            AIMessage(
+                content="Posso prosseguir com a proposta?",
+                response_metadata={"finish_reason": "stop"},
+            )
+        ]
+    )
+    result = tool_middleware._complete_offer_handoff(request, response)
+    call = result.result[0].tool_calls[0]
+    assert call["name"] == "generate_payment_offer"
+    assert call["args"]["installments"] == 3
+    assert call["args"]["method"] == "boleto"
+    assert call["args"]["policy_path"] == PATH
+
+
+def test_complete_offer_handoff_keeps_informational_question(isolated, monkeypatch):
+    from simple_agent import managed_graph, tool_middleware
+
+    seed(isolated, approve=True)
+    key = "offer-question"
+    rt = conversation_runtime(key, "Posso parcelar em 3 vezes?")
+    assert verify(rt)["verified"]
+    read_policy(rt)
+    monkeypatch.setattr(
+        tool_middleware,
+        "get_config",
+        lambda: {"configurable": {"thread_id": key}},
+    )
+    request = ModelRequest(
+        model=managed_graph.create_llm(),
+        messages=rt.state["messages"],
+        runtime=Runtime(context={}),
+        state=rt.state,
+    )
+    response = ModelResponse(
+        result=[
+            AIMessage(
+                content="Sim, a política permite até 3 parcelas.",
+                response_metadata={"finish_reason": "stop"},
+            )
+        ]
+    )
+    result = tool_middleware._complete_offer_handoff(request, response)
+    assert result is response
+    assert not result.result[0].tool_calls
 
 
 def test_policy_must_be_read_before_offer(isolated):

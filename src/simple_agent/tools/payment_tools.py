@@ -108,7 +108,7 @@ def _terms_explicit(
             rf"(?:\b{count}\s*(?:x|vez(?:es)?|parcelas?)\b|"
             rf"\b(?:parcel\w*|divid\w*)\b.{{0,40}}\b{count}\b)"
         )
-        payment_ok = any(explicit_count.search(text) for text in messages)
+        payment_ok = bool(messages and explicit_count.search(messages[-1]))
         if not payment_ok and messages:
             latest = re.sub(r"[^\w]+", " ", messages[-1]).strip()
             payment_ok = bool(
