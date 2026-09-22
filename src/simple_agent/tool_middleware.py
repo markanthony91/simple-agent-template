@@ -103,6 +103,9 @@ def _direct_failure(reason: str) -> str:
         "customer_not_eligible": "Não há uma condição de negociação disponível para este cadastro.",
         "customer_eligibility_exceeded": "A condição solicitada está fora da elegibilidade deste cadastro. Informe outra opção.",
         "policy_not_found": "Não encontrei uma política publicada aplicável a esta negociação.",
+        "policy_read_required": "Preciso consultar no OKF a política aplicável antes de gerar a proposta.",
+        "policy_receipt_mismatch": "A política consultada mudou durante o atendimento. Preciso consultá-la novamente.",
+        "policy_scope_mismatch": "A política consultada não corresponde à instituição e ao produto desta dívida.",
         "policy_ambiguous": "Há mais de uma política aplicável; a negociação foi bloqueada para evitar condição incorreta.",
         "policy_not_published": "A política encontrada ainda não está publicada e não autoriza uma proposta.",
         "policy_not_current": "A política encontrada não está vigente e não autoriza uma proposta.",
@@ -151,8 +154,8 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
                 "Confira o endereço e a configuração do canal."
             )
         return (
-            "O provedor aceitou o envio das instruções simuladas por e-mail. "
-            "Isso ainda não confirma a entrega."
+            "Envio da proposta enviado com sucesso, pode conferir na sua caixa de "
+            "e-mail, qualquer coisa estou à disposição."
         )
     if tool_name != "generate_payment_offer":
         return None

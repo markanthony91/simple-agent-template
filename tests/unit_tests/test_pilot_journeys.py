@@ -52,7 +52,12 @@ def assert_no_financial_action(key):
         assert not state["offers"]
         assert not state["agreements"]
         assert not state["payments"]
-        assert not state["receipts"]
+
+
+def read_policy(rt):
+    assert f"OKF_CANONICAL_PATH: {PATH}" in okf_tools.okf_read.func(
+        path=PATH, runtime=rt
+    )
 
 
 def test_happy_pilot_generates_offer_agreement_and_payment(isolated, monkeypatch):
@@ -90,8 +95,9 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, monkeypatch
     monkeypatch.setattr(payment_tools, "request_json", channel_request)
     seed(isolated, approve=True)
     key = f"pilot-happy-{method}"
-    rt = runtime(key, f"Quero pagar em 3x por {method}")
+    rt = runtime(key, "Quero pagar em 3x")
     assert verify(rt)["verified"]
+    read_policy(rt)
     assert (
         call(tools.get_customer, rt, cpf="12345678900")["debt"]["current_amount"]
         == "5873.42"
@@ -101,6 +107,7 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, monkeypatch
         rt,
         payment_type="installment",
         method=method,
+        policy_path=PATH,
         installments=3,
     )
     assert result["created"]
@@ -118,6 +125,7 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, monkeypatch
             rt,
             payment_type="installment",
             method=method,
+            policy_path=PATH,
             installments=3,
         )
         == result
@@ -176,11 +184,13 @@ def test_installment_by_pix_fails_without_financial_action(isolated):
     key = "pilot-installment-pix-denied"
     rt = runtime(key, "Quero pagar em 2x por pix")
     assert verify(rt)["verified"]
+    read_policy(rt)
     assert call(
         payment_tools.generate_payment_offer,
         rt,
         payment_type="installment",
         method="pix",
+        policy_path=PATH,
         installments=2,
     ) == {"created": False, "reason": "payment_method_not_allowed"}
     assert_no_financial_action(key)
@@ -217,19 +227,22 @@ def test_email_plan_rejects_untrusted_catalog_and_unknown_template_values(monkey
 def test_negative_draft_identity_and_excess_terms(isolated):
     seed(isolated)
     rt = runtime("pilot-negative", "Quero pagar à vista por pix")
-    args = {"payment_type": "cash", "method": "pix"}
+    args = {"payment_type": "cash", "method": "pix", "policy_path": PATH}
     assert (
         call(payment_tools.generate_payment_offer, rt, **args)["reason"]
         == "identity_verification_required"
     )
     assert verify(rt)["verified"]
+    read_policy(rt)
     assert (
         call(payment_tools.generate_payment_offer, rt, **args)["reason"]
         == "policy_not_published"
     )
     seed(isolated, approve=True)
     key = "pilot-new-approved"
-    verify(runtime(key))
+    approved_rt = runtime(key)
+    verify(approved_rt)
+    read_policy(approved_rt)
     creditor_offer = call(
         payment_tools.generate_payment_offer,
         conversation_runtime(
@@ -243,6 +256,7 @@ def test_negative_draft_identity_and_excess_terms(isolated):
     assert creditor_offer["created"]
     assert creditor_offer["offer"]["discount_percentage"] == "0"
     assert "discount_percentage" not in payment_tools.generate_payment_offer.args
+    assert "policy_path" in payment_tools.generate_payment_offer.args
     assert (
         call(
             payment_tools.generate_payment_offer,
@@ -252,6 +266,7 @@ def test_negative_draft_identity_and_excess_terms(isolated):
         == "identity_verification_required"
     )
     verify(runtime("pilot-missing-method"))
+    read_policy(runtime("pilot-missing-method"))
     assert (
         call(
             payment_tools.generate_payment_offer,
@@ -262,45 +277,47 @@ def test_negative_draft_identity_and_excess_terms(isolated):
     )
     assert_no_financial_action("pilot-missing-method")
     verify(runtime("pilot-mismatched-installments"))
+    read_policy(runtime("pilot-mismatched-installments"))
     assert (
         call(
             payment_tools.generate_payment_offer,
             runtime("pilot-mismatched-installments", "Quero em 2x por pix", "m5"),
             payment_type="installment",
             method="pix",
+            policy_path=PATH,
             installments=3,
         )["reason"]
-        == "explicit_offer_terms_required"
+        == "payment_method_not_allowed"
     )
     assert_no_financial_action("pilot-mismatched-installments")
 
     key = "pilot-missing-installment-count"
     verify(runtime(key))
+    read_policy(runtime(key))
     assert call(
         payment_tools.generate_payment_offer,
-        runtime(key, "Quero parcelar por pix", "m6"),
+        runtime(key, "Quero parcelar", "m6"),
         payment_type="installment",
-        method="pix",
+        method="boleto",
+        policy_path=PATH,
     ) == {"created": False, "reason": "explicit_offer_terms_required"}
     assert_no_financial_action(key)
 
 
-def test_automatic_policy_resolution_fails_closed_when_ambiguous(isolated):
+def test_policy_must_be_read_before_offer(isolated):
     seed(isolated, approve=True)
-    root = isolated.bundle_root(isolated.active_bundle_id())
-    duplicate = "INSTITUTIONS/will_bank/cartao_de_credito/duplicate.md"
-    (root / duplicate).write_text((root / PATH).read_text(), encoding="utf-8")
-    rt = runtime("pilot-ambiguous", "Quero pagar em 3x por boleto")
+    rt = runtime("pilot-unread", "Quero pagar em 3x por boleto")
     assert verify(rt)["verified"]
     result = call(
         payment_tools.generate_payment_offer,
         rt,
         payment_type="installment",
         method="boleto",
+        policy_path=PATH,
         installments=3,
     )
-    assert result == {"created": False, "reason": "policy_ambiguous"}
-    with SessionStore().transaction("pilot-ambiguous") as state:
+    assert result == {"created": False, "reason": "policy_read_required"}
+    with SessionStore().transaction("pilot-unread") as state:
         assert not state["receipts"]
 
 
@@ -319,11 +336,13 @@ def test_payment_policy_without_creditor_terms_fails_closed(isolated, missing_li
     key = "pilot-missing-creditor-discount"
     rt = runtime(key, "Quero pagar à vista por pix")
     assert verify(rt)["verified"]
+    read_policy(rt)
     assert call(
         payment_tools.generate_payment_offer,
         rt,
         payment_type="cash",
         method="pix",
+        policy_path=PATH,
     ) == {"created": False, "reason": "policy_terms_undefined"}
     assert_no_financial_action(key)
 
@@ -344,11 +363,13 @@ def test_payment_policy_without_method_mapping_fails_closed(isolated):
     key = "pilot-missing-method-mapping"
     rt = runtime(key, "Quero pagar em 2x por boleto")
     assert verify(rt)["verified"]
+    okf_tools.okf_read.func(path=PATH, runtime=rt)
     assert call(
         payment_tools.generate_payment_offer,
         rt,
         payment_type="installment",
         method="boleto",
+        policy_path=PATH,
         installments=2,
     ) == {"created": False, "reason": "payment_terms_undefined"}
     assert_no_financial_action(key)
@@ -359,6 +380,7 @@ def test_payment_policy_failure_rolls_back_offer(isolated, monkeypatch):
     key = "pilot-payment-policy-failure"
     rt = runtime(key, "Quero pagar em 3x por boleto")
     assert verify(rt)["verified"]
+    read_policy(rt)
 
     def deny(*_args, **_kwargs):
         raise ValueError("payment_method_not_allowed")
@@ -369,6 +391,7 @@ def test_payment_policy_failure_rolls_back_offer(isolated, monkeypatch):
         rt,
         payment_type="installment",
         method="boleto",
+        policy_path=PATH,
         installments=3,
     )
     assert result == {"created": False, "reason": "payment_method_not_allowed"}
