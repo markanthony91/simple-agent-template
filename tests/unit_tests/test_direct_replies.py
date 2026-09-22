@@ -72,6 +72,7 @@ def test_transactional_result_is_rendered_without_second_model_call(isolated):
     assert audit["pre_display_protection"] is True
     assert "1ª R$ 1.957,81" in result["messages"][-1].content
     assert "3ª R$ 1.957,80" in result["messages"][-1].content
+    assert "informe o e-mail" in result["messages"][-1].content
 
 
 def test_direct_failures_never_expose_financial_values():

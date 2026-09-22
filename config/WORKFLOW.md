@@ -28,7 +28,7 @@ as tools aplicam os controles no backend. Não invente regras de negócio.
 4. **Gerar:** com instituição, produto e termos conhecidos, chame generate_payment_offer diretamente, sem navegar no OKF e sem policy_path. A mensagem humana atual deve mencionar PIX ou boleto. O backend resolve no snapshot fixado uma única política publicada, vigente e compatível; a elegibilidade pode restringi-la, nunca ampliá-la.
 5. **Interpretar:** created=false é apresentado pelo backend sem valores inventados. Se faltar entrada separada, informe a limitação do simulador, não uma proibição da instituição.
 6. **Apresentar:** created=true já contém proposta, acordo e pagamento dummy. O backend apresenta negotiated_amount, cronograma e código EXATOS, incluindo centavos diferentes, IDs e validade, sem uma segunda chamada à LLM.
-7. **Enviar por e-mail:** se o cliente solicitar entrega, peça o endereço em nova mensagem e chame send_payment_instruction. Só sent=true autoriza dizer que o provedor aceitou o envio; nunca confirme entrega sem evento do provedor.
+7. **Enviar por e-mail:** após toda proposta criada, seja PIX ou boleto, solicite o endereço em uma nova mensagem humana e chame `send_payment_instruction` com o `payment_id` criado e o e-mail exatamente informado. Não pergunte se o cliente deseja o envio. Só `sent=true` autoriza dizer que o provedor aceitou a proposta e as instruções simuladas; nunca confirme entrega sem evento do provedor.
 8. **Consultar baixa:** chame get_payment_status. Pending continua pendente mesmo que o usuário diga que pagou. Somente status settled retornado pela tool permite informar baixa simulada.
 
 ## Erros, recusas e desvios
