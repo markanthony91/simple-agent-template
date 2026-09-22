@@ -55,10 +55,9 @@ def assert_no_financial_action(key):
         assert not state["receipts"]
 
 
-@pytest.mark.parametrize("method", ["pix", "boleto"])
-def test_happy_pilot_generates_offer_agreement_and_payment(
-    isolated, method, monkeypatch
-):
+def test_happy_pilot_generates_offer_agreement_and_payment(isolated, monkeypatch):
+    method = "boleto"
+
     def channel_request(path, payload=None, timeout=15):
         if path.endswith("/channels"):
             return {
@@ -172,6 +171,21 @@ def test_happy_pilot_generates_offer_agreement_and_payment(
     )
 
 
+def test_installment_by_pix_fails_without_financial_action(isolated):
+    seed(isolated, approve=True)
+    key = "pilot-installment-pix-denied"
+    rt = runtime(key, "Quero pagar em 2x por pix")
+    assert verify(rt)["verified"]
+    assert call(
+        payment_tools.generate_payment_offer,
+        rt,
+        payment_type="installment",
+        method="pix",
+        installments=2,
+    ) == {"created": False, "reason": "payment_method_not_allowed"}
+    assert_no_financial_action(key)
+
+
 def test_email_plan_rejects_untrusted_catalog_and_unknown_template_values(monkeypatch):
     monkeypatch.setattr(payment_tools, "request_json", lambda *args, **kwargs: {})
     with pytest.raises(ChannelConsoleError, match="email_catalog_invalid"):
@@ -276,13 +290,13 @@ def test_automatic_policy_resolution_fails_closed_when_ambiguous(isolated):
     root = isolated.bundle_root(isolated.active_bundle_id())
     duplicate = "INSTITUTIONS/will_bank/cartao_de_credito/duplicate.md"
     (root / duplicate).write_text((root / PATH).read_text(), encoding="utf-8")
-    rt = runtime("pilot-ambiguous", "Quero pagar em 3x por pix")
+    rt = runtime("pilot-ambiguous", "Quero pagar em 3x por boleto")
     assert verify(rt)["verified"]
     result = call(
         payment_tools.generate_payment_offer,
         rt,
         payment_type="installment",
-        method="pix",
+        method="boleto",
         installments=3,
     )
     assert result == {"created": False, "reason": "policy_ambiguous"}
@@ -311,6 +325,32 @@ def test_payment_policy_without_creditor_terms_fails_closed(isolated, missing_li
         payment_type="cash",
         method="pix",
     ) == {"created": False, "reason": "policy_terms_undefined"}
+    assert_no_financial_action(key)
+
+
+def test_payment_policy_without_method_mapping_fails_closed(isolated):
+    seed(isolated, approve=True)
+    root = isolated.bundle_root(isolated.active_bundle_id())
+    source = root / PATH
+    source.write_text(
+        source.read_text().replace(
+            "  methods_by_payment_type:\n"
+            "    cash: [pix, boleto]\n"
+            "    installment: [boleto]\n",
+            "",
+        ),
+        encoding="utf-8",
+    )
+    key = "pilot-missing-method-mapping"
+    rt = runtime(key, "Quero pagar em 2x por boleto")
+    assert verify(rt)["verified"]
+    assert call(
+        payment_tools.generate_payment_offer,
+        rt,
+        payment_type="installment",
+        method="boleto",
+        installments=2,
+    ) == {"created": False, "reason": "payment_terms_undefined"}
     assert_no_financial_action(key)
 
 

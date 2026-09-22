@@ -1,9 +1,12 @@
-# Agent Runtime — OKF simulator (0.12.7)
+# Agent Runtime — OKF simulator (0.12.8)
 
 O desconto da proposta agora pertence exclusivamente à política publicada do
 credor (`offer_discount_percentage`). O cliente escolhe modalidade, parcelas e
 PIX/boleto, inclusive em mensagens separadas; não informa nem substitui o
 percentual. Política sem desconto fixado falha fechada.
+
+Os meios também são definidos por modalidade: no piloto Will Bank, PIX é somente
+à vista e parcelamento é somente por boleto.
 
 Toda proposta simulada criada por PIX ou boleto agora solicita um e-mail para o envio das instruções.
 

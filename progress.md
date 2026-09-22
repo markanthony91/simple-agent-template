@@ -1,3 +1,9 @@
+# Parcelamento somente por boleto — 0.12.8
+
+- [x] Tornar os métodos permitidos específicos por modalidade na política.
+- [x] Bloquear `installment + pix` antes de criar oferta, acordo ou pagamento.
+- [ ] Publicar backend, política e instruções do Assistant.
+
 # Desconto definido pelo credor — 0.12.7
 
 - [x] Remover o percentual de desconto do schema público da tool de pagamento.
