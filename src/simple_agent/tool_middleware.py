@@ -269,6 +269,7 @@ class DirectReplyMiddleware(AgentMiddleware):
             "messages": [
                 AIMessage(
                     content=reply,
+                    response_metadata={"finish_reason": "stop"},
                     additional_kwargs={
                         "deterministic_reply": True,
                         "response_audit": report,

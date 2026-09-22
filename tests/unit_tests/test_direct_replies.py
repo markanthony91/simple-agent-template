@@ -64,6 +64,7 @@ def test_transactional_result_is_rendered_without_second_model_call(isolated):
     )
 
     assert model.calls == 1
+    assert result["messages"][-1].response_metadata["finish_reason"] == "stop"
     assert result["messages"][-1].additional_kwargs["deterministic_reply"] is True
     audit = result["messages"][-1].additional_kwargs["response_audit"]
     assert audit["mode"] == "deterministic_backend"

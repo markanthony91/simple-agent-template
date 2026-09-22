@@ -1,4 +1,6 @@
-# Agent Runtime — OKF simulator (0.12.4)
+# Agent Runtime — OKF simulator (0.12.5)
+
+Respostas transacionais determinísticas agora encerram com metadado terminal compatível com o transporte do WhatsApp.
 
 Novas sessões de demonstração usam a carteira configurada no Zerai Channel Console como instituição da negociação.
 
