@@ -96,25 +96,27 @@ def test_direct_failures_never_expose_financial_values():
         "generate_payment_offer",
         json.dumps({"created": False, "reason": "explicit_offer_terms_required"}),
     )
-    assert "parcelado por boleto" in missing
-    assert "parcelado por PIX" not in missing
+    assert "à vista ou parcelado" in missing
+    assert "PIX" not in missing and "boleto" not in missing
 
 
-def test_identity_reply_explains_payment_methods_by_type():
+def test_identity_reply_leaves_payment_methods_to_okf_policy():
     text = render_direct_reply(
         "verify_and_get_customer",
         json.dumps(
             {
                 "verified": True,
                 "customer": {
+                    "full_name": "Marcelo Barbosa",
                     "institution": "Will Bank",
                     "debt": {"current_amount": "500.00"},
                 },
             }
         ),
     )
-    assert "à vista por PIX ou boleto" in text
-    assert "parcelamento por boleto" in text
+    assert text.startswith("Obrigado por confirmar, Marcelo.")
+    assert "à vista ou parcelado" in text
+    assert "PIX" not in text and "boleto" not in text
 
 
 def test_email_reply_reports_success_after_provider_acceptance():

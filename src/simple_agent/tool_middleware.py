@@ -97,8 +97,8 @@ def _direct_failure(reason: str) -> str:
     return {
         "identity_verification_required": "Preciso confirmar sua identidade antes de negociar.",
         "explicit_offer_terms_required": (
-            "Informe se deseja pagar à vista por PIX ou boleto, ou parcelado por "
-            "boleto e, neste caso, em quantas parcelas."
+            "Informe se deseja pagar à vista ou parcelado e, no parcelamento, "
+            "em quantas parcelas."
         ),
         "customer_not_eligible": "Não há uma condição de negociação disponível para este cadastro.",
         "customer_eligibility_exceeded": "A condição solicitada está fora da elegibilidade deste cadastro. Informe outra opção.",
@@ -141,11 +141,16 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         customer = payload.get("customer", {})
         debt = customer.get("debt", {}) if isinstance(customer, dict) else {}
         institution = str(customer.get("institution") or "a instituição")
+        full_name = str(customer.get("full_name") or "").strip()
+        confirmation = (
+            f"Obrigado por confirmar, {full_name.split()[0]}."
+            if full_name
+            else "Obrigado por confirmar."
+        )
         return (
-            f"Identidade confirmada. O saldo atual simulado com {institution} é "
+            f"{confirmation} O saldo atual simulado com {institution} é "
             f"{_brl(debt.get('current_amount'))}.\n\n"
-            "Para negociar, escolha pagamento à vista por PIX ou boleto, ou "
-            "parcelamento por boleto e informe a quantidade de parcelas."
+            "Para negociar, informe se prefere pagar à vista ou parcelado."
         )
     if tool_name == "send_payment_instruction":
         if not payload.get("sent"):
