@@ -84,9 +84,10 @@ def _verify_identity(
     supplied_by_user = True
     if policy.cpf_mode == "first3" and policy.secondary == "none":
         _, user_text = latest_user_message(runtime)
-        supplied_by_user = (
-            _digits(user_text) == _digits(cpf) and len(_digits(user_text)) == 3
-        )
+        user_cpf = _digits(user_text)
+        supplied_by_user = len(user_cpf) == 3
+        if supplied_by_user:
+            cpf = user_cpf
     verified = (
         attempts < policy.max_attempts
         and supplied_by_user

@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.12.0)
+# Agent Runtime — OKF simulator (0.12.1)
 
 Identity verification and customer lookup now execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;
@@ -82,8 +82,8 @@ This is a synthetic lab, not strong authentication for real customer data.
 For the current pilot, the persisted policy is `first3` with no secondary factor.
 The backend rewrites identity solicitation to request only those three digits,
 even when a model adds name or birth date to its draft response. The tool also
-compares its argument with the current human message, so a model cannot truncate
-four or eleven supplied digits into an accepted three-digit value.
+uses the exact three digits from the current human message, so a model cannot
+alter them or truncate four or eleven supplied digits into an accepted value.
 
 The read-only `list_tools` result now includes `usage_description` and `parameters`
 from the runtime's actual tools, excluding injected ToolRuntime arguments.
