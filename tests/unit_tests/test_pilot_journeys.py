@@ -304,6 +304,41 @@ def test_negative_draft_identity_and_excess_terms(isolated):
     assert_no_financial_action(key)
 
 
+@pytest.mark.parametrize(
+    "messages",
+    [
+        ("Desejo parcelar em 3 vezes",),
+        ("parcelado, 3 vezes",),
+        ("Quero 3 parcelas",),
+        ("Pode ser 3x",),
+        ("Quero parcelar em três",),
+        ("parcelado", "3"),
+    ],
+)
+def test_installment_terms_accept_natural_variations(messages):
+    assert payment_tools._terms_explicit(
+        conversation_runtime("natural-installments", *messages),
+        payment_type="installment",
+        method="boleto",
+        installments=3,
+        method_required=False,
+    )
+
+
+@pytest.mark.parametrize(
+    "messages",
+    [("3",), ("Quero 2 parcelas",), ("parcelado", "2")],
+)
+def test_installment_terms_reject_missing_or_different_count(messages):
+    assert not payment_tools._terms_explicit(
+        conversation_runtime("invalid-installments", *messages),
+        payment_type="installment",
+        method="boleto",
+        installments=3,
+        method_required=False,
+    )
+
+
 def test_policy_must_be_read_before_offer(isolated):
     seed(isolated, approve=True)
     rt = runtime("pilot-unread", "Quero pagar em 3x por boleto")

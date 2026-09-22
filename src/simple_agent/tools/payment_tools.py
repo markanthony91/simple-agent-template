@@ -88,10 +88,33 @@ def _terms_explicit(
             for text in messages
         )
     else:
-        payment_ok = any(
-            re.search(rf"\b{installments}\s*(?:x|parcelas?)\b", text)
-            for text in messages
+        words = {
+            1: "um|uma",
+            2: "dois|duas",
+            3: "tres",
+            4: "quatro",
+            5: "cinco",
+            6: "seis",
+            7: "sete",
+            8: "oito",
+            9: "nove",
+            10: "dez",
+            11: "onze",
+            12: "doze",
+        }.get(installments)
+        count = rf"(?:{installments}|{words})" if words else str(installments)
+        installment_intent = re.compile(r"\b(?:parcel\w*|divid\w*)\b")
+        explicit_count = re.compile(
+            rf"(?:\b{count}\s*(?:x|vez(?:es)?|parcelas?)\b|"
+            rf"\b(?:parcel\w*|divid\w*)\b.{{0,40}}\b{count}\b)"
         )
+        payment_ok = any(explicit_count.search(text) for text in messages)
+        if not payment_ok and messages:
+            latest = re.sub(r"[^\w]+", " ", messages[-1]).strip()
+            payment_ok = bool(
+                re.fullmatch(count, latest)
+                and any(installment_intent.search(text) for text in messages[:-1])
+            )
     return method_ok and payment_ok
 
 
