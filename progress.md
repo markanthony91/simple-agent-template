@@ -1,4 +1,10 @@
-# Future Demo form backend — 0.12.1
+# Future Demo form backend — 0.12.2
+
+## Workflow-owned intent — 0.12.2
+
+- [x] Remove the backend regex router between general and personal requests.
+- [x] Keep financial authorization and identity-factor enforcement in the backend.
+- [x] Rewrite any identity request to the active CPF-first-3 contract.
 
 ## Identidade vinculada à sessão
 
