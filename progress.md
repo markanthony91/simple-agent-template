@@ -6,6 +6,10 @@
 - [x] Publicado após integrar a entrega paralela do fluxo de e-mail.
 - Railway: `cf2c238c-7f97-4cf1-ac1a-3ec643cfb824`; Assistant versão 61.
 - Backup: `/data/backups/pre-creditor-owned-terms-0127-20260922T163800`.
+- Bundle ativo: `will-bank-creditor-terms-20260922-20260922T195837Z-3ba385a1`.
+- Canary do chat: proposta sintética em 2x por PIX, desconto 0%, sem envio externo;
+  thread, sessão, cliente e dívida sintéticos removidos após a validação.
+- Backup da política anterior: `/data/backups/pre-will-bank-policy-terms-20260922T170500`.
 
 # Future Demo form backend — 0.12.3
 
