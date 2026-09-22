@@ -4,10 +4,12 @@
 - [x] Bloquear `installment + pix` antes de criar oferta, acordo ou pagamento.
 - [x] Publicar backend, política e instruções do Assistant.
 
-Publicado no Railway com a versão `0.12.8`; política ativa
+Publicado no Railway pelo deployment
+`dc2de744-d8bb-43d3-afb4-990cf0bbaa48`, com a versão `0.12.8`; política ativa
 `will-bank-boleto-installment-20260922-20260922T201310Z-b8f24807` e Assistant
 na versão `62`. O teste sintético bloqueou PIX parcelado sem gravar estado e
-aceitou 2 parcelas por boleto. Backup anterior à mudança:
+aceitou 2 parcelas por boleto; a thread, a sessão, o cliente e a dívida
+sintéticos foram removidos após a validação. Backup anterior à mudança:
 `/data/backups/pre-installment-boleto-0128-20260922T171500`.
 
 # Desconto definido pelo credor — 0.12.7
