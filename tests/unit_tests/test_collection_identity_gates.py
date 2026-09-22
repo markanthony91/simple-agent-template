@@ -83,6 +83,24 @@ def test_first3_tool_cannot_truncate_the_user_message(isolated):
     assert accepted["verified"] is True
 
 
+def test_first3_tool_uses_exact_human_digits_not_model_transcription(isolated):
+    with SessionStore().transaction("first3-human") as state:
+        state["fixture"]["identity_policy"] = {
+            "cpf_mode": "first3",
+            "secondary": "none",
+            "max_attempts": 3,
+        }
+
+    result = call(
+        tools.verify_and_get_customer,
+        runtime("first3-human", text="Os três primeiros dígitos são 123"),
+        cpf="132",
+    )
+
+    assert result["verified"] is True
+    assert result["customer"]["debt"]["current_amount"] == "5873.42"
+
+
 def test_data_hidden_and_verification_isolated(policy):
     a, b = runtime(), runtime("b")
     assert (

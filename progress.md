@@ -1,4 +1,13 @@
-# Future Demo form backend — 0.12.0
+# Future Demo form backend — 0.12.1
+
+## Identidade vinculada à sessão
+
+- [x] Consultar cliente e dívida pela `thread_id` fixada pelo backend.
+- [x] Usar os três dígitos exatos da mensagem humana, sem depender da
+  retranscrição da LLM.
+- [x] Manter bloqueados valores com quatro ou onze dígitos e preservar o
+  Playground.
+- [ ] Publicar e validar em uma cópia da sessão real, sem disparar canais.
 
 ## E-mail pelo Zerai Channel Console
 
