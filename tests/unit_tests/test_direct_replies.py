@@ -86,6 +86,12 @@ def test_direct_failures_never_expose_financial_values():
     )
     assert "R$" not in text
 
+    unread = render_direct_reply(
+        "generate_payment_offer",
+        json.dumps({"created": False, "reason": "policy_read_required"}),
+    )
+    assert "consultar no OKF" in unread
+
     missing = render_direct_reply(
         "generate_payment_offer",
         json.dumps({"created": False, "reason": "explicit_offer_terms_required"}),
@@ -111,13 +117,15 @@ def test_identity_reply_explains_payment_methods_by_type():
     assert "parcelamento por boleto" in text
 
 
-def test_email_reply_reports_provider_acceptance_without_claiming_delivery():
+def test_email_reply_reports_success_after_provider_acceptance():
     accepted = render_direct_reply(
         "send_payment_instruction",
         json.dumps({"sent": True, "status": "accepted"}),
     )
-    assert "provedor aceitou" in accepted
-    assert "não confirma a entrega" in accepted
+    assert accepted == (
+        "Envio da proposta enviado com sucesso, pode conferir na sua caixa de "
+        "e-mail, qualquer coisa estou à disposição."
+    )
     denied = render_direct_reply(
         "send_payment_instruction",
         json.dumps({"sent": False, "reason": "email_channel_not_configured"}),

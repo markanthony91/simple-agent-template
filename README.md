@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.12.8)
+# Agent Runtime — OKF simulator (0.12.9)
 
 O desconto da proposta agora pertence exclusivamente à política publicada do
 credor (`offer_discount_percentage`). O cliente escolhe modalidade, parcelas e
@@ -23,22 +23,24 @@ call to restate values.
 
 Customer balance and eligibility come from the session fixture pinned by the
 backend. Commercial limits, validity, payment methods and delivery channels come
-from the single published OKF policy matching that session's institution and
-product. The model supplies only the customer's payment choices; the backend
-selects the creditor-owned discount and the applicable conditions.
+from the published OKF policy that the model finds and reads for that session's
+institution and product. The model passes the canonical policy path with the
+customer's choices; the backend validates the read receipt, scope, lifecycle and
+terms before applying the creditor-owned discount.
 
 The synthetic negotiation flow now generates the offer, agreement and invalid
 dummy PIX/boleto in one transaction after the customer requests complete terms.
 There is no internal human approval or separate offer confirmation. After the
 customer explicitly supplies an email, the runtime can send the simulated payment
 instruction through the configured Zerai Channel Console. Provider acceptance is
-session-bound and idempotent; it is never presented as delivery. PIX/boleto remain
+session-bound and idempotent; it does not prove inbox delivery. PIX/boleto remain
 invalid simulations, and settlement remains operator-only.
 The pilot uses the canonical test scope `Will Bank` / `cartao_de_credito`.
-For a personal negotiation, the payment tool resolves and validates exactly one
-applicable policy inside the session's pinned snapshot. This removes model-managed
-OKF navigation from the transaction while preserving fail-closed policy checks.
-General institutional questions continue to use progressive OKF navigation.
+For a personal negotiation, the model progressively locates and reads the exact
+institution/product policy. The payment tool accepts only that canonical path and
+fails closed when the document was not read, is not published/current, belongs to
+another scope or does not authorize the requested terms.
+General institutional questions use the same progressive OKF navigation.
 They never request identity data unless the user explicitly changes scope to
 their own account, debt, proposal, payment or contestation.
 

@@ -1,3 +1,14 @@
+# Política OKF escolhida pela LLM e validada pelo backend — 0.12.9
+
+- [x] Exigir em `generate_payment_offer` o caminho canônico previamente lido no OKF.
+- [x] Remover a varredura automática de políticas do backend.
+- [x] Validar recibo, snapshot, publicação, vigência, instituição, produto, limites, desconto e meios.
+- [x] Permitir que o cliente informe apenas “2x” quando boleto for o único método parcelado da política.
+- [x] Atualizar a resposta determinística após `sent=true`.
+- [x] Validar com 231 testes unitários; integração externa permanece isolada.
+- [ ] Publicar o runtime e versionar as instruções do Assistant.
+- [ ] Executar canário sem envio real e registrar deployment/Assistant.
+
 # Parcelamento somente por boleto — 0.12.8
 
 - [x] Tornar os métodos permitidos específicos por modalidade na política.

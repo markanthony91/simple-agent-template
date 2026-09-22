@@ -13,7 +13,7 @@ from langchain_core.tools import tool
 
 from simple_agent.services.channel_console import ChannelConsoleError, request_json
 from simple_agent.services.payment_policy import (
-    resolve_payment_policy,
+    validate_requested_payment_policy,
     validate_payment_policy,
 )
 from simple_agent.services.session_store import (
@@ -72,10 +72,16 @@ def _normalized_human_messages(runtime: ToolRuntime) -> list[str]:
 
 
 def _terms_explicit(
-    runtime: ToolRuntime, payment_type: str, method: str, installments: int
+    runtime: ToolRuntime,
+    payment_type: str,
+    method: str,
+    installments: int,
+    method_required: bool = True,
 ) -> bool:
     messages = _normalized_human_messages(runtime)
-    method_ok = any(re.search(rf"\b{method}\b", text) for text in messages)
+    method_ok = not method_required or any(
+        re.search(rf"\b{method}\b", text) for text in messages
+    )
     if payment_type == "cash":
         payment_ok = any(
             re.search(r"\b(a vista|de uma vez|quitar(?: tudo)?)\b", text)
@@ -133,15 +139,16 @@ def _create_payment(
 def generate_payment_offer(
     payment_type: Literal["cash", "installment"],
     method: Literal["pix", "boleto"],
+    policy_path: str,
     runtime: ToolRuntime,
     installments: int = 1,
 ) -> str:
     """Generate an offer, agreement and dummy PIX/boleto in one transaction.
 
-    The customer chooses payment mode and PIX or boleto, possibly across turns.
-    The backend resolves exactly one applicable policy and its creditor-defined
-    discount from the pinned snapshot. No customer-supplied discount, internal
-    human approval or second confirmation is required.
+    policy_path must be the exact published OKF policy previously read by the
+    agent. The backend validates its receipt, scope, lifecycle and terms and
+    applies its creditor-defined discount. No customer-supplied discount,
+    internal human approval or second confirmation is required.
     Only created=true authorizes presenting the exact returned schedule and code.
     """
     try:
@@ -150,23 +157,32 @@ def generate_payment_offer(
                 return _json(
                     {"created": False, "reason": "identity_verification_required"}
                 )
-            message_id, _ = latest_user_message(runtime)
-            if not _terms_explicit(runtime, payment_type, method, installments):
-                return _json(
-                    {"created": False, "reason": "explicit_offer_terms_required"}
-                )
             try:
-                policy_path, discount_percentage = resolve_payment_policy(
-                    state,
-                    payment_type,
-                    installments,
-                    method,
+                policy_path, discount_percentage, sole_method = (
+                    validate_requested_payment_policy(
+                        state,
+                        policy_path,
+                        payment_type,
+                        installments,
+                        method,
+                    )
                 )
             except (KeyError, ValueError, ArithmeticError) as exc:
                 reason = (
                     "policy_terms_undefined" if isinstance(exc, KeyError) else str(exc)
                 )
                 return _json({"created": False, "reason": reason})
+            message_id, _ = latest_user_message(runtime)
+            if not _terms_explicit(
+                runtime,
+                payment_type,
+                method,
+                installments,
+                method_required=not sole_method,
+            ):
+                return _json(
+                    {"created": False, "reason": "explicit_offer_terms_required"}
+                )
             offer = _generate_offer(
                 state,
                 payment_type,
