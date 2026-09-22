@@ -3,7 +3,9 @@
 - [x] Remover o percentual de desconto do schema público da tool de pagamento.
 - [x] Exigir `offer_discount_percentage` na política publicada e validar contra o teto.
 - [x] Aceitar modalidade e método informados pelo cliente em mensagens separadas.
-- [ ] Publicar somente após integrar a entrega paralela do fluxo de e-mail.
+- [x] Publicado após integrar a entrega paralela do fluxo de e-mail.
+- Railway: `cf2c238c-7f97-4cf1-ac1a-3ec643cfb824`; Assistant versão 61.
+- Backup: `/data/backups/pre-creditor-owned-terms-0127-20260922T163800`.
 
 # Future Demo form backend — 0.12.3
 
