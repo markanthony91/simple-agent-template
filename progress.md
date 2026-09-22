@@ -7,7 +7,12 @@
   retranscrição da LLM.
 - [x] Manter bloqueados valores com quatro ou onze dígitos e preservar o
   Playground.
-- [ ] Publicar e validar em uma cópia da sessão real, sem disparar canais.
+- [x] Railway 0.12.1 publicado no deployment
+  `b133597d-44bd-4dd0-8e9b-2e4f87d1d12a` após o backup
+  `/data/backups/pre-thread-identity-0121-20260921-222846.tar.gz`.
+- [x] Canary `3ab28f70-5532-4b0f-a273-1bbb4de88398` consultou a dívida
+  vinculada à thread e retornou o valor e os dias esperados. A thread original
+  permaneceu inalterada e nenhum canal foi acionado.
 
 ## E-mail pelo Zerai Channel Console
 
