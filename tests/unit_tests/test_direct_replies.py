@@ -86,6 +86,30 @@ def test_direct_failures_never_expose_financial_values():
     )
     assert "R$" not in text
 
+    missing = render_direct_reply(
+        "generate_payment_offer",
+        json.dumps({"created": False, "reason": "explicit_offer_terms_required"}),
+    )
+    assert "parcelado por boleto" in missing
+    assert "parcelado por PIX" not in missing
+
+
+def test_identity_reply_explains_payment_methods_by_type():
+    text = render_direct_reply(
+        "verify_and_get_customer",
+        json.dumps(
+            {
+                "verified": True,
+                "customer": {
+                    "institution": "Will Bank",
+                    "debt": {"current_amount": "500.00"},
+                },
+            }
+        ),
+    )
+    assert "à vista por PIX ou boleto" in text
+    assert "parcelamento por boleto" in text
+
 
 def test_email_reply_reports_provider_acceptance_without_claiming_delivery():
     accepted = render_direct_reply(
