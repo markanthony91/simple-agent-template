@@ -179,7 +179,8 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         f"- Acordo: {agreement['agreement_id']}\n"
         f"- ID do pagamento: {payment['payment_id']}\n"
         f"- Validade: {offer['expires_at']}\n\n"
-        "Esta simulação não gera cobrança nem pagamento real."
+        "Esta simulação não gera cobrança nem pagamento real.\n\n"
+        "Para concluir, informe o e-mail que receberá a proposta e as instruções simuladas."
     )
 
 

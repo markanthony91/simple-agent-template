@@ -1,4 +1,6 @@
-# Agent Runtime — OKF simulator (0.12.5)
+# Agent Runtime — OKF simulator (0.12.6)
+
+Toda proposta simulada criada por PIX ou boleto agora solicita um e-mail para o envio das instruções.
 
 Respostas transacionais determinísticas agora encerram com metadado terminal compatível com o transporte do WhatsApp.
 
