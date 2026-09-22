@@ -3,6 +3,8 @@
 from pathlib import Path
 
 import pytest
+from langchain.tools import ToolRuntime
+from langchain_core.messages import HumanMessage
 
 from .test_collection_identity_gates import runtime, call, verify
 from simple_agent.services.session_store import SessionStore
@@ -16,6 +18,22 @@ ROOT = Path(__file__).resolve().parents[2] / "examples" / "pilot-okf"
 PATH = "INSTITUTIONS/will_bank/cartao_de_credito/negotiation.md"
 
 
+def conversation_runtime(key, *texts):
+    return ToolRuntime(
+        state={
+            "messages": [
+                HumanMessage(content=text, id=f"message-{index}")
+                for index, text in enumerate(texts, 1)
+            ]
+        },
+        context={},
+        config={"configurable": {"thread_id": key}},
+        stream_writer=lambda _: None,
+        tool_call_id="call",
+        store=None,
+    )
+
+
 def seed(store, approve=False):
     files = {p.relative_to(ROOT).as_posix(): p.read_text() for p in ROOT.rglob("*.md")}
     assert validate_okf_files(files)["valid"]
@@ -27,6 +45,14 @@ def seed(store, approve=False):
     fixture = SimulatorStore().load()
     fixture["institution"] = "Will Bank"
     SimulatorStore().save(fixture)
+
+
+def assert_no_financial_action(key):
+    with SessionStore().transaction(key) as state:
+        assert not state["offers"]
+        assert not state["agreements"]
+        assert not state["payments"]
+        assert not state["receipts"]
 
 
 @pytest.mark.parametrize("method", ["pix", "boleto"])
@@ -83,6 +109,7 @@ def test_happy_pilot_generates_offer_agreement_and_payment(
     agreement = result["agreement"]
     payment = result["payment"]
     assert offer["installment_schedule"] == ["1957.81", "1957.81", "1957.80"]
+    assert offer["discount_percentage"] == "0"
     assert agreement["created"] and agreement["is_simulation"]
     assert payment["payment_code"].startswith(f"DUMMY-{method.upper()}-")
     assert payment["amount"] == agreement["installment_schedule"][0]
@@ -187,35 +214,61 @@ def test_negative_draft_identity_and_excess_terms(isolated):
         == "policy_not_published"
     )
     seed(isolated, approve=True)
-    rt = runtime("pilot-new-approved")
-    verify(rt)
-    assert (
-        call(
-            payment_tools.generate_payment_offer,
-            runtime("pilot-new-approved", "Quero à vista com 10% por pix", "m2"),
-            **args,
-            discount_percentage="10",
-        )["reason"]
-        == "policy_terms_exceeded"
+    key = "pilot-new-approved"
+    verify(runtime(key))
+    creditor_offer = call(
+        payment_tools.generate_payment_offer,
+        conversation_runtime(
+            key,
+            "Quero pagar à vista",
+            "Quero 10% de desconto",
+            "Prefiro PIX",
+        ),
+        **args,
     )
+    assert creditor_offer["created"]
+    assert creditor_offer["offer"]["discount_percentage"] == "0"
+    assert "discount_percentage" not in payment_tools.generate_payment_offer.args
     assert (
         call(
             payment_tools.generate_payment_offer,
-            runtime("pilot-new-approved", "Quero pagar à vista", "m3"),
+            runtime("pilot-missing-method", "Quero pagar à vista", "m3"),
+            **args,
+        )["reason"]
+        == "identity_verification_required"
+    )
+    verify(runtime("pilot-missing-method"))
+    assert (
+        call(
+            payment_tools.generate_payment_offer,
+            runtime("pilot-missing-method", "Quero pagar à vista", "m4"),
             **args,
         )["reason"]
         == "explicit_offer_terms_required"
     )
+    assert_no_financial_action("pilot-missing-method")
+    verify(runtime("pilot-mismatched-installments"))
     assert (
         call(
             payment_tools.generate_payment_offer,
-            runtime("pilot-new-approved", "Quero em 2x por pix", "m4"),
+            runtime("pilot-mismatched-installments", "Quero em 2x por pix", "m5"),
             payment_type="installment",
             method="pix",
             installments=3,
         )["reason"]
         == "explicit_offer_terms_required"
     )
+    assert_no_financial_action("pilot-mismatched-installments")
+
+    key = "pilot-missing-installment-count"
+    verify(runtime(key))
+    assert call(
+        payment_tools.generate_payment_offer,
+        runtime(key, "Quero parcelar por pix", "m6"),
+        payment_type="installment",
+        method="pix",
+    ) == {"created": False, "reason": "explicit_offer_terms_required"}
+    assert_no_financial_action(key)
 
 
 def test_automatic_policy_resolution_fails_closed_when_ambiguous(isolated):
@@ -237,12 +290,35 @@ def test_automatic_policy_resolution_fails_closed_when_ambiguous(isolated):
         assert not state["receipts"]
 
 
+@pytest.mark.parametrize(
+    "missing_line",
+    ['  offer_discount_percentage: "0"\n', "  max_installments: 3\n"],
+)
+def test_payment_policy_without_creditor_terms_fails_closed(isolated, missing_line):
+    seed(isolated, approve=True)
+    root = isolated.bundle_root(isolated.active_bundle_id())
+    source = root / PATH
+    source.write_text(
+        source.read_text().replace(missing_line, ""),
+        encoding="utf-8",
+    )
+    key = "pilot-missing-creditor-discount"
+    rt = runtime(key, "Quero pagar à vista por pix")
+    assert verify(rt)["verified"]
+    assert call(
+        payment_tools.generate_payment_offer,
+        rt,
+        payment_type="cash",
+        method="pix",
+    ) == {"created": False, "reason": "policy_terms_undefined"}
+    assert_no_financial_action(key)
+
+
 def test_payment_policy_failure_rolls_back_offer(isolated, monkeypatch):
     seed(isolated, approve=True)
     key = "pilot-payment-policy-failure"
     rt = runtime(key, "Quero pagar em 3x por boleto")
     assert verify(rt)["verified"]
-    okf_tools.okf_read.func(path=PATH, runtime=rt)
 
     def deny(*_args, **_kwargs):
         raise ValueError("payment_method_not_allowed")
@@ -254,7 +330,6 @@ def test_payment_policy_failure_rolls_back_offer(isolated, monkeypatch):
         payment_type="installment",
         method="boleto",
         installments=3,
-        policy_path=PATH,
     )
     assert result == {"created": False, "reason": "payment_method_not_allowed"}
     with SessionStore().transaction(key) as state:

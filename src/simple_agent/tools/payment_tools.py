@@ -11,7 +11,6 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
-from simple_agent.services.offer_policy import money
 from simple_agent.services.channel_console import ChannelConsoleError, request_json
 from simple_agent.services.payment_policy import (
     resolve_payment_policy,
@@ -50,30 +49,44 @@ def _agreement(state: dict, agreement_id: str) -> dict | None:
     )
 
 
+def _normalized_human_messages(runtime: ToolRuntime) -> list[str]:
+    messages = []
+    for message in runtime.state.get("messages", []):
+        if getattr(message, "type", None) != "human":
+            continue
+        content = message.content
+        if isinstance(content, list):
+            content = " ".join(
+                item.get("text", "")
+                for item in content
+                if isinstance(item, dict) and item.get("type") == "text"
+            )
+        messages.append(
+            "".join(
+                char
+                for char in unicodedata.normalize("NFKD", str(content).casefold())
+                if not unicodedata.combining(char)
+            )
+        )
+    return messages
+
+
 def _terms_explicit(
-    text: str, payment_type: str, method: str, installments: int, discount: str
+    runtime: ToolRuntime, payment_type: str, method: str, installments: int
 ) -> bool:
-    normalized = "".join(
-        char
-        for char in unicodedata.normalize("NFKD", text.casefold())
-        if not unicodedata.combining(char)
-    )
-    if not re.search(rf"\b{method}\b", normalized):
-        return False
+    messages = _normalized_human_messages(runtime)
+    method_ok = any(re.search(rf"\b{method}\b", text) for text in messages)
     if payment_type == "cash":
-        if not re.search(r"\b(a vista|de uma vez|quitar(?: tudo)?)\b", normalized):
-            return False
-    elif not re.search(rf"\b{installments}\s*(?:x|parcelas?)\b", normalized):
-        return False
-    try:
-        percentage = money(discount)
-    except (ValueError, ArithmeticError):
-        return True  # The financial validator returns the precise error.
-    if percentage and not re.search(
-        rf"\b{re.escape(format(percentage.normalize(), 'f'))}\s*%", normalized
-    ):
-        return False
-    return True
+        payment_ok = any(
+            re.search(r"\b(a vista|de uma vez|quitar(?: tudo)?)\b", text)
+            for text in messages
+        )
+    else:
+        payment_ok = any(
+            re.search(rf"\b{installments}\s*(?:x|parcelas?)\b", text)
+            for text in messages
+        )
+    return method_ok and payment_ok
 
 
 def _create_payment(
@@ -122,15 +135,13 @@ def generate_payment_offer(
     method: Literal["pix", "boleto"],
     runtime: ToolRuntime,
     installments: int = 1,
-    discount_percentage: str = "0",
-    policy_path: str = "",
 ) -> str:
     """Generate an offer, agreement and dummy PIX/boleto in one transaction.
 
-    Use only after the customer explicitly names PIX or boleto in the latest
-    message. When policy_path is omitted, the backend resolves exactly one
-    applicable policy from the pinned snapshot. No internal human approval or
-    second confirmation is required.
+    The customer chooses payment mode and PIX or boleto, possibly across turns.
+    The backend resolves exactly one applicable policy and its creditor-defined
+    discount from the pinned snapshot. No customer-supplied discount, internal
+    human approval or second confirmation is required.
     Only created=true authorizes presenting the exact returned schedule and code.
     """
     try:
@@ -139,24 +150,23 @@ def generate_payment_offer(
                 return _json(
                     {"created": False, "reason": "identity_verification_required"}
                 )
-            message_id, user_text = latest_user_message(runtime)
-            if not _terms_explicit(
-                user_text, payment_type, method, installments, discount_percentage
-            ):
+            message_id, _ = latest_user_message(runtime)
+            if not _terms_explicit(runtime, payment_type, method, installments):
                 return _json(
                     {"created": False, "reason": "explicit_offer_terms_required"}
                 )
-            if not policy_path:
-                try:
-                    policy_path = resolve_payment_policy(
-                        state,
-                        payment_type,
-                        installments,
-                        discount_percentage,
-                        method,
-                    )
-                except (ValueError, ArithmeticError) as exc:
-                    return _json({"created": False, "reason": str(exc)})
+            try:
+                policy_path, discount_percentage = resolve_payment_policy(
+                    state,
+                    payment_type,
+                    installments,
+                    method,
+                )
+            except (KeyError, ValueError, ArithmeticError) as exc:
+                reason = (
+                    "policy_terms_undefined" if isinstance(exc, KeyError) else str(exc)
+                )
+                return _json({"created": False, "reason": reason})
             offer = _generate_offer(
                 state,
                 payment_type,

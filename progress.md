@@ -1,3 +1,10 @@
+# Desconto definido pelo credor — 0.12.7
+
+- [x] Remover o percentual de desconto do schema público da tool de pagamento.
+- [x] Exigir `offer_discount_percentage` na política publicada e validar contra o teto.
+- [x] Aceitar modalidade e método informados pelo cliente em mensagens separadas.
+- [ ] Publicar somente após integrar a entrega paralela do fluxo de e-mail.
+
 # Future Demo form backend — 0.12.3
 
 ## Workflow-scoped identity contract — 0.12.3
