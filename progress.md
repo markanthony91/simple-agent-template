@@ -6,8 +6,16 @@
 - [x] Permitir que o cliente informe apenas “2x” quando boleto for o único método parcelado da política.
 - [x] Atualizar a resposta determinística após `sent=true`.
 - [x] Validar com 231 testes unitários; integração externa permanece isolada.
-- [ ] Publicar o runtime e versionar as instruções do Assistant.
-- [ ] Executar canário sem envio real e registrar deployment/Assistant.
+- [x] Publicar o runtime e versionar as instruções do Assistant.
+- [x] Executar canário sem envio real e registrar deployment/Assistant.
+
+Publicado no Railway pelo deployment
+`a0bbd258-c931-4ffa-98c7-bcb1233bc111`, com a versão `0.12.9`; Assistant
+versionado de `62` para `63`. O canário sintético passou em 12/12 verificações:
+frase exata após “Podemos falar”, primeiro nome após identidade, navegação OKF,
+leitura da política publicada do Will Bank, limite de 3 parcelas e proposta em
+2x por boleto sem repetir o método. Nenhum e-mail ou canal real foi acionado; a
+thread, sessão, cliente e dívida sintéticos foram removidos após a validação.
 
 # Parcelamento somente por boleto — 0.12.8
 
