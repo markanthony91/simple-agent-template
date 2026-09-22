@@ -74,7 +74,7 @@ def channel_creditor() -> str:
         )
         raise ValueError(code) from exc
     creditor = (
-        str(payload.get("creditor_name") or "").strip()
+        str(payload.get("portfolio_name") or "").strip()
         if isinstance(payload, dict)
         else ""
     )

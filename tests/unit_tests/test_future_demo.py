@@ -235,14 +235,14 @@ def test_channel_creditor_uses_server_configuration(monkeypatch):
         captured["follow_redirects"] = kwargs["follow_redirects"]
         return httpx.Response(
             200,
-            json={"creditor_name": "Fastpay / Willbank"},
+            json={"creditor_name": "Fastpay", "portfolio_name": "Will Bank"},
             request=httpx.Request(method, url),
         )
 
     monkeypatch.setenv("CHANNEL_CONSOLE_URL", "channels.example.test")
     monkeypatch.setenv("CHANNEL_CONSOLE_ENGINE_TOKEN", "synthetic-token")
     monkeypatch.setattr("httpx.request", open_request)
-    assert channel_creditor() == "Fastpay / Willbank"
+    assert channel_creditor() == "Will Bank"
     assert captured == {
         "authorization": "Bearer synthetic-token",
         "url": "https://channels.example.test/api/engine/v1/channels",
