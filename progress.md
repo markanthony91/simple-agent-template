@@ -1,3 +1,16 @@
+# Termos naturais de parcelamento sem confirmação redundante — 0.12.11
+
+- [x] O backend reconhece `3x`, `3 parcelas`, `3 vezes`, número por extenso e
+  resposta curta contextual, sempre comparando a quantidade mais recente.
+- [x] Uma escolha completa e compatível com uma única política lida avança para
+  `generate_payment_offer` mesmo quando a LLM tenta pedir nova confirmação.
+- [x] Perguntas informativas continuam sem criar proposta ou acordo.
+- [x] Suíte local: 243 testes passaram e 1 foi ignorado.
+- [x] Railway: deployment `36b090a2-dadc-4cfb-96db-68a3d548e5b0` publicado com
+  sucesso.
+- [x] Canário sintético: 7/7 variações passaram; nenhum WhatsApp ou e-mail foi
+  enviado e os estados operacionais foram reiniciados após os testes.
+
 # Política OKF escolhida pela LLM e validada pelo backend — 0.12.9
 
 - [x] Exigir em `generate_payment_offer` o caminho canônico previamente lido no OKF.
