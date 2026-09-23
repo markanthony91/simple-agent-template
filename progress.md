@@ -4,7 +4,13 @@
 - [x] Após o aceite, apresentar somente a solicitação dos três primeiros dígitos do CPF.
 - [x] Manter sessões WhatsApp sem dívida vinculada fora da validação de identidade.
 - [x] Orientar a conferência da caixa de entrada e da caixa de spam após o envio.
-- [ ] Publicar e validar o runtime no Railway.
+- [x] Publicar e validar o runtime no Railway.
+
+Publicado no deployment `8e54ce39-b9ad-46e2-9d90-7c0690a67e04`. O runtime
+reportou `0.12.13`, o healthcheck respondeu 200 e a suíte passou com 245 testes,
+1 ignorado e 87% de cobertura. O canário do Assistant respondeu somente com a
+solicitação de CPF após “Podemos falar”, sem repetir Sophia ou Will Bank. A thread,
+a sessão, o cliente e a dívida sintéticos foram removidos após a validação.
 
 # Texto enxuto de proposta e confirmação de e-mail — 0.12.12
 
