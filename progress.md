@@ -3,7 +3,11 @@
 - [x] Trocar a confirmação de envio pelo texto aprovado.
 - [x] Renomear “Cronograma” para “Parcela” no resumo da proposta.
 - [x] Ocultar Acordo, ID do pagamento e Validade da mensagem ao cliente.
-- [ ] Publicar e validar o runtime no Railway.
+- [x] Publicar e validar o runtime no Railway.
+
+Publicado no deployment `c66ee083-3e11-4504-a938-53f66ccab313`. O contêiner
+reportou `0.12.12`, o healthcheck respondeu 200 e a renderização sintética
+confirmou a nova cópia sem enviar e-mail nem criar proposta real.
 
 # Termos naturais de parcelamento sem confirmação redundante — 0.12.11
 
