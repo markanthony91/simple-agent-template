@@ -4,6 +4,8 @@
 - [x] Preservar a escolha do meio de pagamento informada na mensagem seguinte.
 - [x] Manter a validação de política, identidade, modalidade e meio de pagamento.
 - [x] Suíte local: 248 testes passaram e 1 foi ignorado.
+- [x] Railway: deployment `27fb23e2-5050-408b-ac41-3438ce87a4ad` publicado.
+- [x] Canário sintético: “A vist” seguido de “Pix” criou a proposta à vista por PIX.
 
 # Aceite da abertura ativa sem reapresentação — 0.12.13
 
