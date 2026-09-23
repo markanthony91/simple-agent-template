@@ -1,3 +1,10 @@
+# Aceite da abertura ativa sem reapresentação — 0.12.13
+
+- [x] Preservar a apresentação na mensagem inicial da campanha.
+- [x] Após o aceite, apresentar somente a solicitação dos três primeiros dígitos do CPF.
+- [x] Manter sessões WhatsApp sem dívida vinculada fora da validação de identidade.
+- [ ] Publicar e validar o runtime no Railway.
+
 # Texto enxuto de proposta e confirmação de e-mail — 0.12.12
 
 - [x] Trocar a confirmação de envio pelo texto aprovado.

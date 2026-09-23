@@ -92,6 +92,13 @@ PAYMENT_ACTION = re.compile(
     r"\b(?:quero|desejo|prefiro|escolho|aceito|fechado|pode\s+ser|vamos|vou|"
     r"parcelar|parcelado|parcelada|pagar|quitar)\b"
 )
+ACTIVE_OPENING_ACCEPTANCE = re.compile(
+    r"(?:podemos|pode|podem) falar|sim|claro|estou disponivel"
+)
+ACTIVE_IDENTITY_REPLY = (
+    "Para que possamos conversar com segurança e eu possa confirmar sua identidade, "
+    "você poderia me informar os 3 primeiros dígitos do seu CPF, por favor?"
+)
 
 
 def _brl(value: Any) -> str:
@@ -365,12 +372,21 @@ def _asks_for_identity(text: str) -> bool:
     )
 
 
-def _sanitize_identity_request(text: str, session: dict) -> str:
+def _sanitize_identity_request(
+    text: str, session: dict, latest_human_text: str = ""
+) -> str:
     """Render the active CPF-only contract deterministically."""
-    if session.get("identity_verified") or not _asks_for_identity(text):
+    if session.get("identity_verified"):
         return text
     policy = policy_for(session)
     if policy.cpf_mode != "first3" or policy.secondary != "none":
+        return text
+    accepted = _normalize(latest_human_text).strip(" .,!?;:")
+    if session.get(
+        "unbound_session"
+    ) is not True and ACTIVE_OPENING_ACCEPTANCE.fullmatch(accepted):
+        return ACTIVE_IDENTITY_REPLY
+    if not _asks_for_identity(text):
         return text
     return (
         "Para consultar sua dívida, preciso validar sua identidade. "
@@ -504,6 +520,7 @@ def _complete_offer_handoff(
 def _audit_final(request: ModelRequest, response: ModelResponse) -> ModelResponse:
     """Enforce the configured identity factors, then annotate the final response."""
     key = get_config().get("configurable", {}).get("thread_id")
+    latest_human_text = _latest_human_text(request)
     with SessionStore().transaction(key) as session:
         for message in response.result:
             if (
@@ -512,7 +529,9 @@ def _audit_final(request: ModelRequest, response: ModelResponse) -> ModelRespons
                 or not isinstance(message.content, str)
             ):
                 continue
-            message.content = _sanitize_identity_request(message.content, session)
+            message.content = _sanitize_identity_request(
+                message.content, session, latest_human_text
+            )
             report = audit_response(message.content, session)
             message.additional_kwargs["response_audit"] = report
             logger.info(
