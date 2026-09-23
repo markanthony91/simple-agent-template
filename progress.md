@@ -1,3 +1,10 @@
+# Termos à vista com variação de digitação — 0.12.14
+
+- [x] Reconhecer “A vist” e “avista” como intenção explícita de pagamento à vista.
+- [x] Preservar a escolha do meio de pagamento informada na mensagem seguinte.
+- [x] Manter a validação de política, identidade, modalidade e meio de pagamento.
+- [x] Suíte local: 248 testes passaram e 1 foi ignorado.
+
 # Aceite da abertura ativa sem reapresentação — 0.12.13
 
 - [x] Preservar a apresentação na mensagem inicial da campanha.
