@@ -169,15 +169,14 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
                 "Confira o endereço e a configuração do canal."
             )
         return (
-            "Envio da proposta enviado com sucesso, pode conferir na sua caixa de "
-            "e-mail, qualquer coisa estou à disposição."
+            "Sua proposta foi enviada com sucesso e já deve estar no seu e-mail. "
+            "Se precisar de qualquer coisa, é só me chamar!"
         )
     if tool_name != "generate_payment_offer":
         return None
     if not payload.get("created"):
         return _direct_failure(str(payload.get("reason") or ""))
     offer = payload["offer"]
-    agreement = payload["agreement"]
     payment = payload["payment"]
     schedule = "; ".join(
         f"{index}ª {_brl(amount)}"
@@ -192,13 +191,11 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         "Proposta simulada criada com sucesso.\n\n"
         f"- Total negociado: {_brl(offer['negotiated_amount'])}\n"
         f"- Forma: {payment_label}\n"
-        f"- Cronograma: {schedule}\n"
+        f"- Parcela: {schedule}\n"
         f"- Método: {str(payment['method']).upper()}\n"
         f"- Código dummy: {payment['payment_code']}\n"
         f"- Proposta: {offer['offer_id']}\n"
-        f"- Acordo: {agreement['agreement_id']}\n"
-        f"- ID do pagamento: {payment['payment_id']}\n"
-        f"- Validade: {offer['expires_at']}\n\n"
+        "\n"
         "Esta simulação não gera cobrança nem pagamento real.\n\n"
         "Para concluir, informe o e-mail que receberá a proposta e as instruções simuladas."
     )

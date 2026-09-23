@@ -72,6 +72,11 @@ def test_transactional_result_is_rendered_without_second_model_call(isolated):
     assert audit["pre_display_protection"] is True
     assert "1ª R$ 1.957,81" in result["messages"][-1].content
     assert "3ª R$ 1.957,80" in result["messages"][-1].content
+    assert "- Parcela:" in result["messages"][-1].content
+    assert "- Cronograma:" not in result["messages"][-1].content
+    assert "- Acordo:" not in result["messages"][-1].content
+    assert "- ID do pagamento:" not in result["messages"][-1].content
+    assert "- Validade:" not in result["messages"][-1].content
     assert "informe o e-mail" in result["messages"][-1].content
 
 
@@ -125,8 +130,8 @@ def test_email_reply_reports_success_after_provider_acceptance():
         json.dumps({"sent": True, "status": "accepted"}),
     )
     assert accepted == (
-        "Envio da proposta enviado com sucesso, pode conferir na sua caixa de "
-        "e-mail, qualquer coisa estou à disposição."
+        "Sua proposta foi enviada com sucesso e já deve estar no seu e-mail. "
+        "Se precisar de qualquer coisa, é só me chamar!"
     )
     denied = render_direct_reply(
         "send_payment_instruction",

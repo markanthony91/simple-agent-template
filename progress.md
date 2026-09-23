@@ -1,3 +1,10 @@
+# Texto enxuto de proposta e confirmação de e-mail — 0.12.12
+
+- [x] Trocar a confirmação de envio pelo texto aprovado.
+- [x] Renomear “Cronograma” para “Parcela” no resumo da proposta.
+- [x] Ocultar Acordo, ID do pagamento e Validade da mensagem ao cliente.
+- [ ] Publicar e validar o runtime no Railway.
+
 # Termos naturais de parcelamento sem confirmação redundante — 0.12.11
 
 - [x] O backend reconhece `3x`, `3 parcelas`, `3 vezes`, número por extenso e

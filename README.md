@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.12.11)
+# Agent Runtime — OKF simulator (0.12.12)
 
 O desconto da proposta agora pertence exclusivamente à política publicada do
 credor (`offer_discount_percentage`). O cliente escolhe modalidade, parcelas e
