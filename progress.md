@@ -3,6 +3,7 @@
 - [x] Preservar a apresentação na mensagem inicial da campanha.
 - [x] Após o aceite, apresentar somente a solicitação dos três primeiros dígitos do CPF.
 - [x] Manter sessões WhatsApp sem dívida vinculada fora da validação de identidade.
+- [x] Orientar a conferência da caixa de entrada e da caixa de spam após o envio.
 - [ ] Publicar e validar o runtime no Railway.
 
 # Texto enxuto de proposta e confirmação de e-mail — 0.12.12

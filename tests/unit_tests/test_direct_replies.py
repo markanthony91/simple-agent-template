@@ -130,8 +130,8 @@ def test_email_reply_reports_success_after_provider_acceptance():
         json.dumps({"sent": True, "status": "accepted"}),
     )
     assert accepted == (
-        "Sua proposta foi enviada com sucesso e já deve estar no seu e-mail. "
-        "Se precisar de qualquer coisa, é só me chamar!"
+        "Sua proposta foi enviada com sucesso, verifique a caixa de entrada e a "
+        "caixa de spam. Se precisar de qualquer coisa, é só me chamar!"
     )
     denied = render_direct_reply(
         "send_payment_instruction",

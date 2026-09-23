@@ -176,8 +176,8 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
                 "Confira o endereço e a configuração do canal."
             )
         return (
-            "Sua proposta foi enviada com sucesso e já deve estar no seu e-mail. "
-            "Se precisar de qualquer coisa, é só me chamar!"
+            "Sua proposta foi enviada com sucesso, verifique a caixa de entrada e a "
+            "caixa de spam. Se precisar de qualquer coisa, é só me chamar!"
         )
     if tool_name != "generate_payment_offer":
         return None
