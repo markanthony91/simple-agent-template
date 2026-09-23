@@ -84,7 +84,7 @@ def _terms_explicit(
     )
     if payment_type == "cash":
         payment_ok = any(
-            re.search(r"\b(a vista|de uma vez|quitar(?: tudo)?)\b", text)
+            re.search(r"\b(a\s*vist(?:a)?|de uma vez|quitar(?: tudo)?)\b", text)
             for text in messages
         )
     else:

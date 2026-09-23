@@ -353,6 +353,16 @@ def test_installment_terms_use_latest_count():
     )
 
 
+@pytest.mark.parametrize("cash_text", ["A vista", "A vist", "avista"])
+def test_cash_terms_accept_common_variations_across_messages(cash_text):
+    assert payment_tools._terms_explicit(
+        conversation_runtime("cash-variations", cash_text, "Pix"),
+        payment_type="cash",
+        method="pix",
+        installments=1,
+    )
+
+
 def test_complete_offer_handoff_skips_redundant_confirmation(isolated, monkeypatch):
     from simple_agent import managed_graph, tool_middleware
 
