@@ -1,3 +1,9 @@
+# Remoção do aviso de simulação no e-mail — 0.12.18
+
+- [x] Remover `aviso_simulacao` do contexto enviado ao Channel Console.
+- [x] Publicado no deployment `8e371fbe-cd9a-4244-b4a1-beffc5fe6e51`;
+  versão `0.12.18` e ausência da variável confirmadas no container.
+
 # Data e apresentação do e-mail de pagamento — 0.12.17
 
 - [x] Fornecer a data do envio no fuso de São Paulo ao template.
