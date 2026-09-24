@@ -83,7 +83,6 @@ def test_happy_pilot_generates_offer_agreement_and_payment(isolated, monkeypatch
                             "forma_pagamento",
                             "valor",
                             "codigo_pagamento",
-                            "aviso_simulacao",
                         ],
                     }
                 ],
@@ -253,6 +252,7 @@ def test_email_context_hides_pix_installment_and_includes_payment_date():
 
     assert pix["installment_display"] == "none"
     assert boleto["installment_display"] == "table-row"
+    assert "aviso_simulacao" not in pix
     assert pix["payment_date"] == datetime.now(
         ZoneInfo("America/Sao_Paulo")
     ).strftime("%d/%m/%Y")

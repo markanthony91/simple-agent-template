@@ -312,7 +312,6 @@ def _email_context(state: dict, payment: dict, agreement: dict) -> dict[str, str
         "agreement_id": str(payment["agreement_id"]),
         "numero_parcela": str(payment["installment_number"]),
         "parcelas": str(agreement["installments"]),
-        "aviso_simulacao": "SIMULAÇÃO — código inválido, não efetuar pagamento.",
         "is_simulation": "true",
     }
 

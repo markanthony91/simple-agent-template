@@ -1,4 +1,7 @@
-# Agent Runtime — OKF simulator (0.12.17)
+# Agent Runtime — OKF simulator (0.12.18)
+
+O contexto de e-mail não envia mais o aviso de código inválido removido do
+template.
 
 O contexto do e-mail informa a data de envio no fuso de São Paulo e indica ao
 template quando a linha de parcela deve ser ocultada para PIX.

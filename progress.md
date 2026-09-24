@@ -1,3 +1,8 @@
+# Remoção do aviso de simulação no e-mail — 0.12.18
+
+- [x] Remover `aviso_simulacao` do contexto enviado ao Channel Console.
+- [ ] Publicar e validar o contrato atualizado no Railway.
+
 # Data e apresentação do e-mail de pagamento — 0.12.17
 
 - [x] Fornecer a data do envio no fuso de São Paulo ao template.
