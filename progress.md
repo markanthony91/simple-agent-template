@@ -2,7 +2,8 @@
 
 - [x] Fornecer a data do envio no fuso de São Paulo ao template.
 - [x] Ocultar a linha de parcela para PIX e preservá-la para boleto.
-- [ ] Publicar e validar o runtime no Railway.
+- [x] Publicado no Railway no deployment
+  `bf44b53a-89f3-428a-9eaf-42cadbd2e6a3`; versão `0.12.17` confirmada no container.
 
 # Resumo sem identificador interno da proposta — 0.12.16
 
