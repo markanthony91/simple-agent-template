@@ -4,7 +4,11 @@
   propostas à vista e parceladas.
 - [x] Preservar total, forma, parcelas, método, código dummy e solicitação de
   e-mail.
-- [ ] Publicar e validar o runtime no Railway.
+- [x] Publicar e validar o runtime no Railway.
+
+Publicado no deployment `a67ef2a2-a5c3-4958-bcbb-6d76ac9f8e13`. O runtime
+reportou `0.12.16`; o canário no contêiner renderizou a proposta à vista por PIX
+sem expor `offer_id`.
 
 # Confirmação curta de contraproposta parcelada — 0.12.15
 
