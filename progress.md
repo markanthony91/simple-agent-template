@@ -1,3 +1,9 @@
+# Data e apresentação do e-mail de pagamento — 0.12.17
+
+- [x] Fornecer a data do envio no fuso de São Paulo ao template.
+- [x] Ocultar a linha de parcela para PIX e preservá-la para boleto.
+- [ ] Publicar e validar o runtime no Railway.
+
 # Resumo sem identificador interno da proposta — 0.12.16
 
 - [x] Remover a linha `Proposta: OFF-...` da resposta determinística comum a

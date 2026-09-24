@@ -1,6 +1,8 @@
 """Three deterministic integration journeys using the proposed pilot documents."""
 
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 import pytest
 from langchain.tools import ToolRuntime
@@ -224,6 +226,36 @@ def test_email_plan_rejects_untrusted_catalog_and_unknown_template_values(monkey
         ChannelConsoleError, match="email_template_unsupported_variables"
     ):
         payment_tools._email_plan({"nome": "Cliente"})
+
+
+def test_email_context_hides_pix_installment_and_includes_payment_date():
+    state = {
+        "fixture": {
+            "full_name": "Cliente Teste",
+            "institution": "Will Bank",
+            "product": "cartao_de_credito",
+        }
+    }
+    agreement = {"installments": 3}
+    payment = {
+        "method": "pix",
+        "amount": "850.00",
+        "payment_code": "DUMMY-PIX-TESTE",
+        "payment_id": "PAY-TESTE",
+        "agreement_id": "AGR-TESTE",
+        "installment_number": 1,
+    }
+
+    pix = payment_tools._email_context(state, payment, agreement)
+    boleto = payment_tools._email_context(
+        state, {**payment, "method": "boleto"}, agreement
+    )
+
+    assert pix["installment_display"] == "none"
+    assert boleto["installment_display"] == "table-row"
+    assert pix["payment_date"] == datetime.now(
+        ZoneInfo("America/Sao_Paulo")
+    ).strftime("%d/%m/%Y")
 
 
 def test_negative_draft_identity_and_excess_terms(isolated):

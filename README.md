@@ -1,4 +1,7 @@
-# Agent Runtime — OKF simulator (0.12.16)
+# Agent Runtime — OKF simulator (0.12.17)
+
+O contexto do e-mail informa a data de envio no fuso de São Paulo e indica ao
+template quando a linha de parcela deve ser ocultada para PIX.
 
 O resumo apresentado ao cliente mantém os valores e a instrução simulada, sem
 expor o identificador interno da proposta.

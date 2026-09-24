@@ -7,6 +7,7 @@ import unicodedata
 from datetime import datetime, timezone
 from typing import Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
+from zoneinfo import ZoneInfo
 
 from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
@@ -295,12 +296,17 @@ def create_payment_instruction(
 
 def _email_context(state: dict, payment: dict, agreement: dict) -> dict[str, str]:
     fixture = state["fixture"]
+    method = str(payment["method"])
     return {
         "nome": str(fixture["full_name"]),
         "credor": str(fixture.get("creditor_name") or fixture.get("institution") or ""),
         "produto": str(fixture.get("product") or ""),
-        "forma_pagamento": str(payment["method"]).upper(),
+        "forma_pagamento": method.upper(),
         "valor": f"R$ {str(payment['amount']).replace('.', ',')}",
+        "payment_date": datetime.now(ZoneInfo("America/Sao_Paulo")).strftime(
+            "%d/%m/%Y"
+        ),
+        "installment_display": "none" if method == "pix" else "table-row",
         "codigo_pagamento": str(payment["payment_code"]),
         "payment_id": str(payment["payment_id"]),
         "agreement_id": str(payment["agreement_id"]),
