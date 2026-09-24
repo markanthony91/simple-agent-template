@@ -1,3 +1,11 @@
+# Resumo sem identificador interno da proposta — 0.12.16
+
+- [x] Remover a linha `Proposta: OFF-...` da resposta determinística comum a
+  propostas à vista e parceladas.
+- [x] Preservar total, forma, parcelas, método, código dummy e solicitação de
+  e-mail.
+- [ ] Publicar e validar o runtime no Railway.
+
 # Confirmação curta de contraproposta parcelada — 0.12.15
 
 - [x] Aceitar “Sim” após a contraproposta imediatamente anterior informar a

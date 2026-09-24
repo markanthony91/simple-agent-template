@@ -77,6 +77,7 @@ def test_transactional_result_is_rendered_without_second_model_call(isolated):
     assert "- Acordo:" not in result["messages"][-1].content
     assert "- ID do pagamento:" not in result["messages"][-1].content
     assert "- Validade:" not in result["messages"][-1].content
+    assert "- Proposta:" not in result["messages"][-1].content
     assert "informe o e-mail" in result["messages"][-1].content
 
 

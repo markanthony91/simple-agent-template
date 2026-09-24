@@ -201,7 +201,6 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         f"- Parcela: {schedule}\n"
         f"- Método: {str(payment['method']).upper()}\n"
         f"- Código dummy: {payment['payment_code']}\n"
-        f"- Proposta: {offer['offer_id']}\n"
         "\n"
         "Esta simulação não gera cobrança nem pagamento real.\n\n"
         "Para concluir, informe o e-mail que receberá a proposta e as instruções simuladas."

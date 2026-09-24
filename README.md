@@ -1,4 +1,7 @@
-# Agent Runtime — OKF simulator (0.12.15)
+# Agent Runtime — OKF simulator (0.12.16)
+
+O resumo apresentado ao cliente mantém os valores e a instrução simulada, sem
+expor o identificador interno da proposta.
 
 Uma confirmação curta como “Sim” aceita a quantidade de parcelas da
 contraproposta imediatamente anterior do agente. O backend continua rejeitando
