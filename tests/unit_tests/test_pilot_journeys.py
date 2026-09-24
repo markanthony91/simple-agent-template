@@ -353,6 +353,46 @@ def test_installment_terms_use_latest_count():
     )
 
 
+def test_installment_terms_accept_affirmative_reply_to_previous_counteroffer(isolated):
+    seed(isolated, approve=True)
+    rt = ToolRuntime(
+        state={
+            "messages": [
+                HumanMessage(content="Parcelado em 10 vezes", id="m1"),
+                AIMessage(
+                    content=(
+                        "A condição disponível é em até 3 parcelas iguais. "
+                        "Se mantivermos dessa forma, você consegue seguir?"
+                    )
+                ),
+                HumanMessage(content="Sim", id="m2"),
+            ]
+        },
+        context={},
+        config={"configurable": {"thread_id": "affirmative-counteroffer"}},
+        stream_writer=lambda _: None,
+        tool_call_id="call",
+        store=None,
+    )
+
+    assert payment_tools._terms_explicit(
+        rt, "installment", "boleto", 3, method_required=False
+    )
+    assert not payment_tools._terms_explicit(
+        rt, "installment", "boleto", 2, method_required=False
+    )
+    assert verify(rt)["verified"]
+    read_policy(rt)
+    assert call(
+        payment_tools.generate_payment_offer,
+        rt,
+        payment_type="installment",
+        method="boleto",
+        policy_path=PATH,
+        installments=3,
+    )["created"]
+
+
 @pytest.mark.parametrize("cash_text", ["A vista", "A vist", "avista"])
 def test_cash_terms_accept_common_variations_across_messages(cash_text):
     assert payment_tools._terms_explicit(

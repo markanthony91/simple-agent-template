@@ -49,26 +49,53 @@ def _agreement(state: dict, agreement_id: str) -> dict | None:
     )
 
 
-def _normalized_human_messages(runtime: ToolRuntime) -> list[str]:
-    messages = []
-    for message in runtime.state.get("messages", []):
-        if getattr(message, "type", None) != "human":
-            continue
-        content = message.content
-        if isinstance(content, list):
-            content = " ".join(
-                item.get("text", "")
-                for item in content
-                if isinstance(item, dict) and item.get("type") == "text"
-            )
-        messages.append(
-            "".join(
-                char
-                for char in unicodedata.normalize("NFKD", str(content).casefold())
-                if not unicodedata.combining(char)
-            )
+def _normalized_text(content) -> str:
+    if isinstance(content, list):
+        content = " ".join(
+            item.get("text", "")
+            for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
         )
-    return messages
+    return "".join(
+        char
+        for char in unicodedata.normalize("NFKD", str(content).casefold())
+        if not unicodedata.combining(char)
+    )
+
+
+def _normalized_human_messages(runtime: ToolRuntime) -> list[str]:
+    return [
+        _normalized_text(message.content)
+        for message in runtime.state.get("messages", [])
+        if getattr(message, "type", None) == "human"
+    ]
+
+
+def _confirms_previous_offer(runtime: ToolRuntime, explicit_count: re.Pattern) -> bool:
+    messages = runtime.state.get("messages", [])
+    latest_human = next(
+        (
+            index
+            for index in range(len(messages) - 1, -1, -1)
+            if getattr(messages[index], "type", None) == "human"
+        ),
+        None,
+    )
+    if latest_human is None or not re.fullmatch(
+        r"\s*(?:sim|confirmo|aceito|fechado|pode seguir|vamos seguir)[.!]?\s*",
+        _normalized_text(messages[latest_human].content),
+    ):
+        return False
+    previous = next(
+        (
+            _normalized_text(message.content)
+            for message in reversed(messages[:latest_human])
+            if getattr(message, "type", None) == "ai"
+            and _normalized_text(message.content).strip()
+        ),
+        "",
+    )
+    return bool(explicit_count.search(previous))
 
 
 def _terms_explicit(
@@ -115,6 +142,8 @@ def _terms_explicit(
                 re.fullmatch(count, latest)
                 and any(installment_intent.search(text) for text in messages[:-1])
             )
+        if not payment_ok:
+            payment_ok = _confirms_previous_offer(runtime, explicit_count)
     return method_ok and payment_ok
 
 

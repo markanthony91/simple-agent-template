@@ -1,4 +1,8 @@
-# Agent Runtime — OKF simulator (0.12.14)
+# Agent Runtime — OKF simulator (0.12.15)
+
+Uma confirmação curta como “Sim” aceita a quantidade de parcelas da
+contraproposta imediatamente anterior do agente. O backend continua rejeitando
+quantidades diferentes, políticas incompatíveis e meios não permitidos.
 
 O desconto da proposta agora pertence exclusivamente à política publicada do
 credor (`offer_discount_percentage`). O cliente escolhe modalidade, parcelas e

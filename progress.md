@@ -1,3 +1,11 @@
+# Confirmação curta de contraproposta parcelada — 0.12.15
+
+- [x] Aceitar “Sim” após a contraproposta imediatamente anterior informar a
+  quantidade exata de parcelas.
+- [x] Continuar bloqueando quantidade divergente, política incompatível e meio
+  de pagamento não permitido.
+- [ ] Publicar e validar o runtime no Railway.
+
 # Termos à vista com variação de digitação — 0.12.14
 
 - [x] Reconhecer “A vist” e “avista” como intenção explícita de pagamento à vista.
