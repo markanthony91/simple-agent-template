@@ -1,5 +1,6 @@
 from simple_agent.services.okf_service import OKFService
 from simple_agent.prompt_loader import load_agent_prompt
+import pytest
 
 
 def _build_okf(tmp_path):
@@ -36,11 +37,48 @@ def test_duplicate_root_prefix_is_collapsed(tmp_path):
     service = OKFService(_build_okf(tmp_path))
 
     duplicated = "INSTITUTIONS/fastpay/INSTITUTIONS/fastpay/policies/desconto.md"
-    assert service.canonical_path(duplicated) == "INSTITUTIONS/fastpay/policies/desconto.md"
+    assert (
+        service.canonical_path(duplicated)
+        == "INSTITUTIONS/fastpay/policies/desconto.md"
+    )
 
     result = service.read_section(duplicated, "Limites de desconto")
     assert "OKF_CANONICAL_PATH: INSTITUTIONS/fastpay/policies/desconto.md" in result
     assert "A DEFINIR PELA OPERAÇÃO" in result
+
+
+def test_existing_nested_roots_never_redirect_to_parent(tmp_path):
+    root = _build_okf(tmp_path)
+    nested = root / "INSTITUTIONS/fastpay/INSTITUTIONS"
+    nested.mkdir()
+    (nested / "index.md").write_text("# Nested legacy branch\n")
+    (nested / "policy.md").write_text("---\ntype: Policy\n---\n# Nested fact")
+    service = OKFService(root)
+    path = "INSTITUTIONS/fastpay/INSTITUTIONS"
+    assert service.canonical_directory(path) == path
+    assert f"OKF_CANONICAL_DIRECTORY: {path}" in service.read_index(path)
+    assert "Nested fact" in service.read_file(f"{path}/policy.md")
+    assert "Nested fact" in service.search("Nested", scope=path)
+
+
+def test_two_legacy_root_cases_remain_distinct_without_guessing(tmp_path):
+    root = _build_okf(tmp_path)
+    lower = root / "institutions"
+    lower.mkdir()
+    (lower / "index.md").write_text("# Lower legacy branch")
+    service = OKFService(root)
+    assert service.canonical_directory("institutions") == "institutions"
+    assert service.canonical_directory("INSTITUTIONS") == "INSTITUTIONS"
+    with pytest.raises(ValueError, match="Ambiguous"):
+        service.canonical_directory("Institutions")
+
+
+@pytest.mark.parametrize(
+    "path", ["../INSTITUTIONS", "/INSTITUTIONS", "INSTITUTIONS/../GLOBAL"]
+)
+def test_invalid_paths_are_not_repaired(tmp_path, path):
+    with pytest.raises(ValueError):
+        OKFService(_build_okf(tmp_path)).canonical_directory(path)
 
 
 def test_missing_child_index_returns_parent_and_available_children(tmp_path):
@@ -78,7 +116,9 @@ def test_read_section_exact_heading_only_no_fuzzy(tmp_path):
     service = OKFService(_build_okf(tmp_path))
 
     # Exact match should work
-    result = service.read_section("INSTITUTIONS/fastpay/policies/desconto.md", "Limites de desconto")
+    result = service.read_section(
+        "INSTITUTIONS/fastpay/policies/desconto.md", "Limites de desconto"
+    )
     assert "A DEFINIR PELA OPERAÇÃO" in result
     assert "OKF_CANONICAL_PATH:" in result
 
@@ -88,14 +128,29 @@ def test_read_section_missing_heading_lists_available_and_requires_retry(tmp_pat
     service = OKFService(_build_okf(tmp_path))
 
     # Nonexistent heading (no fuzzy fallback)
-    result = service.read_section("INSTITUTIONS/fastpay/policies/desconto.md", "Nonexistent Heading")
-    
+    result = service.read_section(
+        "INSTITUTIONS/fastpay/policies/desconto.md", "Nonexistent Heading"
+    )
+
     assert "not found (no fuzzy match)" in result
     assert "Available headings" in result
     assert '"Limites de desconto"' in result
     assert '"Installments"' in result
     assert "Retry with one of these exact headings" in result
     assert "OKF_CANONICAL_PATH:" in result
+
+
+def test_read_section_preserves_policy_metadata(tmp_path):
+    root = _build_okf(tmp_path)
+    path = "INSTITUTIONS/fastpay/policies/desconto.md"
+    (root / path).write_text(
+        "---\ntype: Policy\nstatus: published\ninstitution: FastPay\nnegotiation:\n  max_installments: 6\n---\n# Terms\nSource conditions.\n# Other\nOther body."
+    )
+    result = OKFService(root).read_section(path, "Terms")
+    assert "status: published" in result
+    assert "max_installments: 6" in result
+    assert "Source conditions." in result
+    assert "Other body." not in result
 
 
 def test_duplicate_root_collapse_before_existence_check(tmp_path):
@@ -145,7 +200,7 @@ def test_missing_index_fallback_shows_available_alternatives(tmp_path):
 
     # Request a directory that exists but has no index.md
     result = service.read_index("INSTITUTIONS/fastpay/policies")
-    
+
     # Should show what's available in the parent (fastpay)
     assert "OKF_REQUESTED_DIRECTORY:" in result or "OKF_CANONICAL_PARENT:" in result
 
@@ -153,10 +208,10 @@ def test_missing_index_fallback_shows_available_alternatives(tmp_path):
 def test_extract_index_links_from_markdown(tmp_path):
     """_extract_index_links should parse markdown links from index.md content."""
     service = OKFService(_build_okf(tmp_path))
-    
+
     content = "# Test\n\n[Link1](path/to/file.md)\n[Link2](path/to/dir/)\n"
     links = service._extract_index_links(content)
-    
+
     assert "path/to/file.md" in links
     assert "path/to/dir" in links  # trailing slash should be stripped
 
@@ -164,9 +219,11 @@ def test_extract_index_links_from_markdown(tmp_path):
 def test_get_child_directories_and_concepts_returns_actual_entries(tmp_path):
     """_get_child_directories_and_concepts should return only actual on-disk children."""
     service = OKFService(_build_okf(tmp_path))
-    
-    child_dirs, concepts = service._get_child_directories_and_concepts("INSTITUTIONS/fastpay")
-    
+
+    child_dirs, concepts = service._get_child_directories_and_concepts(
+        "INSTITUTIONS/fastpay"
+    )
+
     # Should have 'policies' as a child directory
     assert any("policies" in d for d in child_dirs)
     # Should have desconto.md as a concept (or be empty if not listed)
@@ -182,7 +239,7 @@ def test_load_agent_prompt_loads_default_workflow_when_none(tmp_path):
         agent_instructions="Instructions: Test",
         workflow=None,  # Explicitly None to load default
     )
-    
+
     # Should include workflow section
     assert "# Active Workflow" in prompt
     # Should include stages from WORKFLOW.md
@@ -196,13 +253,14 @@ def test_load_agent_prompt_skips_workflow_when_empty_string(tmp_path):
         agent_instructions="Instructions: Test",
         workflow="",  # Empty string should skip
     )
-    
+
     # Should NOT include a full workflow section
     # (a minimal "Active Workflow" might appear but no stage content)
     lines = prompt.split("\n")
-    workflow_lines = [l for l in lines if "Active Workflow" in l or "Stage" in l]
     # With empty string, we should have minimal or no workflow content
-    assert not any("Stage 1" in l for l in lines), "Should not include workflow stages when workflow is empty"
+    assert not any("Stage 1" in line for line in lines), (
+        "Should not include workflow stages when workflow is empty"
+    )
 
 
 def test_load_agent_prompt_uses_runtime_workflow_override(tmp_path):
@@ -213,7 +271,7 @@ def test_load_agent_prompt_uses_runtime_workflow_override(tmp_path):
         agent_instructions="Instructions: Test",
         workflow=custom_workflow,
     )
-    
+
     assert "Custom workflow: Test Process" in prompt
     assert "# Active Workflow" in prompt
 
@@ -221,24 +279,25 @@ def test_load_agent_prompt_uses_runtime_workflow_override(tmp_path):
 def test_nonexistent_child_directory_no_invention(tmp_path):
     """Model should not invent INSTITUTIONS/nonexistent/index.md when directory doesn't exist."""
     service = OKFService(_build_okf(tmp_path))
-    
+
     result = service.read_index("INSTITUTIONS/invented_company")
-    
+
     # Should return error response with parent and available children, NOT pretend the path exists
     assert "OKF_REQUESTED_DIRECTORY:" in result
     assert "OKF_CANONICAL_PARENT:" in result
     # Should NOT include content of a non-existent file
-    assert "# Root" not in result or "# FastPay" not in result or result.count("\n") < 20
+    assert (
+        "# Root" not in result or "# FastPay" not in result or result.count("\n") < 20
+    )
 
 
 def test_canonical_path_preserved_in_manifest(tmp_path):
     """When read_index returns manifest, it should preserve canonical directory naming."""
     service = OKFService(_build_okf(tmp_path))
-    
+
     result = service.read_index("INSTITUTIONS/fastpay")
-    
+
     # Canonical should be lowercase, case-normalized
     assert "INSTITUTIONS/fastpay" in result
     # Should not have mixed case
     assert "INSTITUTIONS/FastPay" not in result
-

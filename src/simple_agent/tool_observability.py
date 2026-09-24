@@ -16,11 +16,35 @@ SENSITIVE_KEYS = {
     "api_key",
     "authorization",
     "secret",
+    "email",
+    "recipient",
 }
 
 OKF_METADATA_KEYS = {"directory", "path", "heading", "query", "scope"}
 MAX_TEXT = 600
 MAX_RESULT_TEXT = 900
+
+
+def tool_outcome(result: Any) -> dict[str, str]:
+    """Separate handler completion from lookup/identity/business decisions."""
+    if getattr(result, "status", None) == "error":
+        return {"execution_status": "error", "domain_outcome": "error"}
+    content = getattr(result, "content", result)
+    try:
+        data = json.loads(content) if isinstance(content, str) else content
+    except (json.JSONDecodeError, TypeError):
+        data = None
+    outcome = "not_applicable"
+    if isinstance(data, dict):
+        if data.get("error") or data.get("ok") is False:
+            outcome = "error"
+        elif any(data.get(key) is False for key in ("available", "created", "captured", "sent", "verified", "found", "financial_data_available")):
+            outcome = "denied"
+        else:
+            outcome = "allowed"
+    elif isinstance(content, str) and any(marker in content for marker in ("No OKF matches found", "not found (no fuzzy match)", "OKF_REQUESTED_DIRECTORY:")):
+        outcome = "lookup_miss"
+    return {"execution_status": "completed", "domain_outcome": outcome}
 
 
 def _mask_document(value: str) -> str:
