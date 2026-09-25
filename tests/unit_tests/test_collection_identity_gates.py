@@ -126,7 +126,7 @@ def test_atomic_identity_returns_customer_only_on_success(policy):
     )
     assert valid["verified"] is True
     assert valid["customer"]["debt"]["current_amount"] == "5873.42"
-    assert tools.verify_and_get_customer.return_direct is True
+    assert tools.verify_and_get_customer.return_direct is False
 
     denied = call(
         tools.verify_and_get_customer,

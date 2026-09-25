@@ -31,7 +31,7 @@ outro bloco. Responda somente:
 
 ## Negociação
 
-1. **Identificar e consultar:** solicite o método de CPF e todos os fatores do contrato de identificação da sessão, se ausentes. Chame verify_and_get_customer uma única vez. Só verified=true inclui os dados pessoais e o saldo; o backend apresenta o resultado sem nova chamada à LLM.
+1. **Identificar e consultar:** solicite o método de CPF e todos os fatores do contrato de identificação da sessão, se ausentes. Chame verify_and_get_customer uma única vez. Só verified=true inclui os dados pessoais e o saldo; use o resultado validado para continuar este Workflow sem inventar valores ou condições.
 2. **Usar o escopo fixado:** saldo e elegibilidade vêm da sessão do backend. Instituição e produto retornados definem qual política OKF pode ser usada; não troque esse escopo.
 3. **Ler a política correta:** localize no OKF a política específica da instituição e do produto retornados. Se o caminho ainda não estiver estabelecido, pesquise em `COMPANIES` por instituição, produto e negociação, siga o caminho canônico e leia o documento. Um documento genérico de `PRODUCTS` não substitui a política da instituição. Informe limites, parcelas, desconto e métodos somente com base nessa leitura.
 4. **Conhecer a intenção:** pergunte somente modalidade, parcelas e método quando faltarem. Se a política declarar um único método para a modalidade, informe-o e não exija que o cliente o repita. Nunca peça ao cliente que escolha ou sugira percentual de desconto; essa condição pertence à política publicada do credor.

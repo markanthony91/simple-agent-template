@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.12.18)
+# Agent Runtime — OKF simulator (0.12.19)
 
 O contexto de e-mail não envia mais o aviso de código inválido removido do
 template.
@@ -29,10 +29,9 @@ Novas sessões de demonstração usam a carteira configurada no Zerai Channel Co
 
 Identity verification and customer lookup now execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;
-a failed call returns no financial data. The identity and payment tools are
-return-direct operations: the backend renders their authorized result as the final
-assistant message, so those turns need one model call instead of a second model
-call to restate values.
+a failed call returns no financial data. Identity results return to the model so
+the configured workflow controls the next response. Payment tools remain
+return-direct operations rendered by the backend.
 
 Customer balance and eligibility come from the session fixture pinned by the
 backend. Commercial limits, validity, payment methods and delivery channels come

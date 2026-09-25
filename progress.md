@@ -1,3 +1,11 @@
+# Resposta de identidade controlada pelo Workflow — 0.12.19
+
+- [x] Remover a resposta fixa após `verify_and_get_customer`.
+- [x] Retornar o resultado validado à LLM para continuar o Workflow.
+- [x] Preservar as respostas determinísticas de proposta e envio por e-mail.
+- [x] Suíte local: 249 testes passaram, 1 foi ignorado e cobertura ficou em 87%.
+- [ ] Publicar e validar no Railway.
+
 # Remoção do aviso de simulação no e-mail — 0.12.18
 
 - [x] Remover `aviso_simulacao` do contexto enviado ao Channel Console.
