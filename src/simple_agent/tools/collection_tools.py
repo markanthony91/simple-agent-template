@@ -147,7 +147,7 @@ def verify_customer_identity(
         return _json(_verify_identity(state, runtime, cpf, full_name, birth_date))
 
 
-@tool(return_direct=True)
+@tool
 def verify_and_get_customer(
     cpf: str, runtime: ToolRuntime, full_name: str = "", birth_date: str = ""
 ) -> str:

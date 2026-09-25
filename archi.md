@@ -4,6 +4,10 @@ Next.js UI → LangGraph API → managed_graph → one configured ChatOpenAI ada
 Model tool calls → LangChain schema validation → enabled-tool middleware →
 session-authorized tool → deterministic direct reply for identity/payment actions.
 
+ElevenLabs server tool → authenticated custom LangGraph route → existing
+session/payment validation → `send_payment_instruction` service → Zerai Canais.
+The voice adapter cannot provide or override financial terms.
+
 System prompt, AGENTS.md and WORKFLOW.md remain external operational instructions.
 OKF provides policy, not account balances. No RAG, embeddings or vector database.
 

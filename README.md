@@ -1,4 +1,10 @@
-# Agent Runtime — OKF simulator (0.12.18)
+# Agent Runtime — OKF simulator (0.13.3)
+
+O Runtime expõe uma ponte HTTP autenticada para agentes de voz enviarem uma
+instrução de pagamento já criada na sessão. A ponte recebe somente `session_id`,
+`payment_id`, `email` e a última fala do cliente; valores e condições continuam
+fixados e revalidados pelo Runtime. Consulte
+[a integração ElevenLabs](docs/ELEVENLABS_EMAIL_BRIDGE.md).
 
 O contexto de e-mail não envia mais o aviso de código inválido removido do
 template.
@@ -27,12 +33,11 @@ Respostas transacionais determinísticas agora encerram com metadado terminal co
 
 Novas sessões de demonstração usam a carteira configurada no Zerai Channel Console como instituição da negociação.
 
-Identity verification and customer lookup now execute atomically through
+Identity verification and customer lookup execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;
-a failed call returns no financial data. The identity and payment tools are
-return-direct operations: the backend renders their authorized result as the final
-assistant message, so those turns need one model call instead of a second model
-call to restate values.
+a failed call returns no financial data. The identity result returns to the model
+so the active Workflow controls the next message. Payment creation and delivery
+remain backend-rendered return-direct operations.
 
 Customer balance and eligibility come from the session fixture pinned by the
 backend. Commercial limits, validity, payment methods and delivery channels come
@@ -68,8 +73,9 @@ Repeating the exact form/thread is idempotent, while changing data under an exis
 thread is rejected.
 An inbound WhatsApp thread without a prior form is persisted as unbound: it has no
 customer or debt fixture, may use only institutional OKF tools, and cannot execute
-identity, offer or payment tools. Preparing an existing form-backed thread is a
-no-op and preserves its normalized context.
+identity, offer or payment tools. Identity requests generated for an unbound thread
+are replaced with the existing form guidance. Preparing an existing form-backed
+thread is a no-op and preserves its normalized context.
 Legacy direct threads that predate this marker fail before inference and require
 the existing `/reset-demo` rotation; their old context is never reused silently.
 For future-form sessions, the presentation uses the Canais **Cedente** as creditor

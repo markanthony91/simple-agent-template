@@ -5,7 +5,7 @@ from langchain_core.language_models.fake_chat_models import FakeMessagesListChat
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
-from simple_agent.tool_middleware import direct_reply, render_direct_reply
+from simple_agent.tool_middleware import DIRECT_REPLY_TOOLS, direct_reply, render_direct_reply
 
 
 class CountingModel(FakeMessagesListChatModel):
@@ -106,23 +106,36 @@ def test_direct_failures_never_expose_financial_values():
     assert "PIX" not in missing and "boleto" not in missing
 
 
-def test_identity_reply_leaves_payment_methods_to_okf_policy():
-    text = render_direct_reply(
-        "verify_and_get_customer",
-        json.dumps(
-            {
-                "verified": True,
-                "customer": {
-                    "full_name": "Marcelo Barbosa",
-                    "institution": "Will Bank",
-                    "debt": {"current_amount": "500.00"},
-                },
-            }
-        ),
+def test_identity_result_returns_to_model_for_workflow_response(isolated):
+    @tool("verify_and_get_customer")
+    def synthetic_identity() -> str:
+        """Return one backend-verified synthetic customer."""
+        return json.dumps({"verified": True, "customer": {"customer_id": "CUS-1"}})
+
+    model = CountingModel(
+        responses=[
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "identity-1", "name": "verify_and_get_customer", "args": {}}
+                ],
+            ),
+            AIMessage(content="Resposta orientada pelo Workflow."),
+        ]
     )
-    assert text.startswith("Obrigado por confirmar, Marcelo.")
-    assert "à vista ou parcelado" in text
-    assert "PIX" not in text and "boleto" not in text
+    graph = create_agent(
+        model=model, tools=[synthetic_identity], middleware=[direct_reply]
+    )
+
+    result = graph.invoke(
+        {"messages": [{"role": "user", "content": "123"}]},
+        {"configurable": {"thread_id": "identity-workflow-reply"}},
+    )
+
+    assert "verify_and_get_customer" not in DIRECT_REPLY_TOOLS
+    assert model.calls == 2
+    assert result["messages"][-1].content == "Resposta orientada pelo Workflow."
+    assert "deterministic_reply" not in result["messages"][-1].additional_kwargs
 
 
 def test_email_reply_reports_success_after_provider_acceptance():

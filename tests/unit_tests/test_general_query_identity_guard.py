@@ -101,15 +101,9 @@ def test_unbound_whatsapp_never_turns_acceptance_into_identity_request() -> None
     session = {
         "identity_verified": False,
         "unbound_session": True,
-        "fixture": {
-            "identity_policy": {
-                "cpf_mode": "first3",
-                "secondary": "none",
-                "max_attempts": 3,
-            }
-        },
     }
 
-    assert _sanitize_identity_request(response, session, "Podemos falar") != (
-        ACTIVE_IDENTITY_REPLY
+    assert _sanitize_identity_request(response, session, "Podemos falar") == (
+        "Para consultar ou negociar uma dívida, é necessário iniciar pelo formulário "
+        "da demonstração."
     )

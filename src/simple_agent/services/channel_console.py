@@ -25,7 +25,11 @@ def request_json(path: str, payload: dict | None = None, timeout: int = 15) -> d
         .strip()
         .rstrip("/")
     )
-    token = os.getenv("CHANNEL_CONSOLE_ENGINE_TOKEN", "").strip()
+    token = (
+        os.getenv("CHANNEL_CONSOLE_AGENT_RUNTIME_TOKEN")
+        or os.getenv("CHANNEL_CONSOLE_ENGINE_TOKEN")
+        or ""
+    ).strip()
     if not base or not token:
         raise ChannelConsoleError("channel_console_not_configured")
     if "://" not in base:

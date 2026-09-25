@@ -1,3 +1,57 @@
+# Resposta pós-identificação orientada pelo Workflow — 0.13.3
+
+- [x] Preservar a validação e o retorno atômico de `verify_and_get_customer`.
+- [x] Remover o template determinístico de saldo e modalidade após a identidade.
+- [x] Devolver o resultado validado ao modelo para o Workflow conduzir a resposta.
+- [x] Manter proposta e envio de e-mail como respostas determinísticas do backend.
+- [x] Publicar no Railway e alinhar as Agent Instructions gerenciadas.
+
+Validação local: Ruff aprovado; 255 testes aprovados, 1 ignorado e 87,38% de
+cobertura. Publicado no deployment
+`cc330d49-d9c0-46f3-aed2-ffe41506181c`; versão `0.13.3`, hashes do código e
+volume `/data/langgraph` confirmados no contêiner. O backup anterior está em
+`/data/backups/pre-workflow-identity-0133-20260925T215610Z`, com 354 conversas
+exportadas e banco de sessões íntegro. As Agent Instructions passaram da versão
+100 para 101 sem alterar System Prompt ou Workflow. O canário isolado
+`bbd7f75e-25f1-4964-9b58-f8383fcd2bc5` confirmou a segunda chamada ao Gemini:
+`verify_and_get_customer` validou a identidade e a resposta seguinte veio do
+Workflow, sem `deterministic_reply`. A alteração acrescenta uma segunda chamada
+ao modelo no turno de identificação.
+
+# E-mail direto da ligação Fastpay DEMO — 0.13.1
+
+- [x] Criar rota autenticada que usa os valores já disponíveis na ligação.
+- [x] Remover validação de CPF e dependência de sessão/pagamento somente nessa rota.
+- [x] Reutilizar o catálogo, o template e o canal Resend já configurados no Canais.
+- [x] Manter o agente legado e a rota segura de chat/WhatsApp sem alterações.
+- [x] Preparar a nova tool no ElevenLabs sem vinculá-la a nenhum agente.
+- [x] Publicar o Runtime e vincular a nova tool apenas ao agente Fastpay DEMO.
+
+Validação local: 255 testes aprovados, 1 ignorado e 87% de cobertura. Nenhum
+e-mail foi disparado. O Canais reaplicou a configuração no deployment
+`deb8bfc2-2bd8-43d5-8ebc-cf1f1c65230a`; o Runtime `0.13.1` foi publicado no
+deployment `935d7ef9-9941-4c23-8d4b-8f792dbe44dc`. O backup anterior está em
+`/data/backups/pre-elevenlabs-direct-email-20260925T193031Z`, com 314 conversas
+exportadas e os dois bancos SQLite íntegros. O canário autenticado parou em
+`explicit_email_required`, antes do provedor. A tool nova permanece com zero
+chamadas; o agente legado continua ligado à tool anterior.
+
+# Ponte de e-mail do ElevenLabs — 0.13.0
+
+- [x] Reutilizar a validação e o envio de `send_payment_instruction` em uma rota
+  autenticada e vinculada à sessão.
+- [x] Restringir a integração do Agent Runtime ao canal de e-mail no Canais.
+- [x] Publicar somente `langgraph-simple-agent-clean` no deployment
+  `fd954abd-a5b2-46f1-bc2d-3f585e285a9c`.
+- [x] Manter a integração inativa: os tokens do ElevenLabs e do canal restrito
+  não estão configurados; a rota retorna 401 sem credencial válida.
+
+Antes do rollout, `/data/backups/pre-elevenlabs-email-bridge-20260925T180327Z`
+preservou o volume e exportou 310 conversas. Os dois bancos SQLite passaram no
+`quick_check`. Depois do deploy, `/info` respondeu 200, a versão `0.13.0` e os
+hashes dos seis arquivos publicados foram confirmados no contêiner. A suíte local
+passou com 253 testes e 87,59% de cobertura; nenhum provedor foi acionado.
+
 # Remoção do aviso de simulação no e-mail — 0.12.18
 
 - [x] Remover `aviso_simulacao` do contexto enviado ao Channel Console.
@@ -292,6 +346,16 @@ The E2E report records the tested financial journeys and current failures;
 published end-to-end financial acceptance remains pending. Candidate/isolation
 evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.
+
+## ElevenLabs e-mail bridge — 0.13.0
+
+- [x] Add an authenticated custom Runtime route without a second server.
+- [x] Reuse the existing session-bound, policy-validated and idempotent e-mail path.
+- [x] Reject caller-supplied financial fields and unknown sessions.
+- [x] Prefer the restricted Canais Runtime credential with legacy fallback.
+- [ ] Deploy the Runtime and configure both server-side credentials.
+- [ ] Create and attach the new ElevenLabs tool only to the Fastpay agent.
+- [ ] Run one controlled end-to-end simulation without changing the legacy agent.
 
 ## Dummy payment pilot — 0.6.1
 
