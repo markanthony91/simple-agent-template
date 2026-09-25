@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.13.2)
+# Agent Runtime — OKF simulator (0.13.3)
 
 O Runtime expõe uma ponte HTTP autenticada para agentes de voz enviarem uma
 instrução de pagamento já criada na sessão. A ponte recebe somente `session_id`,
@@ -33,12 +33,11 @@ Respostas transacionais determinísticas agora encerram com metadado terminal co
 
 Novas sessões de demonstração usam a carteira configurada no Zerai Channel Console como instituição da negociação.
 
-Identity verification and customer lookup now execute atomically through
+Identity verification and customer lookup execute atomically through
 `verify_and_get_customer`. A successful call returns the pinned customer balance;
-a failed call returns no financial data. The identity and payment tools are
-return-direct operations: the backend renders their authorized result as the final
-assistant message, so those turns need one model call instead of a second model
-call to restate values.
+a failed call returns no financial data. The identity result returns to the model
+so the active Workflow controls the next message. Payment creation and delivery
+remain backend-rendered return-direct operations.
 
 Customer balance and eligibility come from the session fixture pinned by the
 backend. Commercial limits, validity, payment methods and delivery channels come
