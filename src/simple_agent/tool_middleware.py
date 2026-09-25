@@ -99,6 +99,10 @@ ACTIVE_IDENTITY_REPLY = (
     "Para que possamos conversar com segurança e eu possa confirmar sua identidade, "
     "você poderia me informar os 3 primeiros dígitos do seu CPF, por favor?"
 )
+UNBOUND_IDENTITY_REPLY = (
+    "Para consultar ou negociar uma dívida, é necessário iniciar pelo formulário "
+    "da demonstração."
+)
 
 
 def _brl(value: Any) -> str:
@@ -377,6 +381,8 @@ def _sanitize_identity_request(
     """Render the active CPF-only contract deterministically."""
     if session.get("identity_verified"):
         return text
+    if session.get("unbound_session") is True:
+        return UNBOUND_IDENTITY_REPLY if _asks_for_identity(text) else text
     policy = policy_for(session)
     if policy.cpf_mode != "first3" or policy.secondary != "none":
         return text
