@@ -28,7 +28,7 @@
 
 | Tool | Quando usar | Argumentos e resultado |
 |---|---|---|
-| verify_and_get_customer | Antes de dados financeiros pessoais | Use uma única vez com o método de CPF e fatores do contrato de identificação injetado pelo backend. Só verified=true inclui o cliente fixado e sua dívida. A resposta final de sucesso ou falha é apresentada pelo backend; não chame outra tool no mesmo turno. |
+| verify_and_get_customer | Antes de dados financeiros pessoais | Use uma única vez com o método de CPF e fatores do contrato de identificação injetado pelo backend. Só verified=true inclui o cliente fixado e sua dívida. O resultado retorna ao agente para continuar o Workflow; não repita a tool sem nova informação do cliente. |
 | generate_payment_offer | Após ler no OKF a política publicada da instituição/produto e obter a escolha do cliente | payment_type cash ou installment, method pix ou boleto, policy_path canônico lido e installments inteiro. Não envie desconto: o backend valida o documento e aplica o desconto fixado pelo credor. Se a política tiver um único método para a modalidade, não peça ao cliente que o repita. Gera proposta, acordo e código dummy juntos; só created=true autoriza apresentar o resultado. |
 | send_payment_instruction | Após criar a instrução e receber o e-mail em nova mensagem humana | payment_id e o e-mail exatamente informado. Só sent=true autoriza a mensagem fixa de envio solicitado com sucesso; internamente, o resultado representa aceite do provedor e não comprova entrega. |
 | get_payment_status | Para consultar a instrução dummy | payment_id persistido. Só found=true contém status; apenas settled confirma a baixa simulada. |
@@ -63,5 +63,5 @@ Exemplos de protocolo, não de política:
 - Passe o `policy_path` canônico lido a `generate_payment_offer`. O backend não procura outra política: ele valida recibo de leitura, publicação, vigência, escopo, limites, meios e desconto do caminho recebido.
 - Se a modalidade tiver um único método permitido na política, informe-o e aceite a escolha de quantidade do cliente sem exigir que ele repita o método. Se houver mais de um, peça a escolha.
 - Se a política for recusada, não escolha outro documento nem contorne a validação.
-- O backend apresenta deterministicamente o saldo e o resultado da proposta. Não faça uma segunda redação nem calcule valores após essas tools.
+- Apresente o saldo retornado por verify_and_get_customer conforme o Workflow, sem recalcular. O resultado da proposta continua sendo apresentado deterministicamente pelo backend.
 - A navegação OKF continua obrigatória para perguntas institucionais e procedimentos que não executam uma negociação pessoal.

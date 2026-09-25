@@ -106,23 +106,8 @@ def test_direct_failures_never_expose_financial_values():
     assert "PIX" not in missing and "boleto" not in missing
 
 
-def test_identity_reply_leaves_payment_methods_to_okf_policy():
-    text = render_direct_reply(
-        "verify_and_get_customer",
-        json.dumps(
-            {
-                "verified": True,
-                "customer": {
-                    "full_name": "Marcelo Barbosa",
-                    "institution": "Will Bank",
-                    "debt": {"current_amount": "500.00"},
-                },
-            }
-        ),
-    )
-    assert text.startswith("Obrigado por confirmar, Marcelo.")
-    assert "à vista ou parcelado" in text
-    assert "PIX" not in text and "boleto" not in text
+def test_identity_result_is_left_for_the_workflow():
+    assert render_direct_reply("verify_and_get_customer", {"verified": True}) is None
 
 
 def test_email_reply_reports_success_after_provider_acceptance():
