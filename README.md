@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.13.0)
+# Agent Runtime — OKF simulator (0.13.1)
 
 O Runtime expõe uma ponte HTTP autenticada para agentes de voz enviarem uma
 instrução de pagamento já criada na sessão. A ponte recebe somente `session_id`,

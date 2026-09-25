@@ -1,8 +1,37 @@
 # Ponte de e-mail do ElevenLabs
 
-O endpoint abaixo permite que o novo agente Fastpay e futuros agentes enviem uma
-instrução simulada já criada pelo Agent Runtime. Ele não cria proposta e não aceita
-valores, descontos, parcelas, credor, produto ou código de pagamento do agente de voz.
+O agente Fastpay DEMO envia o e-mail com os dados já disponíveis na ligação, sem
+validar CPF e sem consultar sessão, proposta ou pagamento no Runtime:
+
+```text
+POST /integrations/elevenlabs/send-demo-email
+Authorization: Bearer <ELEVENLABS_RUNTIME_API_TOKEN>
+Content-Type: application/json
+```
+
+```json
+{
+  "session_id": "11111111-1111-4111-8111-111111111111",
+  "contact_name": "Marcelo",
+  "credor": "Fastpay",
+  "valor_divida": "R$ 850,00",
+  "valor_total": 750.00,
+  "valor_parcela": 250.00,
+  "forma_pagamento": "BOLETO",
+  "parcelas": 3,
+  "email": "cliente@example.com",
+  "latest_user_message": "Envie para cliente@example.com"
+}
+```
+
+Na tool Fastpay, `valor_total` é obrigatório e `valor_parcela` é opcional. A rota
+aceita `valor_total` ausente como fallback técnico para `valor_divida`; sem
+`valor_parcela`, divide o total pela quantidade de parcelas.
+O produto é fixo em `cartao_de_credito` neste DEMO. PIX aceita uma parcela e boleto
+aceita de uma a dez. O endereço precisa aparecer em `latest_user_message`.
+
+O contrato abaixo continua reservado ao fluxo que já possui sessão e pagamento no
+Runtime. Ele não foi relaxado e segue exigindo identidade validada:
 
 ```text
 POST /integrations/elevenlabs/send-payment-instruction
@@ -38,5 +67,5 @@ Variáveis locais:
   para catálogo e disparo de e-mail no Canais;
 - `CHANNEL_CONSOLE_ENGINE_TOKEN`: fallback temporário dos fluxos existentes.
 
-O novo tool do ElevenLabs deve usar este contrato. O agente legado permanece com
-sua configuração atual até uma migração separada.
+O agente legado permanece com sua configuração atual. A nova tool Fastpay usa a
+rota DEMO e só deve ser vinculada ao novo agente depois da publicação do Runtime.

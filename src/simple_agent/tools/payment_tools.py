@@ -5,6 +5,7 @@ import hashlib
 import re
 import unicodedata
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
 from zoneinfo import ZoneInfo
@@ -349,6 +350,138 @@ def _email_plan(context: dict[str, str]) -> tuple[dict, dict[str, str]]:
     return catalog, {name: context[name] for name in required}
 
 
+def _dispatch_email(
+    catalog: dict,
+    values: dict[str, str],
+    address: str,
+    request_id: str,
+    decision_id: str,
+) -> dict:
+    channel = next(item for item in catalog["channels"] if item["channel"] == "email")
+    try:
+        result = request_json(
+            "/api/engine/v1/dispatch",
+            {
+                "dry_run": False,
+                "request_id": request_id,
+                "decision_id": decision_id,
+                "scope_id": catalog["scope_id"],
+                "scope_revision": catalog["scope_revision"],
+                "channel": "email",
+                "template_id": channel["template_id"],
+                "template_revision": channel["template_revision"],
+                "to": address,
+                "values": values,
+            },
+        )
+        return {
+            "sent": result.get("status") == "accepted",
+            "status": result.get("status")
+            if result.get("status") in {"accepted", "failed", "unknown"}
+            else "unknown",
+            "provider_id": result.get("provider_id"),
+            "code": result.get("code", "channel_console_invalid_response"),
+        }
+    except ChannelConsoleError as exc:
+        return {
+            "sent": False,
+            "status": "unknown" if exc.outcome_unknown else "failed",
+            "code": exc.code,
+        }
+
+
+def _demo_amount(value: Decimal | None, fallback: str) -> Decimal:
+    try:
+        if value is not None:
+            amount = value
+        else:
+            normalized = re.sub(r"[^0-9,.-]", "", fallback)
+            if "," in normalized:
+                normalized = normalized.replace(".", "").replace(",", ".")
+            amount = Decimal(normalized)
+        if not Decimal("0") < amount <= Decimal("1000000000"):
+            raise ValueError("invalid_amount")
+        return amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    except InvalidOperation as exc:
+        raise ValueError("invalid_amount") from exc
+
+
+def send_voice_demo_email(
+    session_id: str,
+    contact_name: str,
+    creditor: str,
+    debt_amount: str,
+    email: str,
+    latest_user_message: str,
+    payment_method: str,
+    installments: int,
+    total_amount: Decimal | None = None,
+    installment_amount: Decimal | None = None,
+) -> dict:
+    """Send the voice DEMO values directly, without identity or session lookup."""
+    if not contact_name.strip() or not creditor.strip():
+        return {"sent": False, "reason": "invalid_demo_context"}
+    address = email.strip().casefold()
+    supplied = {
+        match.group(0).casefold() for match in EMAIL_RE.finditer(latest_user_message)
+    }
+    if not EMAIL_RE.fullmatch(address) or address not in supplied:
+        return {"sent": False, "reason": "explicit_email_required"}
+    method = payment_method.strip().casefold()
+    if method not in {"pix", "boleto"} or not 1 <= installments <= 10:
+        return {"sent": False, "reason": "invalid_payment_terms"}
+    if method == "pix" and installments != 1:
+        return {"sent": False, "reason": "invalid_payment_terms"}
+    try:
+        total = _demo_amount(total_amount, debt_amount)
+        instruction = (
+            _demo_amount(installment_amount, "")
+            if installment_amount is not None
+            else (total / installments).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+        )
+    except ValueError as exc:
+        return {"sent": False, "reason": str(exc)}
+    fingerprint = hashlib.sha256(
+        f"{session_id}:{address}:{method}:{installments}:{total}".encode()
+    ).hexdigest()
+    payment_id = f"PAY-{fingerprint[:32]}"
+    context = {
+        "nome": contact_name.strip(),
+        "credor": creditor.strip(),
+        "produto": "cartao_de_credito",
+        "forma_pagamento": method.upper(),
+        "valor": f"R$ {str(instruction).replace('.', ',')}",
+        "payment_date": datetime.now(ZoneInfo("America/Sao_Paulo")).strftime(
+            "%d/%m/%Y"
+        ),
+        "installment_display": "none" if method == "pix" else "table-row",
+        "codigo_pagamento": f"DUMMY-{method.upper()}-{fingerprint.upper()[:32]}",
+        "payment_id": payment_id,
+        "agreement_id": f"AGR-{fingerprint[32:64]}",
+        "numero_parcela": "1",
+        "parcelas": str(installments),
+        "is_simulation": "true",
+    }
+    try:
+        catalog, values = _email_plan(context)
+    except ChannelConsoleError as exc:
+        return {"sent": False, "reason": exc.code}
+    result = _dispatch_email(
+        catalog,
+        values,
+        address,
+        str(uuid5(NAMESPACE_URL, f"voice-demo:{fingerprint}")),
+        str(uuid5(NAMESPACE_URL, f"voice-demo-decision:{fingerprint}")),
+    )
+    return {
+        **result,
+        "recipient": "<redacted>",
+        "is_simulation": True,
+    }
+
+
 @tool(return_direct=True)
 def send_payment_instruction(payment_id: str, email: str, runtime: ToolRuntime) -> str:
     """Send a simulated payment instruction to an explicitly supplied email.
@@ -430,38 +563,7 @@ def send_payment_instruction_for_session(
         if previous:
             return _public(previous)
         state["deliveries"][delivery_id] = delivery
-    channel = next(item for item in catalog["channels"] if item["channel"] == "email")
-    try:
-        result = request_json(
-            "/api/engine/v1/dispatch",
-            {
-                "dry_run": False,
-                "request_id": request_id,
-                "decision_id": decision_id,
-                "scope_id": catalog["scope_id"],
-                "scope_revision": catalog["scope_revision"],
-                "channel": "email",
-                "template_id": channel["template_id"],
-                "template_revision": channel["template_revision"],
-                "to": address,
-                "values": values,
-            },
-        )
-        accepted = result.get("status") == "accepted"
-        update = {
-            "sent": accepted,
-            "status": result.get("status")
-            if result.get("status") in {"accepted", "failed", "unknown"}
-            else "unknown",
-            "provider_id": result.get("provider_id"),
-            "code": result.get("code", "channel_console_invalid_response"),
-        }
-    except ChannelConsoleError as exc:
-        update = {
-            "sent": False,
-            "status": "unknown" if exc.outcome_unknown else "failed",
-            "code": exc.code,
-        }
+    update = _dispatch_email(catalog, values, address, request_id, decision_id)
     with SessionStore().transaction(session_id) as state:
         stored = state["deliveries"].get(delivery_id)
         if stored is None:

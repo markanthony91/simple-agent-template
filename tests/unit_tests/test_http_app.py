@@ -1,4 +1,5 @@
 from uuid import uuid4
+from decimal import Decimal
 
 from starlette.testclient import TestClient
 
@@ -13,6 +14,14 @@ TOKEN = "a" * 64
 def request(client, payload, token=TOKEN):
     return client.post(
         "/integrations/elevenlabs/send-payment-instruction",
+        json=payload,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+
+def demo_request(client, payload, token=TOKEN):
+    return client.post(
+        "/integrations/elevenlabs/send-demo-email",
         json=payload,
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -87,3 +96,44 @@ def test_voice_email_bridge_bounds_request_body(monkeypatch):
         )
     assert response.status_code == 413
     assert response.json() == {"success": False, "error": "payload_too_large"}
+
+
+def test_voice_demo_email_uses_supplied_values_without_session_lookup(monkeypatch):
+    monkeypatch.setenv("ELEVENLABS_RUNTIME_API_TOKEN", TOKEN)
+    captured = {}
+
+    def send(*args):
+        captured["args"] = args
+        return {"sent": True, "status": "accepted", "recipient": "<redacted>"}
+
+    monkeypatch.setattr("simple_agent.http_app.send_voice_demo_email", send)
+    payload = {
+        "session_id": str(uuid4()),
+        "contact_name": "Marcelo",
+        "credor": "Fastpay",
+        "valor_divida": "R$ 850,00",
+        "email": "cliente@example.com",
+        "latest_user_message": "Envie para cliente@example.com",
+        "forma_pagamento": "BOLETO",
+        "parcelas": 3,
+        "valor_total": 750,
+        "valor_parcela": 250,
+    }
+    with TestClient(app) as client:
+        assert demo_request(client, payload, token="wrong").status_code == 401
+        response = demo_request(client, payload)
+
+    assert response.status_code == 200
+    assert response.json()["success"] is True
+    assert captured["args"] == (
+        payload["session_id"],
+        "Marcelo",
+        "Fastpay",
+        "R$ 850,00",
+        "cliente@example.com",
+        "Envie para cliente@example.com",
+        "BOLETO",
+        3,
+        Decimal("750"),
+        Decimal("250"),
+    )

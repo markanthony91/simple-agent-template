@@ -1,3 +1,15 @@
+# E-mail direto da ligação Fastpay DEMO — 0.13.1
+
+- [x] Criar rota autenticada que usa os valores já disponíveis na ligação.
+- [x] Remover validação de CPF e dependência de sessão/pagamento somente nessa rota.
+- [x] Reutilizar o catálogo, o template e o canal Resend já configurados no Canais.
+- [x] Manter o agente legado e a rota segura de chat/WhatsApp sem alterações.
+- [x] Preparar a nova tool no ElevenLabs sem vinculá-la a nenhum agente.
+- [ ] Publicar o Runtime e vincular a nova tool apenas ao agente Fastpay DEMO.
+
+Validação local: 255 testes aprovados, 1 ignorado e 87% de cobertura. Nenhum
+e-mail foi disparado.
+
 # Ponte de e-mail do ElevenLabs — 0.13.0
 
 - [x] Reutilizar a validação e o envio de `send_payment_instruction` em uma rota

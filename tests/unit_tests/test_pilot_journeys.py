@@ -1,6 +1,7 @@
 """Three deterministic integration journeys using the proposed pilot documents."""
 
 from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -256,6 +257,76 @@ def test_email_context_hides_pix_installment_and_includes_payment_date():
     assert pix["payment_date"] == datetime.now(
         ZoneInfo("America/Sao_Paulo")
     ).strftime("%d/%m/%Y")
+
+
+def test_voice_demo_email_dispatches_call_values_without_identity(monkeypatch):
+    dispatched = {}
+
+    def channel_request(path, payload=None, timeout=15):
+        if path.endswith("/channels"):
+            return {
+                "scope_id": 1,
+                "scope_revision": 7,
+                "channels": [
+                    {
+                        "channel": "email",
+                        "enabled": True,
+                        "template_id": "template",
+                        "template_revision": 2,
+                        "required": [
+                            "nome",
+                            "credor",
+                            "produto",
+                            "forma_pagamento",
+                            "valor",
+                            "installment_display",
+                            "codigo_pagamento",
+                            "parcelas",
+                        ],
+                    }
+                ],
+            }
+        dispatched.update(payload)
+        return {
+            "status": "accepted",
+            "code": "accepted_not_delivery",
+            "provider_id": "email-synthetic",
+        }
+
+    monkeypatch.setattr(payment_tools, "request_json", channel_request)
+    args = (
+        "11111111-1111-4111-8111-111111111111",
+        "Marcelo",
+        "Fastpay",
+        "R$ 850,00",
+        "cliente@example.com",
+        "Envie para cliente@example.com",
+        "boleto",
+        3,
+        Decimal("750.00"),
+        Decimal("250.00"),
+    )
+    result = payment_tools.send_voice_demo_email(*args)
+
+    assert result["sent"] and result["recipient"] == "<redacted>"
+    assert dispatched["to"] == "cliente@example.com"
+    assert dispatched["values"] == {
+        "nome": "Marcelo",
+        "credor": "Fastpay",
+        "produto": "cartao_de_credito",
+        "forma_pagamento": "BOLETO",
+        "valor": "R$ 250,00",
+        "installment_display": "table-row",
+        "codigo_pagamento": dispatched["values"]["codigo_pagamento"],
+        "parcelas": "3",
+    }
+    assert dispatched["values"]["codigo_pagamento"].startswith("DUMMY-BOLETO-")
+    assert payment_tools.send_voice_demo_email(*args)["sent"]
+    assert payment_tools.send_voice_demo_email(
+        *args[:4],
+        "inventado@example.com",
+        *args[5:],
+    ) == {"sent": False, "reason": "explicit_email_required"}
 
 
 def test_negative_draft_identity_and_excess_terms(isolated):
