@@ -1,3 +1,15 @@
+# Resposta pós-identificação orientada pelo Workflow — 0.13.3
+
+- [x] Preservar a validação e o retorno atômico de `verify_and_get_customer`.
+- [x] Remover o template determinístico de saldo e modalidade após a identidade.
+- [x] Devolver o resultado validado ao modelo para o Workflow conduzir a resposta.
+- [x] Manter proposta e envio de e-mail como respostas determinísticas do backend.
+- [ ] Publicar no Railway e alinhar as Agent Instructions gerenciadas.
+
+Validação local: Ruff aprovado; 255 testes aprovados, 1 ignorado e 87,38% de
+cobertura. A alteração acrescenta uma segunda chamada ao modelo no turno de
+identificação e ainda não foi publicada.
+
 # E-mail direto da ligação Fastpay DEMO — 0.13.1
 
 - [x] Criar rota autenticada que usa os valores já disponíveis na ligação.

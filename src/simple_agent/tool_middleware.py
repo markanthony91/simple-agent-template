@@ -44,7 +44,6 @@ RESET_DEMO_REPLY = (
 )
 RESET_DEMO_UNAVAILABLE = "Comando indisponível nesta sessão."
 DIRECT_REPLY_TOOLS = {
-    "verify_and_get_customer",
     "generate_payment_offer",
     "send_payment_instruction",
 }
@@ -150,29 +149,6 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         return None
     if not isinstance(payload, dict):
         return None
-    if tool_name == "verify_and_get_customer":
-        if not payload.get("verified"):
-            if payload.get("requires_human"):
-                return "Não consegui confirmar os dados. Por segurança, esta sessão não pode continuar."
-            remaining = int(payload.get("attempts_remaining", 0))
-            return (
-                "Não consegui confirmar os dados informados. Confira todos os dados e tente novamente. "
-                f"Tentativas restantes: {remaining}."
-            )
-        customer = payload.get("customer", {})
-        debt = customer.get("debt", {}) if isinstance(customer, dict) else {}
-        institution = str(customer.get("institution") or "a instituição")
-        full_name = str(customer.get("full_name") or "").strip()
-        confirmation = (
-            f"Obrigado por confirmar, {full_name.split()[0]}."
-            if full_name
-            else "Obrigado por confirmar."
-        )
-        return (
-            f"{confirmation} O saldo atual simulado com {institution} é "
-            f"{_brl(debt.get('current_amount'))}.\n\n"
-            "Para negociar, informe se prefere pagar à vista ou parcelado."
-        )
     if tool_name == "send_payment_instruction":
         if not payload.get("sent"):
             return (
