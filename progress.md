@@ -5,10 +5,16 @@
 - [x] Reutilizar o catálogo, o template e o canal Resend já configurados no Canais.
 - [x] Manter o agente legado e a rota segura de chat/WhatsApp sem alterações.
 - [x] Preparar a nova tool no ElevenLabs sem vinculá-la a nenhum agente.
-- [ ] Publicar o Runtime e vincular a nova tool apenas ao agente Fastpay DEMO.
+- [x] Publicar o Runtime e vincular a nova tool apenas ao agente Fastpay DEMO.
 
 Validação local: 255 testes aprovados, 1 ignorado e 87% de cobertura. Nenhum
-e-mail foi disparado.
+e-mail foi disparado. O Canais reaplicou a configuração no deployment
+`deb8bfc2-2bd8-43d5-8ebc-cf1f1c65230a`; o Runtime `0.13.1` foi publicado no
+deployment `935d7ef9-9941-4c23-8d4b-8f792dbe44dc`. O backup anterior está em
+`/data/backups/pre-elevenlabs-direct-email-20260925T193031Z`, com 314 conversas
+exportadas e os dois bancos SQLite íntegros. O canário autenticado parou em
+`explicit_email_required`, antes do provedor. A tool nova permanece com zero
+chamadas; o agente legado continua ligado à tool anterior.
 
 # Ponte de e-mail do ElevenLabs — 0.13.0
 
