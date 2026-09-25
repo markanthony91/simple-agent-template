@@ -1,3 +1,19 @@
+# Ponte de e-mail do ElevenLabs — 0.13.0
+
+- [x] Reutilizar a validação e o envio de `send_payment_instruction` em uma rota
+  autenticada e vinculada à sessão.
+- [x] Restringir a integração do Agent Runtime ao canal de e-mail no Canais.
+- [x] Publicar somente `langgraph-simple-agent-clean` no deployment
+  `fd954abd-a5b2-46f1-bc2d-3f585e285a9c`.
+- [x] Manter a integração inativa: os tokens do ElevenLabs e do canal restrito
+  não estão configurados; a rota retorna 401 sem credencial válida.
+
+Antes do rollout, `/data/backups/pre-elevenlabs-email-bridge-20260925T180327Z`
+preservou o volume e exportou 310 conversas. Os dois bancos SQLite passaram no
+`quick_check`. Depois do deploy, `/info` respondeu 200, a versão `0.13.0` e os
+hashes dos seis arquivos publicados foram confirmados no contêiner. A suíte local
+passou com 253 testes e 87,59% de cobertura; nenhum provedor foi acionado.
+
 # Remoção do aviso de simulação no e-mail — 0.12.18
 
 - [x] Remover `aviso_simulacao` do contexto enviado ao Channel Console.
