@@ -293,6 +293,16 @@ published end-to-end financial acceptance remains pending. Candidate/isolation
 evidence and remaining failures: docs/OKF_INGESTION_GROUNDING.md.
 Coordinate PR integration before another main autodeploy.
 
+## ElevenLabs e-mail bridge — 0.13.0
+
+- [x] Add an authenticated custom Runtime route without a second server.
+- [x] Reuse the existing session-bound, policy-validated and idempotent e-mail path.
+- [x] Reject caller-supplied financial fields and unknown sessions.
+- [x] Prefer the restricted Canais Runtime credential with legacy fallback.
+- [ ] Deploy the Runtime and configure both server-side credentials.
+- [ ] Create and attach the new ElevenLabs tool only to the Fastpay agent.
+- [ ] Run one controlled end-to-end simulation without changing the legacy agent.
+
 ## Dummy payment pilot — 0.6.1
 
 - [x] Normalize the synthetic test scope to `Will Bank` / `cartao_de_credito`.

@@ -358,27 +358,36 @@ def send_payment_instruction(payment_id: str, email: str, runtime: ToolRuntime) 
     Only sent=true confirms provider acceptance; it does not confirm delivery.
     """
     session_id = thread_id(runtime)
-    address = email.strip().casefold()
     _, user_text = latest_user_message(runtime)
+    return _json(
+        send_payment_instruction_for_session(session_id, payment_id, email, user_text)
+    )
+
+
+def send_payment_instruction_for_session(
+    session_id: str, payment_id: str, email: str, user_text: str
+) -> dict:
+    """Shared session-bound email action for chat and trusted voice adapters."""
+    address = email.strip().casefold()
     supplied = {match.group(0).casefold() for match in EMAIL_RE.finditer(user_text)}
     if (
         not 3 <= len(address) <= 254
         or not EMAIL_RE.fullmatch(address)
         or address not in supplied
     ):
-        return _json({"sent": False, "reason": "explicit_email_required"})
+        return {"sent": False, "reason": "explicit_email_required"}
     key = hashlib.sha256(f"{payment_id}:{address}".encode()).hexdigest()
     with SessionStore().transaction(session_id) as state:
         if not state.get("identity_verified"):
-            return _json({"sent": False, "reason": "identity_verification_required"})
+            return {"sent": False, "reason": "identity_verification_required"}
         payment = state["payments"].get(payment_id)
         if not payment:
-            return _json({"sent": False, "reason": "valid_payment_required"})
+            return {"sent": False, "reason": "valid_payment_required"}
         agreement = _agreement(state, payment["agreement_id"])
         try:
             validate_payment_policy(state, agreement or {}, payment["method"], "email")
         except (ValueError, ArithmeticError) as exc:
-            return _json({"sent": False, "reason": str(exc)})
+            return {"sent": False, "reason": str(exc)}
         previous = next(
             (
                 item
@@ -388,12 +397,12 @@ def send_payment_instruction(payment_id: str, email: str, runtime: ToolRuntime) 
             None,
         )
         if previous:
-            return _json(_public(previous))
+            return _public(previous)
         context = _email_context(state, payment, agreement)
     try:
         catalog, values = _email_plan(context)
     except ChannelConsoleError as exc:
-        return _json({"sent": False, "reason": exc.code})
+        return {"sent": False, "reason": exc.code}
     delivery_id = f"OUT-{uuid4().hex}"
     request_id = str(uuid4())
     decision_id = str(uuid5(NAMESPACE_URL, f"{session_id}:{payment_id}:email"))
@@ -419,7 +428,7 @@ def send_payment_instruction(payment_id: str, email: str, runtime: ToolRuntime) 
             None,
         )
         if previous:
-            return _json(_public(previous))
+            return _public(previous)
         state["deliveries"][delivery_id] = delivery
     channel = next(item for item in catalog["channels"] if item["channel"] == "email")
     try:
@@ -456,11 +465,11 @@ def send_payment_instruction(payment_id: str, email: str, runtime: ToolRuntime) 
     with SessionStore().transaction(session_id) as state:
         stored = state["deliveries"].get(delivery_id)
         if stored is None:
-            return _json({**_public(delivery), **update})
+            return {**_public(delivery), **update}
         stored.update(
             {key: value for key, value in update.items() if value is not None}
         )
-        return _json(_public(stored))
+        return _public(stored)
 
 
 @tool

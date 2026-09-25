@@ -5,9 +5,14 @@
    before changing the deployment. The old .langgraph_api directory may be ephemeral.
 3. Preserve the Railway Volume at /data and exactly one replica. Configure canonical
    LLM variables securely; do not copy keys into the frontend.
+   For the ElevenLabs e-mail bridge, configure `ELEVENLABS_RUNTIME_API_TOKEN` in
+   the Runtime and only in the new ElevenLabs server tool. Configure
+   `CHANNEL_CONSOLE_AGENT_RUNTIME_TOKEN` with the same value as
+   `AGENT_RUNTIME_API_TOKEN` in Canais. Keep both credentials distinct.
    For the future Demo form, copy the existing Canais M2M token server-to-server
-   into `CHANNEL_CONSOLE_ENGINE_TOKEN` and set `CHANNEL_CONSOLE_URL`. Never print
-   or expose the token. Catalog failure must prevent session creation.
+   into `CHANNEL_CONSOLE_ENGINE_TOKEN` and set `CHANNEL_CONSOLE_URL` while the
+   legacy fallback is still needed. Never print or expose tokens. Catalog failure
+   must prevent session creation.
 4. Build the Dockerfile. Railway's custom start command can bypass ENTRYPOINT.
    Explicitly configure `sh -c 'exec python -m simple_agent.startup langgraph dev --host
    0.0.0.0 --port ${PORT:-2024} --no-browser --no-reload'` and healthcheck `/info`.

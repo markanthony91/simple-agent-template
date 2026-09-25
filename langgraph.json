@@ -7,6 +7,9 @@
     "okf_admin": "simple_agent.admin_graph_v2:graph",
     "raw_compiler": "simple_agent.raw_compiler_graph:graph"
   },
+  "http": {
+    "app": "simple_agent.http_app:app"
+  },
   "env": ".env",
   "image_distro": "wolfi"
 }

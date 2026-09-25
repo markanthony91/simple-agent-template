@@ -103,6 +103,14 @@ class SessionStore:
         db.execute("PRAGMA foreign_keys = ON")
         return db
 
+    def exists(self, key: str) -> bool:
+        key = validate_thread_id(key)
+        with self._connect() as db:
+            return (
+                db.execute("SELECT 1 FROM sessions WHERE id = ?", (key,)).fetchone()
+                is not None
+            )
+
     @staticmethod
     def _fixture(db: sqlite3.Connection, key: str) -> dict | None:
         row = db.execute(

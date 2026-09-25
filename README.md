@@ -1,4 +1,10 @@
-# Agent Runtime — OKF simulator (0.12.18)
+# Agent Runtime — OKF simulator (0.13.0)
+
+O Runtime expõe uma ponte HTTP autenticada para agentes de voz enviarem uma
+instrução de pagamento já criada na sessão. A ponte recebe somente `session_id`,
+`payment_id`, `email` e a última fala do cliente; valores e condições continuam
+fixados e revalidados pelo Runtime. Consulte
+[a integração ElevenLabs](docs/ELEVENLABS_EMAIL_BRIDGE.md).
 
 O contexto de e-mail não envia mais o aviso de código inválido removido do
 template.
