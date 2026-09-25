@@ -1,3 +1,15 @@
+# Sessão WhatsApp sem fixture — 0.13.2
+
+- [x] Tratar `unbound_session` antes de carregar a política de identidade.
+- [x] Manter as tools financeiras bloqueadas e orientar o uso do formulário.
+- [x] Publicar e validar o Runtime sem acionar LLM, Meta ou provedor financeiro.
+
+Publicado no Railway no deployment `ce4b78b6-60fd-4892-b7e5-2b6595b4fd00`.
+O pacote reportou 0.13.2; os hashes publicados coincidiram com o checkout testado.
+O canário interno sem `fixture` passou. O backup
+`/data/backups/pre-unbound-reset-0132-20260925T205745Z` preservou 320 conversas,
+sessões e dados estáticos; o banco de sessões passou em `quick_check`.
+
 # E-mail direto da ligação Fastpay DEMO — 0.13.1
 
 - [x] Criar rota autenticada que usa os valores já disponíveis na ligação.
