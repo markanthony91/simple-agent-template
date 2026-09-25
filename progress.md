@@ -4,11 +4,19 @@
 - [x] Remover o template determinístico de saldo e modalidade após a identidade.
 - [x] Devolver o resultado validado ao modelo para o Workflow conduzir a resposta.
 - [x] Manter proposta e envio de e-mail como respostas determinísticas do backend.
-- [ ] Publicar no Railway e alinhar as Agent Instructions gerenciadas.
+- [x] Publicar no Railway e alinhar as Agent Instructions gerenciadas.
 
 Validação local: Ruff aprovado; 255 testes aprovados, 1 ignorado e 87,38% de
-cobertura. A alteração acrescenta uma segunda chamada ao modelo no turno de
-identificação e ainda não foi publicada.
+cobertura. Publicado no deployment
+`cc330d49-d9c0-46f3-aed2-ffe41506181c`; versão `0.13.3`, hashes do código e
+volume `/data/langgraph` confirmados no contêiner. O backup anterior está em
+`/data/backups/pre-workflow-identity-0133-20260925T215610Z`, com 354 conversas
+exportadas e banco de sessões íntegro. As Agent Instructions passaram da versão
+100 para 101 sem alterar System Prompt ou Workflow. O canário isolado
+`bbd7f75e-25f1-4964-9b58-f8383fcd2bc5` confirmou a segunda chamada ao Gemini:
+`verify_and_get_customer` validou a identidade e a resposta seguinte veio do
+Workflow, sem `deterministic_reply`. A alteração acrescenta uma segunda chamada
+ao modelo no turno de identificação.
 
 # E-mail direto da ligação Fastpay DEMO — 0.13.1
 
