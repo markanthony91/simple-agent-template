@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.13.1)
+# Agent Runtime — OKF simulator (0.13.2)
 
 O Runtime expõe uma ponte HTTP autenticada para agentes de voz enviarem uma
 instrução de pagamento já criada na sessão. A ponte recebe somente `session_id`,
@@ -74,8 +74,9 @@ Repeating the exact form/thread is idempotent, while changing data under an exis
 thread is rejected.
 An inbound WhatsApp thread without a prior form is persisted as unbound: it has no
 customer or debt fixture, may use only institutional OKF tools, and cannot execute
-identity, offer or payment tools. Preparing an existing form-backed thread is a
-no-op and preserves its normalized context.
+identity, offer or payment tools. Identity requests generated for an unbound thread
+are replaced with the existing form guidance. Preparing an existing form-backed
+thread is a no-op and preserves its normalized context.
 Legacy direct threads that predate this marker fail before inference and require
 the existing `/reset-demo` rotation; their old context is never reused silently.
 For future-form sessions, the presentation uses the Canais **Cedente** as creditor
