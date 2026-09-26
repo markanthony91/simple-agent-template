@@ -577,34 +577,34 @@ def send_payment_instruction_for_session(
 @tool
 def get_payment_status(payment_id: str, runtime: ToolRuntime) -> str:
     """Read the persisted status of a dummy payment in the current session."""
-    with SessionStore().transaction(thread_id(runtime)) as state:
-        if not state.get("identity_verified"):
-            return _json({"found": False, "reason": "identity_verification_required"})
-        payment = state["payments"].get(payment_id)
-        if not payment:
-            return _json({"found": False, "reason": "payment_not_found"})
-        return _json(
-            {
-                "found": True,
-                **{
-                    key: payment[key]
-                    for key in (
-                        "payment_id",
-                        "agreement_id",
-                        "method",
-                        "installment_number",
-                        "amount",
-                        "status",
-                        "is_simulation",
-                    )
-                },
-                **(
-                    {"settled_at": payment["settled_at"]}
-                    if payment.get("settled_at")
-                    else {}
-                ),
-            }
-        )
+    state = SessionStore().read(thread_id(runtime))
+    if not state.get("identity_verified"):
+        return _json({"found": False, "reason": "identity_verification_required"})
+    payment = state["payments"].get(payment_id)
+    if not payment:
+        return _json({"found": False, "reason": "payment_not_found"})
+    return _json(
+        {
+            "found": True,
+            **{
+                key: payment[key]
+                for key in (
+                    "payment_id",
+                    "agreement_id",
+                    "method",
+                    "installment_number",
+                    "amount",
+                    "status",
+                    "is_simulation",
+                )
+            },
+            **(
+                {"settled_at": payment["settled_at"]}
+                if payment.get("settled_at")
+                else {}
+            ),
+        }
+    )
 
 
 def simulate_payment_settled(session_id: str, payment_id: str) -> dict:

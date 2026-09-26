@@ -1,4 +1,9 @@
-# Agent Runtime — OKF simulator (0.13.4)
+# Agent Runtime — OKF simulator (0.13.5)
+
+O armazenamento operacional fecha conexões SQLite ao terminar cada acesso.
+Leituras de sessões existentes não reservam o escritor nem regravam o estado.
+Identificação, recibos OKF e pagamentos mantêm suas transações de escrita.
+Detalhes e limites de validação: [acesso ao estado](docs/RUNTIME_STATE_IO.md).
 
 Benchmark de busca OKF, navegação no Playground e recursos Railway:
 [resultados de 25/09/2026](docs/OKF_BENCHMARK_2026-09-25.md).

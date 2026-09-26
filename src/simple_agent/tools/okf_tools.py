@@ -17,8 +17,7 @@ store = PersistentOKFStore()
 
 
 def _service(runtime):
-    with SessionStore().transaction(thread_id(runtime)) as state:
-        snapshot = state.get("snapshot_id")
+    snapshot = SessionStore().read(thread_id(runtime)).get("snapshot_id")
     if not snapshot:
         raise FileNotFoundError(
             "No OKF bundle pinned to this conversation; start a new conversation after publication"

@@ -98,10 +98,37 @@ class SessionStore:
                 """
             )
 
-    def _connect(self) -> sqlite3.Connection:
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
         db = sqlite3.connect(self.database, timeout=10)
-        db.execute("PRAGMA foreign_keys = ON")
-        return db
+        try:
+            with db:
+                db.execute("PRAGMA foreign_keys = ON")
+                yield db
+        finally:
+            db.close()
+
+    def read(self, key: str) -> dict:
+        """Return a detached snapshot; initialize missing Playground state once.
+
+        Existing sessions use a deferred read transaction for consistent fixture
+        hydration, without reserving a writer or saving unchanged state.
+        """
+        key = validate_thread_id(key)
+        with self._connect() as db:
+            db.execute("BEGIN")
+            row = db.execute(
+                "SELECT data FROM sessions WHERE id = ?", (key,)
+            ).fetchone()
+            if row:
+                state = self._state(db, key, row[0])
+                state.setdefault("payments", {})
+                state.setdefault("deliveries", {})
+                return state
+        # Match transaction's existing initialization contract, after releasing
+        # the read connection. transaction rechecks the row under its write lock.
+        with self.transaction(key) as state:
+            return state
 
     def exists(self, key: str) -> bool:
         key = validate_thread_id(key)

@@ -252,8 +252,8 @@ class DirectReplyMiddleware(AgentMiddleware):
         if not reply:
             return None
         key = get_config().get("configurable", {}).get("thread_id")
-        with SessionStore().transaction(key) as session:
-            report = audit_response(reply, session)
+        session = SessionStore().read(key)
+        report = audit_response(reply, session)
         report.update(
             mode="deterministic_backend",
             semantic_fidelity="backend_template",
@@ -443,23 +443,23 @@ def _complete_offer_handoff(
     key = get_config().get("configurable", {}).get("thread_id")
     if not key:
         return response
-    with SessionStore().transaction(key) as session:
-        if (
-            not session.get("identity_verified")
-            or session.get("unbound_session") is True
-            or session.get("payments")
-        ):
-            return response
-        candidates = []
-        for path in session.get("receipts", {}):
-            for method in methods:
-                try:
-                    validate_requested_payment_policy(
-                        session, path, payment_type, installments, method
-                    )
-                except (FileNotFoundError, KeyError, ValueError, ArithmeticError):
-                    continue
-                candidates.append((path, method))
+    session = SessionStore().read(key)
+    if (
+        not session.get("identity_verified")
+        or session.get("unbound_session") is True
+        or session.get("payments")
+    ):
+        return response
+    candidates = []
+    for path in session.get("receipts", {}):
+        for method in methods:
+            try:
+                validate_requested_payment_policy(
+                    session, path, payment_type, installments, method
+                )
+            except (FileNotFoundError, KeyError, ValueError, ArithmeticError):
+                continue
+            candidates.append((path, method))
     if len(candidates) != 1:
         return response
     path, method = candidates[0]
@@ -503,30 +503,30 @@ def _audit_final(request: ModelRequest, response: ModelResponse) -> ModelRespons
     """Enforce the configured identity factors, then annotate the final response."""
     key = get_config().get("configurable", {}).get("thread_id")
     latest_human_text = _latest_human_text(request)
-    with SessionStore().transaction(key) as session:
-        for message in response.result:
-            if (
-                message.type != "ai"
-                or message.tool_calls
-                or not isinstance(message.content, str)
-            ):
-                continue
-            message.content = _sanitize_identity_request(
-                message.content, session, latest_human_text
+    session = SessionStore().read(key)
+    for message in response.result:
+        if (
+            message.type != "ai"
+            or message.tool_calls
+            or not isinstance(message.content, str)
+        ):
+            continue
+        message.content = _sanitize_identity_request(
+            message.content, session, latest_human_text
+        )
+        report = audit_response(message.content, session)
+        message.additional_kwargs["response_audit"] = report
+        logger.info(
+            json.dumps(
+                {
+                    "event": "RESPONSE_AUDIT",
+                    "hostname": socket.gethostname(),
+                    "thread_id": key,
+                    "message_id": message.id,
+                    **report,
+                }
             )
-            report = audit_response(message.content, session)
-            message.additional_kwargs["response_audit"] = report
-            logger.info(
-                json.dumps(
-                    {
-                        "event": "RESPONSE_AUDIT",
-                        "hostname": socket.gethostname(),
-                        "thread_id": key,
-                        "message_id": message.id,
-                        **report,
-                    }
-                )
-            )
+        )
     return response
 
 
@@ -575,9 +575,9 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             raise PermissionError("tool_disabled")
         if tool_name not in FINANCIAL_TOOLS:
             return
-        with SessionStore().transaction(key) as session:
-            if session.get("unbound_session") is True:
-                raise PermissionError("demo_session_required")
+        session = SessionStore().read(key)
+        if session.get("unbound_session") is True:
+            raise PermissionError("demo_session_required")
 
     def _filtered_request(self, request: ModelRequest) -> ModelRequest:
         context = request.runtime.context
@@ -586,14 +586,14 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         key = get_config().get("configurable", {}).get("thread_id")
         if not key:
             raise ValueError("server_thread_id_required")
-        with SessionStore().transaction(key) as session:
-            unbound = session.get("unbound_session") is True
-            contract = UNBOUND_SESSION_INSTRUCTION if unbound else instructions(session)
-            creditor = (
-                ""
-                if unbound
-                else str(session["fixture"].get("creditor_name") or "").strip()
-            )
+        session = SessionStore().read(key)
+        unbound = session.get("unbound_session") is True
+        contract = UNBOUND_SESSION_INSTRUCTION if unbound else instructions(session)
+        creditor = (
+            ""
+            if unbound
+            else str(session["fixture"].get("creditor_name") or "").strip()
+        )
         message = request.system_message or SystemMessage(content="")
         profile = configured.get("agent_profile", {})
         agent_name = (
