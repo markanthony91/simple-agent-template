@@ -203,7 +203,12 @@ class DemoResetMiddleware(AgentMiddleware):
         if not SessionStore().reset_demo(key):
             return {
                 "jump_to": "end",
-                "messages": [AIMessage(content=RESET_DEMO_UNAVAILABLE)],
+                "messages": [
+                    AIMessage(
+                        content=RESET_DEMO_UNAVAILABLE,
+                        response_metadata={"finish_reason": "stop"},
+                    )
+                ],
             }
         logger.info(
             json.dumps(
@@ -219,7 +224,10 @@ class DemoResetMiddleware(AgentMiddleware):
             "jump_to": "end",
             "messages": [
                 RemoveMessage(id=REMOVE_ALL_MESSAGES),
-                AIMessage(content=RESET_DEMO_REPLY),
+                AIMessage(
+                    content=RESET_DEMO_REPLY,
+                    response_metadata={"finish_reason": "stop"},
+                ),
             ],
         }
 

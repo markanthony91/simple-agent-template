@@ -1,4 +1,8 @@
-# Agent Runtime — OKF simulator (0.13.7)
+# Agent Runtime — OKF simulator (0.13.8)
+
+O comando `/reset-demo` retorna uma confirmação terminal compatível com o
+transporte WhatsApp, tanto em sucesso quanto quando indisponível. O reset
+continua preservando cadastro e snapshot OKF da sessão.
 
 As tools registram tempos por etapa e a busca OKF usa um índice local limitado
 por tamanho e versão imutável do bundle. Veja [medição e cache OKF](docs/OKF_TOOL_PERFORMANCE.md)

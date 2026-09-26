@@ -296,6 +296,7 @@ def test_reset_demo_clears_operational_state_and_active_history(
     messages = add_messages(history, update["messages"])
     assert len(messages) == 1
     assert messages[0].content == RESET_DEMO_REPLY
+    assert messages[0].response_metadata["finish_reason"] == "stop"
     with sessions.transaction("demo-reset-thread") as state:
         assert state["fixture"] == fixture
         assert state["snapshot_id"] == snapshot
@@ -324,7 +325,12 @@ def test_reset_demo_is_unavailable_outside_future_demo(isolated, monkeypatch, tm
 
     assert update == {
         "jump_to": "end",
-        "messages": [AIMessage(content=RESET_DEMO_UNAVAILABLE)],
+        "messages": [
+            AIMessage(
+                content=RESET_DEMO_UNAVAILABLE,
+                response_metadata={"finish_reason": "stop"},
+            )
+        ],
     }
     assert len(add_messages(history, update["messages"])) == 2
     with sessions.transaction("playground-thread") as state:
@@ -344,3 +350,35 @@ def test_reset_demo_is_unavailable_outside_future_demo(isolated, monkeypatch, tm
 )
 def test_reset_demo_requires_exact_command(content, expected):
     assert is_reset_demo_command(content) is expected
+
+
+@pytest.mark.parametrize("available", [False, True])
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_reset_graph_returns_complete_reply_without_model(
+    isolated, tmp_path, available, asynchronous
+):
+    import asyncio
+    from langchain.agents import create_agent
+    from simple_agent.tool_middleware import direct_reply
+    from .test_direct_replies import CountingModel
+
+    key = "reset-terminal-contract"
+    if available:
+        create_future_demo_session(
+            key,
+            FORM,
+            creditor_loader=lambda: "Credor",
+            simulator_store=SimulatorStore(tmp_path / "simulator"),
+        )
+    model = CountingModel(responses=[AIMessage(content="Must never run")])
+    graph = create_agent(model=model, tools=[], middleware=[demo_reset, direct_reply])
+    args = (
+        {"messages": [HumanMessage(content="/reset-demo")]},
+        {"configurable": {"thread_id": key}},
+    )
+    result = asyncio.run(graph.ainvoke(*args)) if asynchronous else graph.invoke(*args)
+    reply = result["messages"][-1]
+    assert model.calls == 0
+    assert reply.type == "ai" and not reply.tool_calls
+    assert reply.response_metadata == {"finish_reason": "stop"}
+    assert reply.content == (RESET_DEMO_REPLY if available else RESET_DEMO_UNAVAILABLE)
