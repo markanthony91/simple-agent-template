@@ -5,7 +5,7 @@ from simple_agent.tool_timing import timed_tool
 import json
 import hashlib
 import re
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -215,17 +215,37 @@ def create_payment_instruction(
         return _json(_create_payment(state, agreement, method, installment_number))
 
 
+def _upcoming_installments(schedule: list[str], current: int, sent_date: date) -> str:
+    return (
+        "\n".join(
+            f"{number}ª parcela: R$ {format(Decimal(amount), ',.2f').translate(str.maketrans(',.', '.,'))}"
+            f" — {(sent_date + timedelta(days=30 * (number - current))).strftime('%d/%m/%Y')}"
+            for number, amount in enumerate(schedule, 1)
+            if number > current
+        )
+        or "none"
+    )
+
+
 def _email_context(state: dict, payment: dict, agreement: dict) -> dict[str, str]:
     fixture = state["fixture"]
     method = str(payment["method"])
+    sent_date = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
     return {
         "nome": str(fixture["full_name"]),
         "credor": str(fixture.get("creditor_name") or fixture.get("institution") or ""),
         "produto": str(fixture.get("product") or ""),
         "forma_pagamento": method.upper(),
         "valor": f"R$ {str(payment['amount']).replace('.', ',')}",
-        "payment_date": datetime.now(ZoneInfo("America/Sao_Paulo")).strftime(
-            "%d/%m/%Y"
+        "payment_date": sent_date.strftime("%d/%m/%Y"),
+        "upcoming_installments": (
+            _upcoming_installments(
+                agreement["installment_schedule"],
+                payment["installment_number"],
+                sent_date,
+            )
+            if method == "boleto"
+            else "none"
         ),
         "installment_display": "none" if method == "pix" else "table-row",
         "codigo_pagamento": str(payment["payment_code"]),
@@ -369,6 +389,7 @@ def send_voice_demo_email(
     payment_id = f"PAY-{fingerprint[:32]}"
     context = {
         "nome": contact_name.strip(),
+        "upcoming_installments": "none",
         "credor": creditor.strip(),
         "produto": "cartao_de_credito",
         "forma_pagamento": method.upper(),

@@ -1,4 +1,10 @@
-# Agent Runtime — OKF simulator (0.13.9)
+# Agent Runtime — OKF simulator (0.13.10)
+
+O contexto de e-mail inclui `upcoming_installments`: parcelas restantes do boleto,
+com os valores exatos do acordo e datas a cada 30 dias a partir do envio da
+instrução atual (America/Sao_Paulo). PIX, parcela final e ligação sem cronograma
+retornam `none`, ocultando a seção. A regra é da simulação; não altera os dados
+financeiros nem cria vencimentos no banco. Requer o template atualizado no Canais.
 
 Na confirmação de proposta parcelada por boleto, cada parcela é apresentada
 em uma linha, preservando os valores e a ordem retornados pelo gerador.
