@@ -1,6 +1,6 @@
 """Three deterministic integration journeys using the proposed pilot documents."""
 
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -234,7 +234,10 @@ def test_email_context_hides_pix_installment_and_includes_payment_date():
             "product": "cartao_de_credito",
         }
     }
-    agreement = {"installments": 3}
+    agreement = {
+        "installments": 3,
+        "installment_schedule": ["850.00", "850.00", "849.99"],
+    }
     payment = {
         "method": "pix",
         "amount": "850.00",
@@ -251,9 +254,28 @@ def test_email_context_hides_pix_installment_and_includes_payment_date():
 
     assert pix["installment_display"] == "none"
     assert boleto["installment_display"] == "table-row"
+    assert pix["upcoming_installments"] == "none"
+    assert "2ª parcela: R$ 850,00" in boleto["upcoming_installments"]
+    assert "3ª parcela: R$ 849,99" in boleto["upcoming_installments"]
     assert "aviso_simulacao" not in pix
     assert pix["payment_date"] == datetime.now(ZoneInfo("America/Sao_Paulo")).strftime(
         "%d/%m/%Y"
+    )
+
+
+def test_upcoming_installments_use_exact_values_and_30_day_intervals():
+    schedule = ["1957.81", "1957.81", "1957.80"]
+    assert payment_tools._upcoming_installments(schedule, 1, date(2026, 1, 31)) == (
+        "2ª parcela: R$ 1.957,81 — 02/03/2026\n3ª parcela: R$ 1.957,80 — 01/04/2026"
+    )
+    assert payment_tools._upcoming_installments(schedule, 2, date(2026, 12, 15)) == (
+        "3ª parcela: R$ 1.957,80 — 14/01/2027"
+    )
+    assert (
+        payment_tools._upcoming_installments(schedule, 3, date(2026, 1, 31)) == "none"
+    )
+    assert (
+        payment_tools._upcoming_installments(["1.00"], 1, date(2026, 1, 31)) == "none"
     )
 
 
