@@ -74,9 +74,11 @@ def test_transactional_result_is_rendered_without_second_model_call(isolated):
     assert audit["mode"] == "deterministic_backend"
     assert audit["semantic_fidelity"] == "backend_template"
     assert audit["pre_display_protection"] is True
-    assert "1ª R$ 1.957,81" in result["messages"][-1].content
-    assert "3ª R$ 1.957,80" in result["messages"][-1].content
-    assert "- Parcela:" in result["messages"][-1].content
+    assert (
+        "- 1ª parcela: R$ 1.957,81\n"
+        "- 2ª parcela: R$ 1.957,81\n"
+        "- 3ª parcela: R$ 1.957,80\n"
+    ) in result["messages"][-1].content
     assert "- Cronograma:" not in result["messages"][-1].content
     assert "- Acordo:" not in result["messages"][-1].content
     assert "- ID do pagamento:" not in result["messages"][-1].content

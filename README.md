@@ -1,4 +1,7 @@
-# Agent Runtime — OKF simulator (0.13.8)
+# Agent Runtime — OKF simulator (0.13.9)
+
+Na confirmação de proposta parcelada por boleto, cada parcela é apresentada
+em uma linha, preservando os valores e a ordem retornados pelo gerador.
 
 O comando `/reset-demo` retorna uma confirmação terminal compatível com o
 transporte WhatsApp, tanto em sucesso quanto quando indisponível. O reset
