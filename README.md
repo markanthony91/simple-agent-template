@@ -4,7 +4,9 @@ As tools registram tempos por etapa e a busca OKF usa um índice local limitado
 por tamanho e versão imutável do bundle. Veja [medição e cache OKF](docs/OKF_TOOL_PERFORMANCE.md)
 para limites, benchmark sintético e validação. A versão 0.13.6 foi publicada no
 Railway; os ajustes 0.13.7 e o comparativo estão em
-[geração de ofertas](docs/OFFER_FLEXIBILITY.md).
+[geração de ofertas](docs/OFFER_FLEXIBILITY.md). A bateria adicional passou em
+341 casos e registrou uma falha preexistente na baixa parcial do simulador;
+veja o relatório antes de validar o ciclo completo de liquidação.
 
 O armazenamento operacional fecha conexões SQLite ao terminar cada acesso.
 Leituras de sessões existentes não reservam o escritor nem regravam o estado.

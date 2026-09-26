@@ -105,3 +105,34 @@ semântico aprovado nem teste de conversa publicada nesta rodada.
 Retornar à imagem 0.13.6 do deployment acima, preservando `/data`. Não há migração
 nem necessidade de restaurar banco, bundle ou histórico. O rollback restaura
 as limitações do parser antigo.
+
+## Bateria adicional após publicação
+
+Solicitada após o deploy, executada somente em bases temporárias, sem e-mails
+reais. Resultado completo: **341 testes passaram e 1 falha conhecida (xfail)** em
+20,59 s; cobertura dos módulos alterados: **90%**. Matriz adicional: 25 cenários
+passaram e 1 revelou comportamento incorreto já existente.
+
+- PIX à vista, boleto à vista e parcelamento; conservação dos centavos no total.
+- Quantidade ausente/inválida, limite excedido e PIX parcelado proibido pelo cenário.
+- Draft, vigência futura/vencida, instituição/produto incompatível, desconto ausente.
+- Cliente inelegível e limite individual inferior ao permitido na política.
+- Quatro chamadas concorrentes iguais geram exatamente uma proposta/acordo/pagamento.
+- Pagamento de outra sessão não pode ser consultado nem enviado por e-mail.
+- Aceitação, falha e resultado desconhecido de e-mail; replay não dispara novamente
+  e envio nunca é tratado como liquidação. Provedor foi substituído por mock.
+- Canal de e-mail indisponível não registra entrega nem dispara mensagem.
+
+### Falha conhecida: baixa parcial encerra o acordo no simulador
+
+`simulate_payment_settled` marca o acordo como `settled` ao liquidar somente a
+primeira instrução de um acordo de três parcelas. Reprodução com o mesmo caso
+sintético em **4232d55 e e0bc6a1**: três parcelas, um pagamento liquidado, acordo
+inteiro `settled`. Portanto o defeito antecede os três ajustes desta entrega.
+
+A função é de simulação operacional e não é tool da LLM. Geração de oferta e envio
+de e-mail não chamam essa baixa. O caso está registrado como `xfail(strict=True)`
+para manter a falha visível, sem tratá-la como aprovação. Correção de liquidação
+por parcela e abertura das instruções seguintes é trabalho separado; não foi
+alterada silenciosamente nesta rodada. Não considerar o ciclo de liquidação de
+parcelamento completamente validado enquanto isso permanecer.
