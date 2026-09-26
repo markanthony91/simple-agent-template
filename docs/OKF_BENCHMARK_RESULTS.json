@@ -1,0 +1,270 @@
+{
+  "bundle_id": "okf-will-bank-cash-tiers-20260925-20260926T001809Z-f35ea74f",
+  "markdown_files": 571,
+  "indexed_concepts": 519,
+  "indexed_tokens": 5749,
+  "index_build_ms": 2172.695,
+  "rounds_per_case": 30,
+  "cache_condition": "warm OS file cache; randomized sequential alternating engines",
+  "cases": [
+    {
+      "case": "cash_pix",
+      "filesystem": {
+        "n": 30,
+        "median_ms": 131.273,
+        "p95_ms": 155.498,
+        "min_ms": 113.946,
+        "max_ms": 158.805
+      },
+      "memory": {
+        "n": 30,
+        "median_ms": 2.235,
+        "p95_ms": 2.659,
+        "min_ms": 1.478,
+        "max_ms": 2.857
+      },
+      "identical_results": true,
+      "file_reads_per_query": {
+        "filesystem": [
+          51
+        ],
+        "memory": [
+          0
+        ]
+      },
+      "top_result": "COMPANIES/fastpay/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/policies/pagamento-parametros.md",
+      "expected_policy_rank": 2
+    },
+    {
+      "case": "boleto",
+      "filesystem": {
+        "n": 30,
+        "median_ms": 134.004,
+        "p95_ms": 156.051,
+        "min_ms": 120.034,
+        "max_ms": 200.135
+      },
+      "memory": {
+        "n": 30,
+        "median_ms": 2.262,
+        "p95_ms": 2.928,
+        "min_ms": 1.884,
+        "max_ms": 3.047
+      },
+      "identical_results": true,
+      "file_reads_per_query": {
+        "filesystem": [
+          51
+        ],
+        "memory": [
+          0
+        ]
+      },
+      "top_result": "COMPANIES/fastpay/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/policies/parcelamento.md",
+      "expected_policy_rank": 1
+    },
+    {
+      "case": "three_installments",
+      "filesystem": {
+        "n": 30,
+        "median_ms": 131.83,
+        "p95_ms": 150.71,
+        "min_ms": 122.422,
+        "max_ms": 159.444
+      },
+      "memory": {
+        "n": 30,
+        "median_ms": 2.12,
+        "p95_ms": 2.788,
+        "min_ms": 1.568,
+        "max_ms": 6.555
+      },
+      "identical_results": true,
+      "file_reads_per_query": {
+        "filesystem": [
+          51
+        ],
+        "memory": [
+          0
+        ]
+      },
+      "top_result": "COMPANIES/fastpay/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/policies/parcelamento.md",
+      "expected_policy_rank": 1
+    },
+    {
+      "case": "five_installments",
+      "filesystem": {
+        "n": 30,
+        "median_ms": 133.879,
+        "p95_ms": 160.804,
+        "min_ms": 121.485,
+        "max_ms": 164.539
+      },
+      "memory": {
+        "n": 30,
+        "median_ms": 2.281,
+        "p95_ms": 2.836,
+        "min_ms": 1.811,
+        "max_ms": 3.031
+      },
+      "identical_results": true,
+      "file_reads_per_query": {
+        "filesystem": [
+          51
+        ],
+        "memory": [
+          0
+        ]
+      },
+      "top_result": "COMPANIES/fastpay/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/policies/parcelamento.md",
+      "expected_policy_rank": 1
+    },
+    {
+      "case": "cash_discount",
+      "filesystem": {
+        "n": 30,
+        "median_ms": 139.439,
+        "p95_ms": 161.48,
+        "min_ms": 120.938,
+        "max_ms": 161.685
+      },
+      "memory": {
+        "n": 30,
+        "median_ms": 1.706,
+        "p95_ms": 2.304,
+        "min_ms": 1.048,
+        "max_ms": 2.396
+      },
+      "identical_results": true,
+      "file_reads_per_query": {
+        "filesystem": [
+          51
+        ],
+        "memory": [
+          0
+        ]
+      },
+      "top_result": "COMPANIES/fastpay/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/policies/limites-desconto.md",
+      "expected_policy_rank": 2
+    },
+    {
+      "case": "dispute",
+      "filesystem": {
+        "n": 30,
+        "median_ms": 1120.34,
+        "p95_ms": 1274.86,
+        "min_ms": 1029.032,
+        "max_ms": 1285.371
+      },
+      "memory": {
+        "n": 30,
+        "median_ms": 18.674,
+        "p95_ms": 20.358,
+        "min_ms": 15.814,
+        "max_ms": 22.162
+      },
+      "identical_results": true,
+      "file_reads_per_query": {
+        "filesystem": [
+          295
+        ],
+        "memory": [
+          0
+        ]
+      },
+      "top_result": "GLOBAL/00_GOVERNANCA/familias_de_situacao.md",
+      "expected_policy_rank": null
+    },
+    {
+      "case": "third_party",
+      "filesystem": {
+        "n": 30,
+        "median_ms": 814.605,
+        "p95_ms": 987.839,
+        "min_ms": 718.053,
+        "max_ms": 1013.991
+      },
+      "memory": {
+        "n": 30,
+        "median_ms": 4.865,
+        "p95_ms": 11.419,
+        "min_ms": 3.977,
+        "max_ms": 17.389
+      },
+      "identical_results": true,
+      "file_reads_per_query": {
+        "filesystem": [
+          295
+        ],
+        "memory": [
+          0
+        ]
+      },
+      "top_result": "GLOBAL/00_GOVERNANCA/familias_de_situacao.md",
+      "expected_policy_rank": null
+    },
+    {
+      "case": "no_match",
+      "filesystem": {
+        "n": 30,
+        "median_ms": 129.578,
+        "p95_ms": 172.223,
+        "min_ms": 100.567,
+        "max_ms": 174.179
+      },
+      "memory": {
+        "n": 30,
+        "median_ms": 0.271,
+        "p95_ms": 0.444,
+        "min_ms": 0.166,
+        "max_ms": 0.594
+      },
+      "identical_results": true,
+      "file_reads_per_query": {
+        "filesystem": [
+          51
+        ],
+        "memory": [
+          0
+        ]
+      },
+      "top_result": null,
+      "expected_policy_rank": null
+    }
+  ],
+  "aggregate": {
+    "filesystem": {
+      "n": 240,
+      "median_ms": 139.338,
+      "p95_ms": 1135.53,
+      "min_ms": 100.567,
+      "max_ms": 1285.371
+    },
+    "memory": {
+      "n": 240,
+      "median_ms": 2.24,
+      "p95_ms": 18.892,
+      "min_ms": 0.166,
+      "max_ms": 22.162
+    }
+  },
+  "policy_read": {
+    "filesystem": {
+      "n": 30,
+      "median_ms": 0.792,
+      "p95_ms": 1.344,
+      "min_ms": 0.558,
+      "max_ms": 1.433
+    },
+    "memory": {
+      "n": 30,
+      "median_ms": 0.001,
+      "p95_ms": 0.003,
+      "min_ms": 0.0,
+      "max_ms": 0.003
+    }
+  },
+  "bundle_content_unchanged": true,
+  "started_at": "2026-09-26T01:07:26.351275+00:00",
+  "finished_at": "2026-09-26T01:08:56.320760+00:00"
+}

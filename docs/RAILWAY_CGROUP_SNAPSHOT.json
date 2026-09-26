@@ -1,0 +1,11 @@
+{
+  "at": "2026-09-26T01:18:26.597929+00:00",
+  "cgroup": {
+    "cpu.max": "2400000 100000\n",
+    "cpu.stat": "usage_usec 358546065\nuser_usec 255226479\nsystem_usec 103319586\nnr_periods 21458\nnr_throttled 0\nthrottled_usec 0\nnr_bursts 0\nburst_usec 0\n",
+    "memory.current": "17295585280\n",
+    "memory.max": "24000000000\n",
+    "memory.events": "low 0\nhigh 0\nmax 0\noom 0\noom_kill 0\noom_group_kill 0\n",
+    "memory.pressure": "some avg10=0.00 avg60=0.00 avg300=0.00 total=1106\nfull avg10=0.00 avg60=0.00 avg300=0.00 total=1106\n"
+  }
+}

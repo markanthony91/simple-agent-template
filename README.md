@@ -1,5 +1,9 @@
 # Agent Runtime — OKF simulator (0.13.4)
 
+Benchmark de busca OKF, navegação no Playground e recursos Railway:
+[resultados de 25/09/2026](docs/OKF_BENCHMARK_2026-09-25.md).
+Experimentos isolados, sem alteração do runtime publicado.
+
 O Runtime expõe uma ponte HTTP autenticada para agentes de voz enviarem uma
 instrução de pagamento já criada na sessão. A ponte recebe somente `session_id`,
 `payment_id`, `email` e a última fala do cliente; valores e condições continuam
