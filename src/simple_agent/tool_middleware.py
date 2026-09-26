@@ -159,6 +159,12 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         f"{index}ª {_brl(amount)}"
         for index, amount in enumerate(offer["installment_schedule"], 1)
     )
+    schedule_lines = f"- Parcela: {schedule}"
+    if offer["payment_type"] == "installment" and payment["method"] == "boleto":
+        schedule_lines = "\n".join(
+            f"- {index}ª parcela: {_brl(amount)}"
+            for index, amount in enumerate(offer["installment_schedule"], 1)
+        )
     payment_label = (
         "à vista"
         if offer["payment_type"] == "cash"
@@ -168,7 +174,7 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         "Proposta simulada criada com sucesso.\n\n"
         f"- Total negociado: {_brl(offer['negotiated_amount'])}\n"
         f"- Forma: {payment_label}\n"
-        f"- Parcela: {schedule}\n"
+        f"{schedule_lines}\n"
         f"- Método: {str(payment['method']).upper()}\n"
         f"- Código dummy: {payment['payment_code']}\n"
         "\n"
