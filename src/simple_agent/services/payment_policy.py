@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from simple_agent.services.offer_policy import money, validate_policy
+from simple_agent.services.offer_policy import (
+    money,
+    resolve_offer_discount,
+    validate_policy,
+)
 from simple_agent.services.okf_service import OKFService
 from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.okf_validator import frontmatter
@@ -26,12 +30,9 @@ def validate_requested_payment_policy(
         raise ValueError("policy_not_found") from None
     metadata = frontmatter((root / canonical).read_text(encoding="utf-8"))
     negotiation = metadata.get("negotiation")
-    if (
-        not isinstance(negotiation, dict)
-        or "offer_discount_percentage" not in negotiation
-    ):
+    if not isinstance(negotiation, dict):
         raise ValueError("policy_terms_undefined") from None
-    configured_discount = money(negotiation["offer_discount_percentage"])
+    configured_discount = resolve_offer_discount(negotiation, state["fixture"])
     count = 1 if payment_type == "cash" else installments
     evidence = validate_policy(
         state, canonical, payment_type, count, configured_discount

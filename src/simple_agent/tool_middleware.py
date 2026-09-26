@@ -130,6 +130,7 @@ def _direct_failure(reason: str) -> str:
         "policy_not_published": "A política encontrada ainda não está publicada e não autoriza uma proposta.",
         "policy_not_current": "A política encontrada não está vigente e não autoriza uma proposta.",
         "policy_terms_undefined": "As condições da política ainda não foram definidas.",
+        "debt_context_required": "Não foi possível confirmar o atraso da dívida para aplicar as condições da proposta.",
         "policy_terms_invalid": "As condições publicadas estão inválidas e não autorizam uma proposta.",
         "policy_terms_exceeded": "A condição solicitada ultrapassa o limite da política publicada. Informe outra opção.",
         "payment_terms_undefined": "Os meios de pagamento da política ainda não foram definidos.",
