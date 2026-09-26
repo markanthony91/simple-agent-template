@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from simple_agent.tool_timing import timed_tool
+
 import hashlib
 import json
 import os
@@ -122,6 +124,7 @@ def _verify_identity(
 
 
 @tool
+@timed_tool
 def get_customer(runtime: ToolRuntime, cpf: str = "") -> str:
     """Read the pinned session's synthetic debt only after identity verification.
 
@@ -133,6 +136,7 @@ def get_customer(runtime: ToolRuntime, cpf: str = "") -> str:
 
 
 @tool
+@timed_tool
 def verify_customer_identity(
     cpf: str, runtime: ToolRuntime, full_name: str = "", birth_date: str = ""
 ) -> str:
@@ -148,6 +152,7 @@ def verify_customer_identity(
 
 
 @tool
+@timed_tool
 def verify_and_get_customer(
     cpf: str, runtime: ToolRuntime, full_name: str = "", birth_date: str = ""
 ) -> str:
@@ -165,6 +170,7 @@ def verify_and_get_customer(
 
 
 @tool
+@timed_tool
 def generate_offer(
     payment_type: Literal["cash", "installment"],
     runtime: ToolRuntime,
@@ -318,6 +324,7 @@ def _create_agreement(
 
 
 @tool
+@timed_tool
 def create_agreement(
     offer_id: str,
     explicit_confirmation: bool,

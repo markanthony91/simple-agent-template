@@ -12,6 +12,7 @@ from typing import Iterator
 
 from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.simulator_store import SimulatorStore
+from simple_agent.tool_timing import timed_phase
 
 
 def validate_thread_id(value: str) -> str:
@@ -30,7 +31,7 @@ class SessionStore:
         self.root = root or Path(os.getenv("SESSION_ROOT", "/data/sessions"))
         self.root.mkdir(parents=True, exist_ok=True)
         self.database = self.root / "sessions.sqlite3"
-        with self._connect() as db:
+        with self._connect() as db, timed_phase("session_schema"):
             db.executescript(
                 """
                 CREATE TABLE IF NOT EXISTS sessions (
@@ -100,11 +101,14 @@ class SessionStore:
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
-        db = sqlite3.connect(self.database, timeout=10)
+        with timed_phase("session_connect"):
+            db = sqlite3.connect(self.database, timeout=10)
         try:
             with db:
                 db.execute("PRAGMA foreign_keys = ON")
                 yield db
+                with timed_phase("session_commit"):
+                    db.commit()
         finally:
             db.close()
 
@@ -116,15 +120,16 @@ class SessionStore:
         """
         key = validate_thread_id(key)
         with self._connect() as db:
-            db.execute("BEGIN")
-            row = db.execute(
-                "SELECT data FROM sessions WHERE id = ?", (key,)
-            ).fetchone()
-            if row:
-                state = self._state(db, key, row[0])
-                state.setdefault("payments", {})
-                state.setdefault("deliveries", {})
-                return state
+            with timed_phase("session_read"):
+                db.execute("BEGIN")
+                row = db.execute(
+                    "SELECT data FROM sessions WHERE id = ?", (key,)
+                ).fetchone()
+                if row:
+                    state = self._state(db, key, row[0])
+                    state.setdefault("payments", {})
+                    state.setdefault("deliveries", {})
+                    return state
         # Match transaction's existing initialization contract, after releasing
         # the read connection. transaction rechecks the row under its write lock.
         with self.transaction(key) as state:
@@ -365,37 +370,41 @@ class SessionStore:
         key = validate_thread_id(key)
         # One Railway replica: serialize short state changes, never LLM calls.
         with self._connect() as db:
-            db.execute("BEGIN IMMEDIATE")
-            row = db.execute(
-                "SELECT data FROM sessions WHERE id = ?", (key,)
-            ).fetchone()
-            if row:
-                state = self._state(db, key, row[0])
-            else:
-                fixture = SimulatorStore().load()
-                fixture.pop("_runtime", None)
-                fixture.pop("identity_validated", None)
-                state = {
-                    "fixture": fixture,
-                    "identity_verified": False,
-                    "offers": {},
-                    "agreements": {},
-                    "payments": {},
-                    "deliveries": {},
-                    "receipts": {},
-                    "snapshot_id": PersistentOKFStore().active_bundle_id(),
-                }
-            state.setdefault("payments", {})
-            state.setdefault("deliveries", {})
-            yield state
-            stored = dict(state)
-            if self._fixture(db, key):
-                stored.pop("fixture", None)
-            db.execute(
-                "INSERT INTO sessions(id, data) VALUES (?, ?) "
-                "ON CONFLICT(id) DO UPDATE SET data=excluded.data",
-                (key, json.dumps(stored)),
-            )
+            with timed_phase("session_write_wait"):
+                db.execute("BEGIN IMMEDIATE")
+            with timed_phase("session_load"):
+                row = db.execute(
+                    "SELECT data FROM sessions WHERE id = ?", (key,)
+                ).fetchone()
+                if row:
+                    state = self._state(db, key, row[0])
+                else:
+                    fixture = SimulatorStore().load()
+                    fixture.pop("_runtime", None)
+                    fixture.pop("identity_validated", None)
+                    state = {
+                        "fixture": fixture,
+                        "identity_verified": False,
+                        "offers": {},
+                        "agreements": {},
+                        "payments": {},
+                        "deliveries": {},
+                        "receipts": {},
+                        "snapshot_id": PersistentOKFStore().active_bundle_id(),
+                    }
+                state.setdefault("payments", {})
+                state.setdefault("deliveries", {})
+            with timed_phase("session_body"):
+                yield state
+            with timed_phase("session_save"):
+                stored = dict(state)
+                if self._fixture(db, key):
+                    stored.pop("fixture", None)
+                db.execute(
+                    "INSERT INTO sessions(id, data) VALUES (?, ?) "
+                    "ON CONFLICT(id) DO UPDATE SET data=excluded.data",
+                    (key, json.dumps(stored)),
+                )
 
 
 def latest_user_message(runtime) -> tuple[str, str]:

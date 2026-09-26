@@ -33,6 +33,7 @@ from simple_agent.services.payment_policy import validate_requested_payment_poli
 from simple_agent.services.response_audit import audit_response
 from langgraph.config import get_config
 from simple_agent.runtime_settings import LLMSettings
+from simple_agent.tool_timing import capture_timing, timed_phase, timing_summary
 
 registry = ToolRegistry()
 logger = logging.getLogger("simple_agent.tools")
@@ -314,6 +315,7 @@ def _log_event(
     }
     if duration_ms is not None:
         payload["duration_ms"] = round(duration_ms, 2)
+        payload.update(timing_summary())
     if result is not None:
         payload["result"] = sanitize_result(name, result)
         payload.update(tool_outcome(result))
@@ -643,50 +645,70 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         return await asyncio.to_thread(_audit_final, filtered, response)
 
     def wrap_tool_call(self, request: ToolCallRequest, handler):
-        started = perf_counter()
-        _log_event(request, "start")
-        try:
-            tool_name = str(request.tool_call.get("name") or "")
-            key = (
-                get_config().get("configurable", {}).get("thread_id")
-                if tool_name in FINANCIAL_TOOLS
-                else ""
-            )
-            self._assert_tool_allowed(tool_name, key)
-            result = handler(request)
-        except RECOVERABLE_TOOL_ERRORS as error:
+        with capture_timing():
+            started = perf_counter()
+            _log_event(request, "start")
+            try:
+                tool_name = str(request.tool_call.get("name") or "")
+                key = (
+                    get_config().get("configurable", {}).get("thread_id")
+                    if tool_name in FINANCIAL_TOOLS
+                    else ""
+                )
+                with timed_phase("tool_guard"):
+                    self._assert_tool_allowed(tool_name, key)
+                with timed_phase("tool_handler"):
+                    result = handler(request)
+            except RECOVERABLE_TOOL_ERRORS as error:
+                _log_event(
+                    request,
+                    "recoverable_error",
+                    (perf_counter() - started) * 1000,
+                    error=error,
+                )
+                return _tool_error_message(request, error)
+            except Exception as error:
+                _log_event(
+                    request, "error", (perf_counter() - started) * 1000, error=error
+                )
+                raise
             _log_event(
-                request,
-                "recoverable_error",
-                (perf_counter() - started) * 1000,
-                error=error,
+                request, "success", (perf_counter() - started) * 1000, result=result
             )
-            return _tool_error_message(request, error)
-        _log_event(request, "success", (perf_counter() - started) * 1000, result=result)
-        return result
+            return result
 
     async def awrap_tool_call(self, request: ToolCallRequest, handler):
-        started = perf_counter()
-        _log_event(request, "start")
-        try:
-            tool_name = str(request.tool_call.get("name") or "")
-            key = (
-                get_config().get("configurable", {}).get("thread_id")
-                if tool_name in FINANCIAL_TOOLS
-                else ""
-            )
-            await asyncio.to_thread(self._assert_tool_allowed, tool_name, key)
-            result = await handler(request)
-        except RECOVERABLE_TOOL_ERRORS as error:
+        with capture_timing():
+            started = perf_counter()
+            _log_event(request, "start")
+            try:
+                tool_name = str(request.tool_call.get("name") or "")
+                key = (
+                    get_config().get("configurable", {}).get("thread_id")
+                    if tool_name in FINANCIAL_TOOLS
+                    else ""
+                )
+                with timed_phase("tool_guard"):
+                    await asyncio.to_thread(self._assert_tool_allowed, tool_name, key)
+                with timed_phase("tool_handler"):
+                    result = await handler(request)
+            except RECOVERABLE_TOOL_ERRORS as error:
+                _log_event(
+                    request,
+                    "recoverable_error",
+                    (perf_counter() - started) * 1000,
+                    error=error,
+                )
+                return _tool_error_message(request, error)
+            except Exception as error:
+                _log_event(
+                    request, "error", (perf_counter() - started) * 1000, error=error
+                )
+                raise
             _log_event(
-                request,
-                "recoverable_error",
-                (perf_counter() - started) * 1000,
-                error=error,
+                request, "success", (perf_counter() - started) * 1000, result=result
             )
-            return _tool_error_message(request, error)
-        _log_event(request, "success", (perf_counter() - started) * 1000, result=result)
-        return result
+            return result
 
 
 filter_enabled_tools = FilterEnabledToolsMiddleware()

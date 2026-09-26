@@ -11,6 +11,7 @@ from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.okf_service import OKFService
 from simple_agent.services.session_store import SessionStore, thread_id
 from simple_agent.services.offer_policy import fingerprint
+from simple_agent.tool_timing import timed_phase, timed_tool
 
 logger = logging.getLogger("simple_agent.okf")
 store = PersistentOKFStore()
@@ -22,14 +23,17 @@ def _service(runtime):
         raise FileNotFoundError(
             "No OKF bundle pinned to this conversation; start a new conversation after publication"
         )
-    return OKFService(store.bundle_root(snapshot))
+    return OKFService(store.bundle_root(snapshot), immutable_bundle=True)
 
 
 def _receipt(runtime, service, path, result):
     canonical = service.canonical_path(path)
     if "not found (no fuzzy match)" in result:
         return
-    with SessionStore().transaction(thread_id(runtime)) as state:
+    with (
+        timed_phase("okf_receipt"),
+        SessionStore().transaction(thread_id(runtime)) as state,
+    ):
         state["receipts"][canonical] = {
             "hash": fingerprint((service.root / canonical).read_text(encoding="utf-8")),
             "snapshot_id": state["snapshot_id"],
@@ -63,6 +67,7 @@ def _recoverable_error(name: str, error: Exception, **details: str) -> str:
 
 
 @tool
+@timed_tool
 def okf_index(runtime: ToolRuntime, directory: str = "") -> str:
     """Discover institutional knowledge through an OKF index.md."""
     started = perf_counter()
@@ -75,6 +80,7 @@ def okf_index(runtime: ToolRuntime, directory: str = "") -> str:
 
 
 @tool
+@timed_tool
 def okf_list(runtime: ToolRuntime) -> str:
     """List Markdown paths in the active persistent OKF bundle."""
     started = perf_counter()
@@ -90,6 +96,7 @@ def okf_list(runtime: ToolRuntime) -> str:
 
 
 @tool
+@timed_tool
 def okf_search(query: str, runtime: ToolRuntime, scope: str = "") -> str:
     """Fallback lexical search across active OKF concepts."""
     started = perf_counter()
@@ -102,12 +109,14 @@ def okf_search(query: str, runtime: ToolRuntime, scope: str = "") -> str:
 
 
 @tool
+@timed_tool
 def okf_read(path: str, runtime: ToolRuntime) -> str:
     """Read a complete OKF Markdown concept from the active bundle."""
     started = perf_counter()
     try:
         service = _service(runtime)
-        result = service.read_file(path)
+        with timed_phase("okf_document_read"):
+            result = service.read_file(path)
         _receipt(runtime, service, path, result)
     except (FileNotFoundError, ValueError, KeyError) as error:
         result = _recoverable_error("okf_read", error, path=path)
@@ -116,12 +125,14 @@ def okf_read(path: str, runtime: ToolRuntime) -> str:
 
 
 @tool
+@timed_tool
 def okf_read_section(path: str, heading: str, runtime: ToolRuntime) -> str:
     """Read an exact section plus its YAML lifecycle, scope and policy metadata."""
     started = perf_counter()
     try:
         service = _service(runtime)
-        result = service.read_section(path, heading)
+        with timed_phase("okf_document_read"):
+            result = service.read_section(path, heading)
         _receipt(runtime, service, path, result)
     except (FileNotFoundError, ValueError, KeyError) as error:
         result = _recoverable_error(

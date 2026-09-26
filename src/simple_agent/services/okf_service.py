@@ -6,6 +6,8 @@ from pathlib import Path
 
 
 from simple_agent.services.okf_navigation import IndexNavigation
+from simple_agent.services.okf_search_index import SEARCH_INDEX_CACHE, prepare_document
+from simple_agent.tool_timing import timed_phase
 
 
 class OKFService(IndexNavigation):
@@ -40,11 +42,17 @@ class OKFService(IndexNavigation):
     }
 
     def __init__(
-        self, root: Path, max_chars_per_file: int = 15000, max_results: int = 10
+        self,
+        root: Path,
+        max_chars_per_file: int = 15000,
+        max_results: int = 10,
+        *,
+        immutable_bundle: bool = False,
     ):
         self.root = root.resolve()
         self.max_chars_per_file = max_chars_per_file
         self.max_results = max_results
+        self.immutable_bundle = immutable_bundle
 
     def _markdown_files(self) -> list[Path]:
         return sorted(path for path in self.root.rglob("*.md") if path.is_file())
@@ -304,34 +312,28 @@ class OKFService(IndexNavigation):
             except FileNotFoundError:
                 cleaned_scope = self._collapse_duplicate_root(scope.strip("/"))
 
-        ranked: list[tuple[int, int, str, str]] = []
-        for relative in self.list_files(overrides, active_files).splitlines():
-            if (
-                not relative.endswith(".md")
-                or Path(relative).name.lower() in self.RESERVED_MARKDOWN
-            ):
-                continue
-            if cleaned_scope and not relative.startswith(cleaned_scope + "/"):
-                continue
-            try:
-                content = self.read_file(relative, overrides, active_files)
-            except FileNotFoundError:
-                continue
-            document_score = len(
-                query_tokens & self._search_tokens(f"{relative}\n{content}")
+        index = None
+        if self.immutable_bundle and overrides is None and active_files is None:
+            index = SEARCH_INDEX_CACHE.get(self)
+        documents = (
+            index.candidates(query_tokens, cleaned_scope)
+            if index is not None
+            else self._search_documents(
+                query_tokens, cleaned_scope, overrides, active_files
             )
-            if not document_score:
-                continue
-            best_line = ""
-            best_line_score = -1
-            for number, line in enumerate(content.splitlines(), start=1):
-                if line.startswith("OKF_CANONICAL_PATH:"):
+        )
+        ranked: list[tuple[int, int, str, str]] = []
+        with timed_phase("okf_search_rank"):
+            for relative, (tokens, lines) in documents:
+                document_score = len(query_tokens & tokens)
+                if not document_score:
                     continue
-                line_score = len(query_tokens & self._search_tokens(line))
-                if line_score > best_line_score:
-                    best_line_score = line_score
-                    best_line = f"{relative}:{number}: {line.strip()}"
-            ranked.append((document_score, best_line_score, relative, best_line))
+                number, line, line_tokens = max(
+                    lines, key=lambda row: len(query_tokens & row[2])
+                )
+                best_line_score = len(query_tokens & line_tokens)
+                best_line = f"{relative}:{number}: {line}"
+                ranked.append((document_score, best_line_score, relative, best_line))
         ranked.sort(key=lambda item: (-item[0], -item[1], item[2]))
         matches = [text for _, _, _, text in ranked[: self.max_results]]
 
@@ -341,6 +343,23 @@ class OKFService(IndexNavigation):
             return f"{scope_marker}\n\n" + "\n".join(matches)
         else:
             return f"{scope_marker}\n\nNo OKF matches found."
+
+    def _search_documents(self, query_tokens, scope, overrides, active_files):
+        for relative in self.list_files(overrides, active_files).splitlines():
+            if (
+                not relative.endswith(".md")
+                or Path(relative).name.lower() in self.RESERVED_MARKDOWN
+                or (scope and not relative.startswith(scope + "/"))
+            ):
+                continue
+            try:
+                content = self.read_file(relative, overrides, active_files)
+            except FileNotFoundError:
+                continue
+            yield (
+                relative,
+                prepare_document(relative, content, self._search_tokens, query_tokens),
+            )
 
     def read_section(
         self,

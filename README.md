@@ -1,4 +1,9 @@
-# Agent Runtime — OKF simulator (0.13.5)
+# Agent Runtime — OKF simulator (0.13.6)
+
+As tools registram tempos por etapa e a busca OKF usa um índice local limitado
+por tamanho e versão imutável do bundle. Veja [medição e cache OKF](docs/OKF_TOOL_PERFORMANCE.md)
+para limites, benchmark sintético e validação. Implementação local; sem publicação
+desta versão no Railway.
 
 O armazenamento operacional fecha conexões SQLite ao terminar cada acesso.
 Leituras de sessões existentes não reservam o escritor nem regravam o estado.

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from simple_agent.tool_timing import timed_tool
+
 import json
 import hashlib
 import re
@@ -190,6 +192,7 @@ def _create_payment(
 
 
 @tool(return_direct=True)
+@timed_tool
 def generate_payment_offer(
     payment_type: Literal["cash", "installment"],
     method: Literal["pix", "boleto"],
@@ -275,6 +278,7 @@ def generate_payment_offer(
 
 
 @tool
+@timed_tool
 def create_payment_instruction(
     agreement_id: str,
     method: Literal["pix", "boleto"],
@@ -483,6 +487,7 @@ def send_voice_demo_email(
 
 
 @tool(return_direct=True)
+@timed_tool
 def send_payment_instruction(payment_id: str, email: str, runtime: ToolRuntime) -> str:
     """Send a simulated payment instruction to an explicitly supplied email.
 
@@ -575,6 +580,7 @@ def send_payment_instruction_for_session(
 
 
 @tool
+@timed_tool
 def get_payment_status(payment_id: str, runtime: ToolRuntime) -> str:
     """Read the persisted status of a dummy payment in the current session."""
     state = SessionStore().read(thread_id(runtime))
