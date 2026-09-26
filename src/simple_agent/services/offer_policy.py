@@ -2,12 +2,51 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
+from contextvars import ContextVar
+
 import hashlib
 from datetime import date, datetime, timezone
 from decimal import Decimal
 
 from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.okf_validator import frontmatter
+from simple_agent.tool_timing import count_event, timed_phase
+
+
+# Only document bytes/metadata are reused, never authorization decisions.
+_policy_documents: ContextVar[dict | None] = ContextVar(
+    "policy_documents", default=None
+)
+
+
+@contextmanager
+def policy_document_scope():
+    """Reuse immutable policy documents only within one atomic offer operation."""
+    token = _policy_documents.set({})
+    try:
+        yield
+    finally:
+        _policy_documents.reset(token)
+
+
+def read_policy_document(snapshot: str, path: str) -> tuple[str, str, dict]:
+    from simple_agent.services.okf_service import OKFService
+
+    root = PersistentOKFStore().bundle_root(snapshot)
+    cache = _policy_documents.get()
+    key = (str(root), path)
+    if cache is not None and key in cache:
+        count_event("policy_document_reuses")
+        return cache[key]
+    with timed_phase("policy_document_read"):
+        canonical = OKFService(root).canonical_path(path)
+        content = (root / canonical).read_text(encoding="utf-8")
+        result = (canonical, fingerprint(content), frontmatter(content))
+    count_event("policy_document_reads")
+    if cache is not None:
+        cache[key] = cache[(str(root), canonical)] = result
+    return result
 
 
 def fingerprint(content: str) -> str:
@@ -79,18 +118,9 @@ def validate_policy(
     receipt = state.get("receipts", {}).get(path)
     if not snapshot or not receipt:
         raise ValueError("policy_read_required")
-    store = PersistentOKFStore()
-    root = store.bundle_root(snapshot)
-    from simple_agent.services.okf_service import OKFService
-
-    canonical = OKFService(root).canonical_path(path)
-    content = (root / canonical).read_text(encoding="utf-8")
-    if (
-        receipt.get("hash") != fingerprint(content)
-        or receipt.get("snapshot_id") != snapshot
-    ):
+    canonical, content_hash, meta = read_policy_document(snapshot, path)
+    if receipt.get("hash") != content_hash or receipt.get("snapshot_id") != snapshot:
         raise ValueError("policy_receipt_mismatch")
-    meta = frontmatter(content)
     if meta.get("status") not in {"published", "stable", "active"}:
         raise ValueError("policy_not_published")
     now = datetime.now(timezone.utc)
