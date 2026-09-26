@@ -9,7 +9,6 @@ import unicodedata
 from decimal import Decimal, InvalidOperation
 from time import perf_counter
 from typing import Any, Awaitable, Callable
-from uuid import uuid4
 
 from langchain.agents.middleware import (
     AgentMiddleware,
@@ -29,7 +28,6 @@ from simple_agent.tool_observability import (
 )
 from simple_agent.services.session_store import SessionStore
 from simple_agent.services.identity_policy import instructions, policy_for
-from simple_agent.services.payment_policy import validate_requested_payment_policy
 from simple_agent.services.response_audit import audit_response
 from langgraph.config import get_config
 from simple_agent.runtime_settings import LLMSettings
@@ -84,14 +82,6 @@ IDENTITY_PROCESS = re.compile(
     r"(?:realizar|fazer|iniciar|prosseguir com).{0,80}"
     r"(?:\bidentificacao\b|\bverificacao (?:de seguranca|da? identidade)\b)"
 )
-PAYMENT_QUESTION = re.compile(
-    r"^(?:ate\s+)?(?:posso|poderia|consigo|da\s+para|e\s+possivel|tem\s+como|"
-    r"quantas?|quais?|quanto)\b"
-)
-PAYMENT_ACTION = re.compile(
-    r"\b(?:quero|desejo|prefiro|escolho|aceito|fechado|pode\s+ser|vamos|vou|"
-    r"parcelar|parcelado|parcelada|pagar|quitar)\b"
-)
 ACTIVE_OPENING_ACCEPTANCE = re.compile(
     r"(?:podemos|pode|podem) falar|sim|claro|estou disponivel"
 )
@@ -117,10 +107,8 @@ def _brl(value: Any) -> str:
 def _direct_failure(reason: str) -> str:
     return {
         "identity_verification_required": "Preciso confirmar sua identidade antes de negociar.",
-        "explicit_offer_terms_required": (
-            "Informe se deseja pagar à vista ou parcelado e, no parcelamento, "
-            "em quantas parcelas."
-        ),
+        "offer_terms_missing": "Em quantas parcelas você deseja pagar?",
+        "invalid_payment_terms": "A quantidade de parcelas informada é inválida para essa modalidade.",
         "customer_not_eligible": "Não há uma condição de negociação disponível para este cadastro.",
         "customer_eligibility_exceeded": "A condição solicitada está fora da elegibilidade deste cadastro. Informe outra opção.",
         "policy_not_found": "Não encontrei uma política publicada aplicável a esta negociação.",
@@ -241,6 +229,53 @@ class DemoResetMiddleware(AgentMiddleware):
 
 class DirectReplyMiddleware(AgentMiddleware):
     """Append a user-facing AI message after a return-direct transactional tool."""
+
+    @hook_config(can_jump_to=["end"])
+    def before_model(self, state, runtime) -> dict[str, Any] | None:
+        # A success still uses the backend renderer without another model call.
+        # Recoverable policy lookup errors get at most one retry per user turn.
+        attempts = []
+        for message in reversed(state.get("messages", [])):
+            if getattr(message, "type", None) == "human":
+                break
+            if (
+                getattr(message, "type", None) == "tool"
+                and message.name == "generate_payment_offer"
+            ):
+                attempts.append(message)
+        if not attempts:
+            return None
+        latest = attempts[0]
+        try:
+            payload = json.loads(latest.content)
+        except (ValueError, TypeError):
+            payload = {}
+        if not isinstance(payload, dict):
+            payload = {}
+        recovery = {
+            "offer_terms_missing": "Use the installment count already chosen in this conversation. If it is still missing or ambiguous, ask only for that field; never invent it.",
+            "policy_read_required": "Read the selected canonical policy with okf_read or okf_read_section, then retry with the customer's existing choices.",
+            "policy_receipt_mismatch": "Read the policy again in this session before retrying. Do not reuse stale evidence.",
+            "policy_not_found": "Navigate OKF indexes to find and read the applicable policy. Never guess a path.",
+            "policy_scope_mismatch": "Locate and read the policy matching the institution and product returned by identity verification.",
+        }.get(payload.get("reason"))
+        if not payload.get("created") and recovery and len(attempts) < 2:
+            if not payload.get("recovery"):
+                payload.update(recoverable=True, recovery=recovery)
+                return {
+                    "messages": [
+                        latest.model_copy(update={"content": json.dumps(payload)})
+                    ]
+                }
+            return None
+        # Reuse the same renderer and audit metadata for success and terminal failure.
+        result = self.after_agent({"messages": [latest]}, runtime)
+        if result:
+            return {**result, "jump_to": "end"}
+        return None
+
+    async def abefore_model(self, state, runtime) -> dict[str, Any] | None:
+        return await asyncio.to_thread(self.before_model, state, runtime)
 
     def after_agent(self, state, runtime) -> dict[str, Any] | None:
         messages = state.get("messages", [])
@@ -386,121 +421,6 @@ def _latest_human_text(request: ModelRequest) -> str:
     return ""
 
 
-def _complete_offer_handoff(
-    request: ModelRequest, response: ModelResponse
-) -> ModelResponse:
-    """Replace a redundant model confirmation with the validated offer tool call."""
-    if any(message.type == "ai" and message.tool_calls for message in response.result):
-        return response
-    latest = _latest_human_text(request).strip()
-    normalized = _normalize(latest)
-    if (
-        not latest
-        or "?" in latest
-        or PAYMENT_QUESTION.search(normalized)
-        or not PAYMENT_ACTION.search(normalized)
-        and not re.fullmatch(
-            r"(?:parcelad[oa]\s*,?\s*)?(?:\d+|um|uma|dois|duas|tres|quatro|"
-            r"cinco|seis|sete|oito|nove|dez|onze|doze)\s*"
-            r"(?:x|vez(?:es)?|parcelas?)?",
-            normalized,
-        )
-    ):
-        return response
-
-    from simple_agent.tools.payment_tools import _terms_explicit
-
-    counts = [
-        count
-        for count in range(1, 361)
-        if _terms_explicit(
-            request,
-            payment_type="installment",
-            method="boleto",
-            installments=count,
-            method_required=False,
-        )
-    ]
-    if len(counts) == 1:
-        payment_type, installments = "installment", counts[0]
-    elif _terms_explicit(
-        request,
-        payment_type="cash",
-        method="pix",
-        installments=1,
-        method_required=False,
-    ):
-        payment_type, installments = "cash", 1
-    else:
-        return response
-
-    explicit_methods = [
-        method
-        for method in ("pix", "boleto")
-        if re.search(rf"\b{method}\b", normalized)
-    ]
-    if len(explicit_methods) > 1:
-        return response
-    methods = explicit_methods or ["pix", "boleto"]
-    key = get_config().get("configurable", {}).get("thread_id")
-    if not key:
-        return response
-    session = SessionStore().read(key)
-    if (
-        not session.get("identity_verified")
-        or session.get("unbound_session") is True
-        or session.get("payments")
-    ):
-        return response
-    candidates = []
-    for path in session.get("receipts", {}):
-        for method in methods:
-            try:
-                validate_requested_payment_policy(
-                    session, path, payment_type, installments, method
-                )
-            except (FileNotFoundError, KeyError, ValueError, ArithmeticError):
-                continue
-            candidates.append((path, method))
-    if len(candidates) != 1:
-        return response
-    path, method = candidates[0]
-    logger.info(
-        json.dumps(
-            {
-                "event": "COMPLETE_OFFER_HANDOFF",
-                "hostname": socket.gethostname(),
-                "thread_id": key,
-                "payment_type": payment_type,
-                "installments": installments,
-                "method": method,
-            }
-        )
-    )
-    return ModelResponse(
-        result=[
-            AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "id": f"call_{uuid4().hex}",
-                        "name": "generate_payment_offer",
-                        "args": {
-                            "payment_type": payment_type,
-                            "method": method,
-                            "installments": installments,
-                            "policy_path": path,
-                        },
-                    }
-                ],
-                response_metadata={"finish_reason": "tool_calls"},
-                additional_kwargs={"deterministic_offer_handoff": True},
-            )
-        ],
-        structured_response=response.structured_response,
-    )
-
-
 def _audit_final(request: ModelRequest, response: ModelResponse) -> ModelResponse:
     """Enforce the configured identity factors, then annotate the final response."""
     key = get_config().get("configurable", {}).get("thread_id")
@@ -632,7 +552,7 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
     ) -> ModelResponse:
         filtered = self._filtered_request(request)
         response = self._completed(handler(filtered))
-        return _audit_final(filtered, _complete_offer_handoff(filtered, response))
+        return _audit_final(filtered, response)
 
     async def awrap_model_call(
         self,
@@ -641,7 +561,6 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
     ) -> ModelResponse:
         filtered = await asyncio.to_thread(self._filtered_request, request)
         response = self._completed(await handler(filtered))
-        response = await asyncio.to_thread(_complete_offer_handoff, filtered, response)
         return await asyncio.to_thread(_audit_final, filtered, response)
 
     def wrap_tool_call(self, request: ToolCallRequest, handler):

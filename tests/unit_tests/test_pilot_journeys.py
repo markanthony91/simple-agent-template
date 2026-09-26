@@ -7,9 +7,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 from langchain.tools import ToolRuntime
-from langchain.agents.middleware import ModelRequest, ModelResponse
 from langchain_core.messages import AIMessage, HumanMessage
-from langgraph.runtime import Runtime
 
 from .test_collection_identity_gates import runtime, call, verify
 from simple_agent.services.session_store import SessionStore
@@ -254,9 +252,9 @@ def test_email_context_hides_pix_installment_and_includes_payment_date():
     assert pix["installment_display"] == "none"
     assert boleto["installment_display"] == "table-row"
     assert "aviso_simulacao" not in pix
-    assert pix["payment_date"] == datetime.now(
-        ZoneInfo("America/Sao_Paulo")
-    ).strftime("%d/%m/%Y")
+    assert pix["payment_date"] == datetime.now(ZoneInfo("America/Sao_Paulo")).strftime(
+        "%d/%m/%Y"
+    )
 
 
 def test_voice_demo_email_dispatches_call_values_without_identity(monkeypatch):
@@ -370,17 +368,6 @@ def test_negative_draft_identity_and_excess_terms(isolated):
         )["reason"]
         == "identity_verification_required"
     )
-    verify(runtime("pilot-missing-method"))
-    read_policy(runtime("pilot-missing-method"))
-    assert (
-        call(
-            payment_tools.generate_payment_offer,
-            runtime("pilot-missing-method", "Quero pagar à vista", "m4"),
-            **args,
-        )["reason"]
-        == "explicit_offer_terms_required"
-    )
-    assert_no_financial_action("pilot-missing-method")
     verify(runtime("pilot-mismatched-installments"))
     read_policy(runtime("pilot-mismatched-installments"))
     assert (
@@ -396,181 +383,48 @@ def test_negative_draft_identity_and_excess_terms(isolated):
     )
     assert_no_financial_action("pilot-mismatched-installments")
 
-    key = "pilot-missing-installment-count"
-    verify(runtime(key))
-    read_policy(runtime(key))
-    assert call(
-        payment_tools.generate_payment_offer,
-        runtime(key, "Quero parcelar", "m6"),
-        payment_type="installment",
-        method="boleto",
-        policy_path=PATH,
-    ) == {"created": False, "reason": "explicit_offer_terms_required"}
-    assert_no_financial_action(key)
 
-
-@pytest.mark.parametrize(
-    "messages",
-    [
-        ("Desejo parcelar em 3 vezes",),
-        ("parcelado, 3 vezes",),
-        ("Quero 3 parcelas",),
-        ("Pode ser 3x",),
-        ("Quero parcelar em três",),
-        ("parcelado", "3"),
-    ],
-)
-def test_installment_terms_accept_natural_variations(messages):
-    assert payment_tools._terms_explicit(
-        conversation_runtime("natural-installments", *messages),
-        payment_type="installment",
-        method="boleto",
-        installments=3,
-        method_required=False,
-    )
-
-
-@pytest.mark.parametrize(
-    "messages",
-    [("3",), ("Quero 2 parcelas",), ("parcelado", "2")],
-)
-def test_installment_terms_reject_missing_or_different_count(messages):
-    assert not payment_tools._terms_explicit(
-        conversation_runtime("invalid-installments", *messages),
-        payment_type="installment",
-        method="boleto",
-        installments=3,
-        method_required=False,
-    )
-
-
-def test_installment_terms_use_latest_count():
-    rt = conversation_runtime(
-        "latest-installments", "Quero 2 parcelas", "Agora quero 3 parcelas"
-    )
-    assert not payment_tools._terms_explicit(
-        rt, "installment", "boleto", 2, method_required=False
-    )
-    assert payment_tools._terms_explicit(
-        rt, "installment", "boleto", 3, method_required=False
-    )
-
-
-def test_installment_terms_accept_affirmative_reply_to_previous_counteroffer(isolated):
+@pytest.mark.parametrize("reply", ["Sim", "Pode emitir", "Vamos nessa"])
+def test_offer_accepts_contextual_confirmation(isolated, reply):
     seed(isolated, approve=True)
-    rt = ToolRuntime(
-        state={
-            "messages": [
-                HumanMessage(content="Parcelado em 10 vezes", id="m1"),
-                AIMessage(
-                    content=(
-                        "A condição disponível é em até 3 parcelas iguais. "
-                        "Se mantivermos dessa forma, você consegue seguir?"
-                    )
-                ),
-                HumanMessage(content="Sim", id="m2"),
-            ]
-        },
-        context={},
-        config={"configurable": {"thread_id": "affirmative-counteroffer"}},
-        stream_writer=lambda _: None,
-        tool_call_id="call",
-        store=None,
-    )
-
-    assert payment_tools._terms_explicit(
-        rt, "installment", "boleto", 3, method_required=False
-    )
-    assert not payment_tools._terms_explicit(
-        rt, "installment", "boleto", 2, method_required=False
+    rt = conversation_runtime("context-confirmation", "Quero em 3 parcelas", reply)
+    rt.state["messages"].insert(
+        1, AIMessage(content="Seguimos em 3 parcelas no boleto?")
     )
     assert verify(rt)["verified"]
     read_policy(rt)
-    assert call(
+    result = call(
         payment_tools.generate_payment_offer,
         rt,
         payment_type="installment",
         method="boleto",
         policy_path=PATH,
         installments=3,
-    )["created"]
-
-
-@pytest.mark.parametrize("cash_text", ["A vista", "A vist", "avista"])
-def test_cash_terms_accept_common_variations_across_messages(cash_text):
-    assert payment_tools._terms_explicit(
-        conversation_runtime("cash-variations", cash_text, "Pix"),
-        payment_type="cash",
-        method="pix",
-        installments=1,
     )
+    assert result["created"]
+    assert result["offer"]["installments"] == 3
 
 
-def test_complete_offer_handoff_skips_redundant_confirmation(isolated, monkeypatch):
-    from simple_agent import managed_graph, tool_middleware
-
+@pytest.mark.parametrize(
+    "method,payment_type,count", [("pix", "cash", 1), ("boleto", "installment", 3)]
+)
+def test_offer_accepts_method_in_later_turn(isolated, method, payment_type, count):
     seed(isolated, approve=True)
-    key = "complete-offer-handoff"
-    rt = conversation_runtime(key, "Desejo parcelar em 3 vezes")
+    rt = conversation_runtime(
+        "later-method", "Quero à vista" if count == 1 else "Quero em 3 parcelas", method
+    )
     assert verify(rt)["verified"]
     read_policy(rt)
-    monkeypatch.setattr(
-        tool_middleware,
-        "get_config",
-        lambda: {"configurable": {"thread_id": key}},
+    result = call(
+        payment_tools.generate_payment_offer,
+        rt,
+        payment_type=payment_type,
+        method=method,
+        policy_path=PATH,
+        installments=count,
     )
-    request = ModelRequest(
-        model=managed_graph.create_llm(),
-        messages=rt.state["messages"],
-        runtime=Runtime(context={}),
-        state=rt.state,
-    )
-    response = ModelResponse(
-        result=[
-            AIMessage(
-                content="Posso prosseguir com a proposta?",
-                response_metadata={"finish_reason": "stop"},
-            )
-        ]
-    )
-    result = tool_middleware._complete_offer_handoff(request, response)
-    call = result.result[0].tool_calls[0]
-    assert call["name"] == "generate_payment_offer"
-    assert call["args"]["installments"] == 3
-    assert call["args"]["method"] == "boleto"
-    assert call["args"]["policy_path"] == PATH
-
-
-def test_complete_offer_handoff_keeps_informational_question(isolated, monkeypatch):
-    from simple_agent import managed_graph, tool_middleware
-
-    seed(isolated, approve=True)
-    key = "offer-question"
-    rt = conversation_runtime(key, "Posso parcelar em 3 vezes?")
-    assert verify(rt)["verified"]
-    read_policy(rt)
-    monkeypatch.setattr(
-        tool_middleware,
-        "get_config",
-        lambda: {"configurable": {"thread_id": key}},
-    )
-    request = ModelRequest(
-        model=managed_graph.create_llm(),
-        messages=rt.state["messages"],
-        runtime=Runtime(context={}),
-        state=rt.state,
-    )
-    response = ModelResponse(
-        result=[
-            AIMessage(
-                content="Sim, a política permite até 3 parcelas.",
-                response_metadata={"finish_reason": "stop"},
-            )
-        ]
-    )
-    result = tool_middleware._complete_offer_handoff(request, response)
-    assert result is response
-    assert not result.result[0].tool_calls
+    assert result["created"]
+    assert result["payment"]["method"] == method
 
 
 def test_policy_must_be_read_before_offer(isolated):

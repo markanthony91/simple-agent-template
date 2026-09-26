@@ -4,12 +4,10 @@ from __future__ import annotations
 
 from simple_agent.services.offer_policy import (
     money,
+    read_policy_document,
     resolve_offer_discount,
     validate_policy,
 )
-from simple_agent.services.okf_service import OKFService
-from simple_agent.services.okf_store import PersistentOKFStore
-from simple_agent.services.okf_validator import frontmatter
 
 
 def validate_requested_payment_policy(
@@ -23,12 +21,10 @@ def validate_requested_payment_policy(
     snapshot = state.get("snapshot_id")
     if not snapshot:
         raise ValueError("policy_not_found")
-    root = PersistentOKFStore().bundle_root(snapshot)
     try:
-        canonical = OKFService(root).canonical_path(policy_path)
+        canonical, _, metadata = read_policy_document(snapshot, policy_path)
     except FileNotFoundError:
         raise ValueError("policy_not_found") from None
-    metadata = frontmatter((root / canonical).read_text(encoding="utf-8"))
     negotiation = metadata.get("negotiation")
     if not isinstance(negotiation, dict):
         raise ValueError("policy_terms_undefined") from None
@@ -61,8 +57,7 @@ def validate_payment_policy(
         agreement["installments"],
         money(agreement["discount_percentage"]),
     )
-    root = PersistentOKFStore().bundle_root(evidence["snapshot_id"])
-    meta = frontmatter((root / evidence["path"]).read_text(encoding="utf-8"))
+    _, _, meta = read_policy_document(evidence["snapshot_id"], evidence["path"])
     payment = meta.get("payment")
     if (
         not isinstance(payment, dict)

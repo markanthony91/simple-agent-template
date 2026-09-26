@@ -1,9 +1,10 @@
-# Agent Runtime — OKF simulator (0.13.6)
+# Agent Runtime — OKF simulator (0.13.7)
 
 As tools registram tempos por etapa e a busca OKF usa um índice local limitado
 por tamanho e versão imutável do bundle. Veja [medição e cache OKF](docs/OKF_TOOL_PERFORMANCE.md)
-para limites, benchmark sintético e validação. Implementação local; sem publicação
-desta versão no Railway.
+para limites, benchmark sintético e validação. A versão 0.13.6 foi publicada no
+Railway; os ajustes 0.13.7 e o comparativo estão em
+[geração de ofertas](docs/OFFER_FLEXIBILITY.md).
 
 O armazenamento operacional fecha conexões SQLite ao terminar cada acesso.
 Leituras de sessões existentes não reservam o escritor nem regravam o estado.
@@ -29,9 +30,11 @@ template quando a linha de parcela deve ser ocultada para PIX.
 O resumo apresentado ao cliente mantém os valores e a instrução simulada, sem
 expor o identificador interno da proposta.
 
-Uma confirmação curta como “Sim” aceita a quantidade de parcelas da
-contraproposta imediatamente anterior do agente. O backend continua rejeitando
-quantidades diferentes, políticas incompatíveis e meios não permitidos.
+A LLM interpreta a escolha atual na conversa completa, incluindo confirmações
+curtas e mudanças de intenção. O backend não interpreta frases nem força chamadas
+de oferta; valida identidade, evidência OKF, elegibilidade, limites e meios.
+Erros recuperáveis de consulta permitem uma nova tentativa por mensagem.
+Sucesso continua sendo apresentado sem uma chamada adicional ao modelo.
 
 O desconto da proposta agora pertence exclusivamente à política publicada do
 credor (`offer_discount_percentage`). O cliente escolhe modalidade, parcelas e

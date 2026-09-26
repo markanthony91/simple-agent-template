@@ -1,8 +1,10 @@
 # Medição das tools e índice OKF — 0.13.6
 
-Implementação local; produção permanece no Runtime 0.13.5. Nenhum banco,
+Publicada no Railway no deployment `8b7aa073-3f77-47df-bfc9-d9cab3ec7681`,
+commit `4232d55`: status SUCCESS e `/info` acessível. Nenhum banco,
 conversa, política, Workflow ou configuração de produção foi alterado nesta rodada.
-Não houve exportação de conversas. Regras do gerador de ofertas foram preservadas.
+Não houve exportação de conversas. Regras do gerador de ofertas foram preservadas na versão 0.13.6.
+A evolução 0.13.7 está em [geração de ofertas](OFFER_FLEXIBILITY.md).
 
 ## Medição
 
