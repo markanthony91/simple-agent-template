@@ -9,7 +9,12 @@ exportação de conversas. Testes usam exclusivamente armazenamento temporário.
 
 A versão 0.13.6 (índice OKF e medição de etapas) foi publicada primeiro:
 `8b7aa073-3f77-47df-bfc9-d9cab3ec7681`, commit `4232d55`, SUCCESS, `/info` OK.
-A publicação 0.13.7 será registrada após sua confirmação.
+A versão 0.13.7 foi publicada no deployment
+`2047a12e-ef62-4731-a98e-8f6f9280287b`, commit `e0bc6a1`: SUCCESS, healthcheck
+`/info` aprovado pelo Railway e worker iniciado. O acesso HTTP externo foi
+verificado separadamente. O teste semântico com provedor permanece pendente.
+Pull request: https://github.com/markanthony91/simple-agent-template/pull/56.
+Sincronização Trello bloqueada por DNS (wrapper encerrou com código 6).
 
 ## Antes e depois
 
