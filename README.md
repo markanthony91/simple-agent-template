@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.13.3)
+# Agent Runtime — OKF simulator (0.13.4)
 
 O Runtime expõe uma ponte HTTP autenticada para agentes de voz enviarem uma
 instrução de pagamento já criada na sessão. A ponte recebe somente `session_id`,
@@ -257,3 +257,10 @@ change the current Qwen selection. See [connection evidence](docs/LOVABLE_CONNEC
 
 The completion check accepts repeated identical stop/tool-call markers emitted
 by the gateway while still rejecting missing, mixed or truncated finishes.
+
+## Discounts by overdue range
+
+Executable OKF policies may use `negotiation.discount_tiers` instead of a fixed
+`offer_discount_percentage`. The Runtime selects the percentage from trusted
+session debt data, validates the entire table and preserves existing fixed-rate
+policies. See [the policy contract](docs/POLICY_CONTRACT.md).
