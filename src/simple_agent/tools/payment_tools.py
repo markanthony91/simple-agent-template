@@ -5,7 +5,6 @@ from simple_agent.tool_timing import timed_tool
 import json
 import hashlib
 import re
-import unicodedata
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Literal
@@ -16,6 +15,7 @@ from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
 from simple_agent.services.channel_console import ChannelConsoleError, request_json
+from simple_agent.services.offer_policy import policy_document_scope
 from simple_agent.services.payment_policy import (
     validate_requested_payment_policy,
     validate_payment_policy,
@@ -51,104 +51,6 @@ def _agreement(state: dict, agreement_id: str) -> dict | None:
         ),
         None,
     )
-
-
-def _normalized_text(content) -> str:
-    if isinstance(content, list):
-        content = " ".join(
-            item.get("text", "")
-            for item in content
-            if isinstance(item, dict) and item.get("type") == "text"
-        )
-    return "".join(
-        char
-        for char in unicodedata.normalize("NFKD", str(content).casefold())
-        if not unicodedata.combining(char)
-    )
-
-
-def _normalized_human_messages(runtime: ToolRuntime) -> list[str]:
-    return [
-        _normalized_text(message.content)
-        for message in runtime.state.get("messages", [])
-        if getattr(message, "type", None) == "human"
-    ]
-
-
-def _confirms_previous_offer(runtime: ToolRuntime, explicit_count: re.Pattern) -> bool:
-    messages = runtime.state.get("messages", [])
-    latest_human = next(
-        (
-            index
-            for index in range(len(messages) - 1, -1, -1)
-            if getattr(messages[index], "type", None) == "human"
-        ),
-        None,
-    )
-    if latest_human is None or not re.fullmatch(
-        r"\s*(?:sim|confirmo|aceito|fechado|pode seguir|vamos seguir)[.!]?\s*",
-        _normalized_text(messages[latest_human].content),
-    ):
-        return False
-    previous = next(
-        (
-            _normalized_text(message.content)
-            for message in reversed(messages[:latest_human])
-            if getattr(message, "type", None) == "ai"
-            and _normalized_text(message.content).strip()
-        ),
-        "",
-    )
-    return bool(explicit_count.search(previous))
-
-
-def _terms_explicit(
-    runtime: ToolRuntime,
-    payment_type: str,
-    method: str,
-    installments: int,
-    method_required: bool = True,
-) -> bool:
-    messages = _normalized_human_messages(runtime)
-    method_ok = not method_required or any(
-        re.search(rf"\b{method}\b", text) for text in messages
-    )
-    if payment_type == "cash":
-        payment_ok = any(
-            re.search(r"\b(a\s*vist(?:a)?|de uma vez|quitar(?: tudo)?)\b", text)
-            for text in messages
-        )
-    else:
-        words = {
-            1: "um|uma",
-            2: "dois|duas",
-            3: "tres",
-            4: "quatro",
-            5: "cinco",
-            6: "seis",
-            7: "sete",
-            8: "oito",
-            9: "nove",
-            10: "dez",
-            11: "onze",
-            12: "doze",
-        }.get(installments)
-        count = rf"(?:{installments}|{words})" if words else str(installments)
-        installment_intent = re.compile(r"\b(?:parcel\w*|divid\w*)\b")
-        explicit_count = re.compile(
-            rf"(?:\b{count}\s*(?:x|vez(?:es)?|parcelas?)\b|"
-            rf"\b(?:parcel\w*|divid\w*)\b.{{0,40}}\b{count}\b)"
-        )
-        payment_ok = bool(messages and explicit_count.search(messages[-1]))
-        if not payment_ok and messages:
-            latest = re.sub(r"[^\w]+", " ", messages[-1]).strip()
-            payment_ok = bool(
-                re.fullmatch(count, latest)
-                and any(installment_intent.search(text) for text in messages[:-1])
-            )
-        if not payment_ok:
-            payment_ok = _confirms_previous_offer(runtime, explicit_count)
-    return method_ok and payment_ok
 
 
 def _create_payment(
@@ -191,14 +93,14 @@ def _create_payment(
     return _public(payment)
 
 
-@tool(return_direct=True)
+@tool
 @timed_tool
 def generate_payment_offer(
     payment_type: Literal["cash", "installment"],
     method: Literal["pix", "boleto"],
     policy_path: str,
     runtime: ToolRuntime,
-    installments: int = 1,
+    installments: int | None = None,
 ) -> str:
     """Generate an offer, agreement and dummy PIX/boleto in one transaction.
 
@@ -206,16 +108,40 @@ def generate_payment_offer(
     agent. The backend validates its receipt, scope, lifecycle and terms and
     applies its creditor-defined discount. No customer-supplied discount,
     internal human approval or second confirmation is required.
+    Interpret the customer's current choice from the whole conversation, including
+    short confirmations and terms supplied in earlier turns. The latest change or
+    refusal supersedes earlier choices. Never call for a refusal, an informational
+    question or unclear intent. Ask only for missing terms; do not ask the customer
+    to repeat known terms. Do not infer a payment method when policy allows several.
+    For installments, always supply the selected count; absence is not one installment.
     Only created=true authorizes presenting the exact returned schedule and code.
     """
+    if payment_type == "installment" and installments is None:
+        return _json(
+            {
+                "created": False,
+                "reason": "offer_terms_missing",
+                "missing_fields": ["installments"],
+            }
+        )
+    installments = 1 if installments is None else installments
+    if (
+        type(installments) is not int
+        or installments < 1
+        or (payment_type == "cash" and installments != 1)
+    ):
+        return _json({"created": False, "reason": "invalid_payment_terms"})
     try:
-        with SessionStore().transaction(thread_id(runtime)) as state:
+        with (
+            policy_document_scope(),
+            SessionStore().transaction(thread_id(runtime)) as state,
+        ):
             if not state.get("identity_verified"):
                 return _json(
                     {"created": False, "reason": "identity_verification_required"}
                 )
             try:
-                policy_path, discount_percentage, sole_method = (
+                policy_path, discount_percentage, _sole_method = (
                     validate_requested_payment_policy(
                         state,
                         policy_path,
@@ -230,16 +156,6 @@ def generate_payment_offer(
                 )
                 return _json({"created": False, "reason": reason})
             message_id, _ = latest_user_message(runtime)
-            if not _terms_explicit(
-                runtime,
-                payment_type,
-                method,
-                installments,
-                method_required=not sole_method,
-            ):
-                return _json(
-                    {"created": False, "reason": "explicit_offer_terms_required"}
-                )
             offer = _generate_offer(
                 state,
                 payment_type,

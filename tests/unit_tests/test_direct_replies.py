@@ -5,7 +5,11 @@ from langchain_core.language_models.fake_chat_models import FakeMessagesListChat
 from langchain_core.messages import AIMessage
 from langchain_core.tools import tool
 
-from simple_agent.tool_middleware import DIRECT_REPLY_TOOLS, direct_reply, render_direct_reply
+from simple_agent.tool_middleware import (
+    DIRECT_REPLY_TOOLS,
+    direct_reply,
+    render_direct_reply,
+)
 
 
 class CountingModel(FakeMessagesListChatModel):
@@ -40,7 +44,7 @@ def payment_result():
 
 
 def test_transactional_result_is_rendered_without_second_model_call(isolated):
-    @tool("generate_payment_offer", return_direct=True)
+    @tool("generate_payment_offer")
     def synthetic_payment() -> str:
         """Return one backend-authorized synthetic payment."""
         return json.dumps(payment_result())
@@ -97,13 +101,6 @@ def test_direct_failures_never_expose_financial_values():
         json.dumps({"created": False, "reason": "policy_read_required"}),
     )
     assert "consultar no OKF" in unread
-
-    missing = render_direct_reply(
-        "generate_payment_offer",
-        json.dumps({"created": False, "reason": "explicit_offer_terms_required"}),
-    )
-    assert "à vista ou parcelado" in missing
-    assert "PIX" not in missing and "boleto" not in missing
 
 
 def test_identity_result_returns_to_model_for_workflow_response(isolated):
