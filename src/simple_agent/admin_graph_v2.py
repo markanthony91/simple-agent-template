@@ -6,6 +6,8 @@ from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.services.tool_registry import ToolRegistry
 from simple_agent.services.dataset_catalog import catalog, read_document
+from simple_agent.runtime_settings import llm_configuration, validate_settings
+from simple_agent.services.future_demo import create_future_demo_session
 
 
 class AdminState(TypedDict, total=False):
@@ -21,10 +23,13 @@ class AdminState(TypedDict, total=False):
     tool_name: str
     enabled: bool
     fixture: dict[str, Any]
+    thread_id: str
+    demo_form: dict[str, Any]
     result: dict[str, Any] | list[dict[str, Any]]
     error: str
     approved: bool
     query: str
+    settings: dict[str, Any]
 
 
 store = PersistentOKFStore()
@@ -43,11 +48,21 @@ def execute(state: AdminState) -> AdminState:
     operation = state.get("operation", "status")
     try:
         if (
-            operation in {"import_bundle", "publish_draft", "activate_bundle"}
+            operation
+            in {
+                "import_bundle",
+                "publish_draft",
+                "activate_bundle",
+                "create_future_demo_session",
+            }
             and state.get("approved") is not True
         ):
             raise ValueError("human_approval_required")
-        if operation == "status":
+        if operation == "get_llm_config":
+            result = llm_configuration()
+        elif operation == "validate_runtime_settings":
+            result = validate_settings(state.get("settings", {}))
+        elif operation == "status":
             result = store.status()
         elif operation == "catalog":
             result = catalog(store, state.get("query", ""), state.get("bundle_id", ""))
@@ -146,6 +161,11 @@ def execute(state: AdminState) -> AdminState:
             if not isinstance(fixture, dict):
                 raise ValueError("fixture must be an object")
             result = simulator.save(fixture)
+        elif operation == "create_future_demo_session":
+            form = state.get("demo_form")
+            if not isinstance(form, dict):
+                raise ValueError("demo_form must be an object")
+            result = create_future_demo_session(required_text(state, "thread_id"), form)
         else:
             raise ValueError(f"Unsupported admin operation: {operation}")
         return {**state, "result": result, "error": "", "approved": False}

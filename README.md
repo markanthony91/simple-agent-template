@@ -1,4 +1,21 @@
-# Agent Runtime — OKF simulator (0.2.6)
+# Agent Runtime — OKF simulator (0.4.2)
+
+The backend now has a create-only contract for a future Demo form. It accepts
+full name, CPF, E.164 phone, debt amount and days overdue, resolves the creditor
+server-side from Zerai Canais and pins the resulting fixture to one new LangGraph
+thread. Existing Playground fixture editing and existing conversations are unchanged.
+For future-form sessions, the presentation uses the Canais **Cedente** as creditor
+and the selected Assistant's `agent_profile.name` as the agent name. The backend
+renders only `{{credor}}` and `{{nome_agente}}`; this is not delegated to the LLM.
+See [future Demo form](docs/FUTURE_DEMO_FORM.md). This remains a synthetic lab;
+the operation is not a public customer-data endpoint.
+
+In a future-form Demo conversation, the exact command `/reset-demo` resets the
+same session: it retains the pinned form/creditor and OKF snapshot, clears
+identity, offers, agreements and transient state, and excludes prior messages
+from subsequent model context. Earlier checkpoints remain available for audit.
+The command does not call the LLM or any channel; Playground sessions return
+`Comando indisponível nesta sessão.`
 
 The operator Dataset catalog exposes titles, declared types/status, and bounded
 matching excerpts from the complete Markdown text. Search is literal,
@@ -79,10 +96,53 @@ An approval checkbox is not administrative authentication. Do not expose custome
 data or real financial actions through this deployment.
 # Shared pilot chat
 
-The LLM is pinned by server `LLM_MODEL` (legacy fallback `SIMPLE_AGENT_MODEL`).
-Neither message text nor Runnable `configurable.model` selects another model.
-Endpoint/key stay on the backend; changing models is a server configuration and
-rollout operation, not a visitor preference. Use synthetic data in this lab:
+## Agent profile and LLM settings (0.3.0)
+
+The managed `agent` graph reads optional Assistant context fields:
+
+- `llm_settings`: `temperature` (0-2), `top_p` (>0-1), `max_tokens` (integer,
+  1-32768). Missing/null values leave the existing server/provider defaults in
+  effect; they do not silently select a temperature. Parameters apply to each
+  model call, including tool rounds, without changing the shared model instance.
+- `llm_integration`: `primary` (default `default`) and optional `fallback`.
+  Values select server-registered `default`, `lovable` or `external` connections.
+  The UI cannot inject an endpoint, model name or API key.
+- `agent_profile`: `name` (80 characters), `role` (500), `tone` (200).
+  Nonempty fields append the current identity/style to the composed prompt.
+  Empty fields preserve existing behavior. The profile instructs the model to
+  prefer the configured identity/style over conflicting prose, but does not
+  replace backend identity, policy or consent guards. This is model guidance,
+  not a guarantee of literal output. RAW compilation retains its own defaults.
+
+`okf_admin` operations `get_llm_config` and `validate_runtime_settings` expose
+safe model metadata/defaults and validate changes before the UI saves native
+Assistant versions. Sanitized endpoints, models, timeouts, proxy/credential status
+are returned; credential values are never returned. Runtime validation
+also rejects unknown settings, non-finite/out-of-range numbers and model/URL
+overrides. The UI shows provider-default sampling values as unspecified, since
+the server cannot report the provider's effective default. Output limits remain
+subject to the provider's context window; small limits can truncate responses.
+
+Settings affect subsequent runs; use a new conversation for comparisons so
+existing messages do not carry the previous persona. Saving preserves unrelated
+Assistant context and confirms persistence/version before showing success.
+Fallback retries one failed inference on the selected backup only for connection
+errors, timeouts, HTTP 408/429/5xx, before any streamed chunk. It preserves the
+same history, tools and parameters and never reruns the graph or an executed tool.
+Partial streams, cancellations, invalid parameters, authorization/billing errors
+and refusals are not retried. It starts with the primary again on the next model
+call. The final message records `additional_kwargs.llm_route`; logs include
+connection IDs/error type/status, not provider error bodies or credentials.
+RAW compilation still uses only the default connection.
+
+Delivery evidence: [LLM/profile settings](docs/LLM_AGENT_SETTINGS.md).
+Lovable setup: [dedicated authenticated bridge](integrations/lovable/README.md).
+
+The default LLM is pinned by server `LLM_MODEL` (legacy fallback `SIMPLE_AGENT_MODEL`).
+Optional connections use `LLM_LOVABLE_*` and `LLM_EXTERNAL_*` variables shown in
+`.env.example`. Each connection pins its own model and key. Neither message text
+nor Runnable `configurable.model` can inject a model. Operators select configured
+connections through versioned Assistant context. Credential values stay on the backend. Use synthetic data in this lab:
 the shared link is not an authenticated, read-only guest role.
 
 ## RAW instruction history (0.2.7)
@@ -106,3 +166,14 @@ Private pre-rollout backup: `/data/backups/pre-instruction-versions-20260916T194
 hashes matched after deployment. The published frontend save/history/reload check
 passed with identical RAW content. Full evidence and rollback details:
 [frontend release notes](https://github.com/markanthony91/agent-chat-ui/blob/feat/instruction-versions/docs/INSTRUCTION_VERSIONS.md).
+
+## Lovable connection preparation (0.3.2)
+
+The dedicated bridge supports a public SHA-256 verifier of a separate Railway
+bearer token, so no provider credential needs to be copied into a chat or source.
+Connection registration and enabling fallback are separate operations. Marcelo
+retains control of activation in the LLM tab; preparing the connection does not
+change the current Qwen selection. See [connection evidence](docs/LOVABLE_CONNECTION_2026-09-17.md).
+
+The completion check accepts repeated identical stop/tool-call markers emitted
+by the gateway while still rejecting missing, mixed or truncated finishes.
