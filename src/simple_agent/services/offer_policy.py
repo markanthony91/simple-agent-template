@@ -8,6 +8,7 @@ from contextvars import ContextVar
 import hashlib
 from datetime import date, datetime, timezone
 from decimal import Decimal
+from pathlib import PurePosixPath
 
 from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.okf_validator import frontmatter
@@ -47,6 +48,53 @@ def read_policy_document(snapshot: str, path: str) -> tuple[str, str, dict]:
     if cache is not None:
         cache[key] = cache[(str(root), canonical)] = result
     return result
+
+
+class CanonicalPolicyRequired(ValueError):
+    """Navigation hint only; the agent must read and validate the target policy."""
+
+    def __init__(self, path: str):
+        super().__init__("canonical_policy_required")
+        self.path = path
+
+
+def require_canonical_policy(
+    state: dict, source: str, content_hash: str, metadata: dict
+) -> None:
+    from simple_agent.services.okf_service import OKFService
+
+    if metadata.get("policy_role") != "auxiliary":
+        return
+    receipt = state.get("receipts", {}).get(source)
+    if not receipt:
+        raise ValueError("policy_read_required")
+    if (
+        receipt.get("hash") != content_hash
+        or receipt.get("snapshot_id") != state["snapshot_id"]
+    ):
+        raise ValueError("policy_receipt_mismatch")
+    reference = metadata.get("canonical_policy")
+    if not isinstance(reference, str) or not reference.strip():
+        raise ValueError("policy_reference_invalid")
+    reference = reference.strip()
+    path = PurePosixPath(reference)
+    if (
+        path.is_absolute()
+        or ".." in path.parts
+        or any(c in reference for c in ("\\", ":", "?", "#"))
+    ):
+        raise ValueError("policy_reference_invalid")
+    if not path.parts or path.parts[0].upper() not in OKFService.TOP_LEVEL_DIRECTORIES:
+        path = PurePosixPath(source).parent / path
+    try:
+        target = OKFService(
+            PersistentOKFStore().bundle_root(state["snapshot_id"])
+        ).canonical_path(str(path))
+    except (FileNotFoundError, ValueError):
+        raise ValueError("policy_reference_invalid") from None
+    if target == source:
+        raise ValueError("policy_reference_invalid")
+    raise CanonicalPolicyRequired(target)
 
 
 def fingerprint(content: str) -> str:
@@ -121,6 +169,7 @@ def validate_policy(
     canonical, content_hash, meta = read_policy_document(snapshot, path)
     if receipt.get("hash") != content_hash or receipt.get("snapshot_id") != snapshot:
         raise ValueError("policy_receipt_mismatch")
+    require_canonical_policy(state, canonical, content_hash, meta)
     if meta.get("status") not in {"published", "stable", "active"}:
         raise ValueError("policy_not_published")
     now = datetime.now(timezone.utc)

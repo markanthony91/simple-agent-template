@@ -16,7 +16,10 @@ from langchain.tools import ToolRuntime
 from langchain_core.tools import tool
 
 from simple_agent.services.channel_console import ChannelConsoleError, request_json
-from simple_agent.services.offer_policy import policy_document_scope
+from simple_agent.services.offer_policy import (
+    CanonicalPolicyRequired,
+    policy_document_scope,
+)
 from simple_agent.services.payment_policy import (
     validate_requested_payment_policy,
     validate_payment_policy,
@@ -119,6 +122,9 @@ def generate_payment_offer(
     to repeat known terms. Do not infer a payment method when policy allows several.
     For installments, always supply the selected count; absence is not one installment.
     Only created=true authorizes presenting the exact returned schedule and code.
+    An auxiliary policy is not executable. On canonical_policy_required, read
+    canonical_policy_path with okf_read, then retry once with that exact path and
+    the customer's existing choices. Never treat the navigation hint as approval.
     """
     if payment_type == "installment" and installments is None:
         return _json(
@@ -155,6 +161,14 @@ def generate_payment_offer(
                         installments,
                         method,
                     )
+                )
+            except CanonicalPolicyRequired as exc:
+                return _json(
+                    {
+                        "created": False,
+                        "reason": "canonical_policy_required",
+                        "canonical_policy_path": exc.path,
+                    }
                 )
             except (KeyError, ValueError, ArithmeticError) as exc:
                 reason = (

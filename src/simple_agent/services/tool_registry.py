@@ -10,7 +10,7 @@ from typing import Any
 
 DEFAULT_TOOLS: dict[str, dict[str, Any]] = {
     "get_boleto_second_copy": {"name": "get_boleto_second_copy", "description": "Retrieve an existing simulated boleto for the verified customer; does not issue or send payments.", "category": "collection", "enabled": True, "mode": "read_only", "risk": "medium", "requires_auth": True},
-    "utc_now": {"name": "utc_now", "description": "Current UTC date and time.", "category": "utility", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
+    "utc_now": {"name": "utc_now", "description": "Current America/Sao_Paulo (Brasilia) date and time with ISO offset; legacy tool name.", "category": "utility", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "calculator": {"name": "calculator", "description": "Safe arithmetic calculator.", "category": "utility", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "okf_index": {"name": "okf_index", "description": "Navigate OKF indexes using progressive disclosure.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "okf_list": {"name": "okf_list", "description": "List files in the active OKF bundle.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
@@ -63,6 +63,8 @@ class ToolRegistry:
             for name, metadata in tools.items():
                 if name in merged and isinstance(metadata, dict):
                     merged[name].update(metadata)
+        if merged["utc_now"].get("description") == "Current UTC date and time.":
+            merged["utc_now"]["description"] = DEFAULT_TOOLS["utc_now"]["description"]
         return {"version": int(data.get("version", 1)) if isinstance(data, dict) else 1, "updated_at": data.get("updated_at") if isinstance(data, dict) else None, "tools": merged}
 
     def list_tools(self) -> list[dict[str, Any]]:

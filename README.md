@@ -1,4 +1,12 @@
-# Agent Runtime — OKF simulator (0.14.0 local)
+# Agent Runtime — OKF simulator (0.14.1 local)
+
+Recuperação local de política auxiliar: a tool retorna `canonical_policy_required`
+e `canonical_policy_path`; a LLM precisa ler esse documento no OKF e pode tentar
+novamente uma vez com os mesmos termos. Política incompleta, referência inválida,
+escopo incompatível e falta de recibo continuam bloqueando a oferta.
+`utc_now` mantém o nome legado, mas retorna ISO 8601 no fuso `America/Sao_Paulo`,
+com offset explícito. Timestamps de banco e logs continuam em UTC.
+Veja [contrato e validação local](docs/canonical-policy-local-time.md).
 
 Implementação local de `get_boleto_second_copy`, com persistência transacional de
 acordos e instruções emitidas. Consulta por identidade e vínculo cadastral confiável,

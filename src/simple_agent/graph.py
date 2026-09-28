@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import ast
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from langchain.agents import create_agent
 from langchain.agents.middleware import ModelRequest, dynamic_prompt
@@ -17,8 +18,13 @@ from simple_agent.llm import create_llm
 
 @tool
 def utc_now() -> str:
-    """Return the current UTC timestamp in ISO format."""
-    return datetime.now(tz=timezone.utc).isoformat()
+    """Return current America/Sao_Paulo (Brasilia) time in ISO 8601 with offset.
+
+    The legacy name utc_now is kept for compatibility; the result is LOCAL time,
+    not UTC. Use this local hour for bom dia/boa tarde/boa noite. Do not subtract
+    another three hours or assume the container's UTC timezone is the local one.
+    """
+    return datetime.now(tz=ZoneInfo("America/Sao_Paulo")).isoformat()
 
 
 @tool

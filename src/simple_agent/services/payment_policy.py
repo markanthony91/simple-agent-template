@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from simple_agent.services.offer_policy import (
+    require_canonical_policy,
     money,
     read_policy_document,
     resolve_offer_discount,
@@ -22,9 +23,10 @@ def validate_requested_payment_policy(
     if not snapshot:
         raise ValueError("policy_not_found")
     try:
-        canonical, _, metadata = read_policy_document(snapshot, policy_path)
+        canonical, content_hash, metadata = read_policy_document(snapshot, policy_path)
     except FileNotFoundError:
         raise ValueError("policy_not_found") from None
+    require_canonical_policy(state, canonical, content_hash, metadata)
     negotiation = metadata.get("negotiation")
     if not isinstance(negotiation, dict):
         raise ValueError("policy_terms_undefined") from None

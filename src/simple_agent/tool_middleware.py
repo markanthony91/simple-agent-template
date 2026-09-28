@@ -107,6 +107,8 @@ def _brl(value: Any) -> str:
 
 def _direct_failure(reason: str) -> str:
     return {
+        "canonical_policy_required": "Ainda preciso consultar a política de negociação indicada pelo documento para concluir a proposta.",
+        "policy_reference_invalid": "Não consegui confirmar a referência para a política de negociação. A proposta não foi gerada.",
         "identity_verification_required": "Preciso confirmar sua identidade antes de negociar.",
         "offer_terms_missing": "Em quantas parcelas você deseja pagar?",
         "invalid_payment_terms": "A quantidade de parcelas informada é inválida para essa modalidade.",
@@ -268,6 +270,7 @@ class DirectReplyMiddleware(AgentMiddleware):
         if not isinstance(payload, dict):
             payload = {}
         recovery = {
+            "canonical_policy_required": "Read canonical_policy_path returned in this result with okf_read. Then retry once with that exact policy_path and the customer's existing payment type, method and installments. Do not ask the customer to repeat their choices. The target must pass all normal policy and receipt validations.",
             "offer_terms_missing": "Use the installment count already chosen in this conversation. If it is still missing or ambiguous, ask only for that field; never invent it.",
             "policy_read_required": "Read the selected canonical policy with okf_read or okf_read_section, then retry with the customer's existing choices.",
             "policy_receipt_mismatch": "Read the policy again in this session before retrying. Do not reuse stale evidence.",

@@ -1,3 +1,20 @@
+# Política canônica e horário de Brasília — 0.14.1 local
+
+- [x] Distinguir documento auxiliar de política com condições indefinidas.
+- [x] Referência canônica validada no mesmo snapshot, sem criar recibo implicitamente.
+- [x] Uma tentativa de recuperação; preservar termos do cliente e todas as validações.
+- [x] `utc_now` em America/Sao_Paulo, nome e retorno ISO compatíveis.
+- [x] Descrição padrão antiga do catálogo atualizada na leitura, preservando enabled e customizações.
+- [x] AGENTS.md padrão e descrição da tool ajustados localmente.
+- [x] 38 testes focados aprovados (incluindo regressões de recuperação existentes).
+- [x] Suíte completa: 408 aprovados, 1 ignorado, 1 xfail preexistente; cobertura 89,80%.
+  Ruff e `git diff --check` aprovados.
+- [ ] Deploy: aguardar solicitação do usuário.
+
+Base: feature local de segunda via, commit 5c8945f. Nenhum bundle ou Assistant de
+produção foi modificado. O erro original veio de `limites-desconto.md` com
+`policy_role: auxiliary`, apontando para `politica-negociacao.md`.
+
 # Segunda via de boleto — 0.14.0 local
 
 - [x] Tool `get_boleto_second_copy`, somente leitura, com identidade e escopo do backend.
