@@ -47,6 +47,7 @@ DIRECT_REPLY_TOOLS = {
     "send_payment_instruction",
 }
 FINANCIAL_TOOLS = {
+    "get_boleto_second_copy",
     "verify_and_get_customer",
     "generate_payment_offer",
     "send_payment_instruction",
@@ -450,7 +451,9 @@ def _audit_final(request: ModelRequest, response: ModelResponse) -> ModelRespons
         message.content = _sanitize_identity_request(
             message.content, session, latest_human_text
         )
-        report = audit_response(message.content, session)
+        report = audit_response(
+            message.content, session, tool_messages=request.messages
+        )
         message.additional_kwargs["response_audit"] = report
         logger.info(
             json.dumps(

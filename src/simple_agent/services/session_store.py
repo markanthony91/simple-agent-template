@@ -13,6 +13,7 @@ from typing import Iterator
 from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.tool_timing import timed_phase
+from simple_agent.services.boleto_store import SCHEMA, save_payments, second_copy
 
 
 def validate_thread_id(value: str) -> str:
@@ -98,6 +99,7 @@ class SessionStore:
                 );
                 """
             )
+            db.executescript(SCHEMA)
 
     @contextmanager
     def _connect(self) -> Iterator[sqlite3.Connection]:
@@ -349,6 +351,11 @@ class SessionStore:
             state = self._state(db, key, row[0])
             if state.get("demo_session") is not True:
                 return False
+            # Preserve reset semantics: delete only this demo's generated records.
+            db.execute(
+                "DELETE FROM payment_agreements WHERE origin_session_id=?",
+                (key,),
+            )
             reset = {
                 "fixture": state["fixture"],
                 "identity_verified": False,
@@ -371,7 +378,9 @@ class SessionStore:
         return True
 
     @contextmanager
-    def transaction(self, key: str) -> Iterator[dict]:
+    def transaction(
+        self, key: str, *, persist_payments: bool = False
+    ) -> Iterator[dict]:
         key = validate_thread_id(key)
         # One Railway replica: serialize short state changes, never LLM calls.
         with self._connect() as db:
@@ -410,6 +419,16 @@ class SessionStore:
                     "ON CONFLICT(id) DO UPDATE SET data=excluded.data",
                     (key, json.dumps(stored)),
                 )
+                if persist_payments:
+                    save_payments(db, key, state)
+
+    def boleto_second_copy(
+        self, key: str, agreement_id: str = "", installment_number: int | None = None
+    ) -> dict:
+        key = validate_thread_id(key)
+        with self._connect() as db:
+            db.execute("BEGIN")
+            return second_copy(db, key, agreement_id, installment_number)
 
 
 def latest_user_message(runtime) -> tuple[str, str]:

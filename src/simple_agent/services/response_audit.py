@@ -5,6 +5,7 @@ Displayed text is never retracted or retried; action authorization stays in tool
 """
 
 import re
+import json
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
@@ -22,7 +23,7 @@ def _number(text: str) -> Decimal:
     return Decimal(text)
 
 
-def audit_response(text: str, session: dict) -> dict:
+def audit_response(text: str, session: dict, *, tool_messages=()) -> dict:
     report = {
         "mode": "post_stream",
         "status": "not_evaluated",
@@ -43,6 +44,23 @@ def audit_response(text: str, session: dict) -> dict:
     allowed_amounts: set[Decimal] = set()
     allowed_percentages: set[Decimal] = set()
     if session.get("identity_verified"):
+        # A second copy may belong to another session. Use only successful tool
+        # results from this turn, never client messages or an old lookup.
+        for message in reversed(tool_messages):
+            if getattr(message, "type", None) == "human":
+                break
+            if (
+                getattr(message, "type", None) != "tool"
+                or getattr(message, "name", None) != "get_boleto_second_copy"
+                or getattr(message, "status", "success") != "success"
+            ):
+                continue
+            try:
+                result = json.loads(message.content)
+                if result.get("found") is True:
+                    allowed_amounts.add(money(result["payment"]["amount"]))
+            except (ValueError, TypeError, KeyError, AttributeError, InvalidOperation):
+                continue
         debt = session.get("fixture", {}).get("debt", {})
         # A balance is a fact only after the customer tool has returned it.
         if session.get("debt_read"):

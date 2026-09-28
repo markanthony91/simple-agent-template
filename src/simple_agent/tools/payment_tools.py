@@ -5,6 +5,7 @@ from simple_agent.tool_timing import timed_tool
 import json
 import hashlib
 import re
+import sqlite3
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Literal
@@ -102,7 +103,10 @@ def generate_payment_offer(
     runtime: ToolRuntime,
     installments: int | None = None,
 ) -> str:
-    """Generate an offer, agreement and dummy PIX/boleto in one transaction.
+    """Generate and persist an offer, agreement and dummy PIX/boleto atomically.
+
+    The indexed agreement and issued instruction are saved with the session.
+    Future second-copy requests must retrieve them, not generate a new offer.
 
     policy_path must be the exact published OKF policy previously read by the
     agent. The backend validates its receipt, scope, lifecycle and terms and
@@ -134,7 +138,9 @@ def generate_payment_offer(
     try:
         with (
             policy_document_scope(),
-            SessionStore().transaction(thread_id(runtime)) as state,
+            SessionStore().transaction(
+                thread_id(runtime), persist_payments=True
+            ) as state,
         ):
             if not state.get("identity_verified"):
                 return _json(
@@ -206,7 +212,7 @@ def create_payment_instruction(
     The backend revalidates the pinned OKF policy. Only created=true authorizes
     presenting the returned dummy code; it can never be used for a real payment.
     """
-    with SessionStore().transaction(thread_id(runtime)) as state:
+    with SessionStore().transaction(thread_id(runtime), persist_payments=True) as state:
         if not state.get("identity_verified"):
             return _json({"created": False, "reason": "identity_verification_required"})
         agreement = _agreement(state, agreement_id)
@@ -518,6 +524,42 @@ def send_payment_instruction_for_session(
 
 @tool
 @timed_tool
+def get_boleto_second_copy(
+    runtime: ToolRuntime,
+    agreement_id: str = "",
+    installment_number: int | None = None,
+) -> str:
+    """Retrieve an EXISTING simulated boleto after identity verification.
+
+    Use for 'segunda via', 'reenviar boleto' or a lost boleto. No policy_path is
+    needed: this reads saved terms, never recalculates, issues or sends anything.
+    The server chooses customer/debt/company scope; never pass a CPF or customer ID.
+    Call without selectors when unknown; reuse agreement_id from results and ask
+    only for the missing selection on agreement_selection_required or
+    installment_selection_required. Only found=true authorizes returning the exact
+    payment_code and amount, always identified as simulated. due_date=null means
+    unavailable, not today's date. Do not claim provider acceptance or delivery.
+    boleto_not_found / boleto_not_issued do not authorize a new negotiation.
+    query_failed means the lookup failed, not that there is no boleto. A paid,
+    cancelled or expired boleto cannot be reissued by this tool.
+    """
+    if not isinstance(agreement_id, str) or len(agreement_id) > 200:
+        return _json({"found": False, "reason": "invalid_agreement_id"})
+    if installment_number is not None and (
+        type(installment_number) is not int or not 1 <= installment_number <= 360
+    ):
+        return _json({"found": False, "reason": "invalid_installment_number"})
+    try:
+        result = SessionStore().boleto_second_copy(
+            thread_id(runtime), agreement_id, installment_number
+        )
+    except (sqlite3.Error, OSError, ValueError, KeyError, TypeError):
+        result = {"found": False, "reason": "query_failed"}
+    return _json(result)
+
+
+@tool
+@timed_tool
 def get_payment_status(payment_id: str, runtime: ToolRuntime) -> str:
     """Read the persisted status of a dummy payment in the current session."""
     state = SessionStore().read(thread_id(runtime))
@@ -552,7 +594,7 @@ def get_payment_status(payment_id: str, runtime: ToolRuntime) -> str:
 
 def simulate_payment_settled(session_id: str, payment_id: str) -> dict:
     """Operator-only settlement simulation; never registered as an agent tool."""
-    with SessionStore().transaction(session_id) as state:
+    with SessionStore().transaction(session_id, persist_payments=True) as state:
         payment = state["payments"].get(payment_id)
         if not payment:
             raise ValueError("payment_not_found")
@@ -572,6 +614,7 @@ def simulate_payment_settled(session_id: str, payment_id: str) -> dict:
 
 PAYMENT_TOOLS = [
     generate_payment_offer,
+    get_boleto_second_copy,
     send_payment_instruction,
     get_payment_status,
 ]

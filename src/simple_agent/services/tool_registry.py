@@ -9,6 +9,7 @@ from typing import Any
 
 
 DEFAULT_TOOLS: dict[str, dict[str, Any]] = {
+    "get_boleto_second_copy": {"name": "get_boleto_second_copy", "description": "Retrieve an existing simulated boleto for the verified customer; does not issue or send payments.", "category": "collection", "enabled": True, "mode": "read_only", "risk": "medium", "requires_auth": True},
     "utc_now": {"name": "utc_now", "description": "Current UTC date and time.", "category": "utility", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "calculator": {"name": "calculator", "description": "Safe arithmetic calculator.", "category": "utility", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "okf_index": {"name": "okf_index", "description": "Navigate OKF indexes using progressive disclosure.", "category": "knowledge", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},

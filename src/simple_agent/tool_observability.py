@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from typing import Any
 
 SENSITIVE_KEYS = {
+    "payment_code",
     "cpf",
     "document",
     "document_number",

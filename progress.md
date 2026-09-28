@@ -1,3 +1,17 @@
+# Segunda via de boleto — 0.14.0 local
+
+- [x] Tool `get_boleto_second_copy`, somente leitura, com identidade e escopo do backend.
+- [x] Acordos e instruções em tabelas indexadas, na transação da geração e atualização.
+- [x] Reset limpa somente registros da sessão Demo de origem, com cascade transacional.
+- [x] Registro/habilitação no catálogo; bloqueio em sessão sem cadastro e código redigido nos logs.
+- [x] Guia de WhatsApp, Workflow, AGENTS.md, novas tools e limites dos IDs por disparo.
+- [x] 17 testes locais focados aprovados, sem chamadas externas.
+- [x] Suíte: 386 aprovados, 1 ignorado, 1 xfail preexistente; cobertura 89,68%.
+  `boleto_store.py`: 98%. Ruff e `git diff --check` aprovados.
+- [ ] Deploy: não solicitado nesta rodada.
+- [ ] Vinculação dos novos disparos ao cadastro estável: fora desta implementação.
+- [ ] Migração de acordos legados: não executada; exige autorização específica.
+
 # Contexto de empresa e diretório OKF — 0.13.13
 
 - [x] Cadastro opcional `company`, preservado nas sessões Demo e após reset.

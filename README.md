@@ -1,4 +1,11 @@
-# Agent Runtime — OKF simulator (0.13.13)
+# Agent Runtime — OKF simulator (0.14.0 local)
+
+Implementação local de `get_boleto_second_copy`, com persistência transacional de
+acordos e instruções emitidas. Consulta por identidade e vínculo cadastral confiável,
+sem criar outra oferta ou disparar mensagens. Reset Demo limpa somente a origem.
+Consulte [contrato, limites e exemplos para Workflow/AGENTS.md](docs/boleto-second-copy.md).
+Ainda sem deploy; novos disparos Demo continuam com IDs próprios e não são
+automaticamente vinculados ao mesmo acordo.
 
 Após identificação, `verify_and_get_customer` e `get_customer` incluem `company`,
 `company_source`, `okf_directory` e `okf_context_status`. O campo opcional `company`
