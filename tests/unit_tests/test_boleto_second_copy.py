@@ -184,11 +184,11 @@ def test_settlement_propagates_and_reset_removes_only_origin_records(isolated):
     other = bind_existing("origin", "other")
     unrelated, _ = generate(isolated, key="unrelated")
     tools.simulate_payment_settled("origin", issued["payment"]["payment_id"])
-    assert retrieve(other)["reason"] == "agreement_not_payable"
+    assert retrieve(other)["reason"] == "payment_not_payable"
     assert SessionStore().reset_demo(
         "other"
     )  # Merely viewing does not transfer ownership.
-    assert retrieve(rt)["reason"] == "agreement_not_payable"
+    assert retrieve(rt)["reason"] == "payment_not_payable"
     assert SessionStore().reset_demo("origin")
     assert verify(other)["verified"]
     assert retrieve(other)["reason"] == "boleto_not_found"

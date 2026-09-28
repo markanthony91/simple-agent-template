@@ -186,10 +186,6 @@ def test_email_catalog_failure_does_not_dispatch(isolated, monkeypatch):
     assert not SessionStore().read("matrix")["deliveries"]
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Existing demo settlement closes the agreement after only its first installment; outside this release",
-)
 def test_partial_settlement_should_not_close_installment_agreement(isolated):
     rt = prepared(isolated)
     result = generate(rt)

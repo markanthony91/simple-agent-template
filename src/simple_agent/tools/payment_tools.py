@@ -18,6 +18,7 @@ from langchain_core.tools import tool
 from simple_agent.services.channel_console import ChannelConsoleError, request_json
 from simple_agent.services.offer_policy import (
     CanonicalPolicyRequired,
+    DownPaymentRequired,
     policy_document_scope,
 )
 from simple_agent.services.payment_policy import (
@@ -93,6 +94,8 @@ def _create_payment(
         "idempotency_key": key,
     }
     state["payments"][payment_id] = payment
+    if agreement.get("down_payment_amount") and installment_number == 1:
+        payment["is_down_payment"] = True
     agreement["status"] = "payment_pending"
     return _public(payment)
 
@@ -105,6 +108,7 @@ def generate_payment_offer(
     policy_path: str,
     runtime: ToolRuntime,
     installments: int | None = None,
+    down_payment_amount: str = "0",
 ) -> str:
     """Generate and persist an offer, agreement and dummy PIX/boleto atomically.
 
@@ -121,6 +125,13 @@ def generate_payment_offer(
     question or unclear intent. Ask only for missing terms; do not ask the customer
     to repeat known terms. Do not infer a payment method when policy allows several.
     For installments, always supply the selected count; absence is not one installment.
+    down_payment_amount is optional, in BRL as a decimal string (e.g. "1000.00").
+    Omit it unless the customer chose an entry. installments counts ALL payments,
+    including the entry: entry plus three later payments means installments=4.
+    The entry is the first payment; the remaining total is split among the others.
+    Never invent an entry or calculate it with the model/calculator. If the policy
+    requires one, down_payment_required returns minimum_down_payment_amount; ask
+    whether the customer can pay that amount, then reuse it after confirmation.
     Only created=true authorizes presenting the exact returned schedule and code.
     An auxiliary policy is not executable. On canonical_policy_required, read
     canonical_policy_path with okf_read, then retry once with that exact path and
@@ -160,7 +171,16 @@ def generate_payment_offer(
                         payment_type,
                         installments,
                         method,
+                        down_payment_amount,
                     )
+                )
+            except DownPaymentRequired as exc:
+                return _json(
+                    {
+                        "created": False,
+                        "reason": "down_payment_required",
+                        "minimum_down_payment_amount": exc.minimum,
+                    }
                 )
             except CanonicalPolicyRequired as exc:
                 return _json(
@@ -183,6 +203,7 @@ def generate_payment_offer(
                 discount_percentage,
                 policy_path,
                 runtime,
+                down_payment_amount,
             )
             if not offer.get("available"):
                 return _json(
@@ -271,7 +292,11 @@ def _email_context(state: dict, payment: dict, agreement: dict) -> dict[str, str
         "codigo_pagamento": str(payment["payment_code"]),
         "payment_id": str(payment["payment_id"]),
         "agreement_id": str(payment["agreement_id"]),
-        "numero_parcela": str(payment["installment_number"]),
+        "numero_parcela": (
+            "1 (entrada)"
+            if payment.get("is_down_payment")
+            else str(payment["installment_number"])
+        ),
         "parcelas": str(agreement["installments"]),
         "is_simulation": "true",
     }
@@ -617,7 +642,14 @@ def simulate_payment_settled(session_id: str, payment_id: str) -> dict:
             payment["settled_at"] = datetime.now(timezone.utc).isoformat()
             agreement = _agreement(state, payment["agreement_id"])
             if agreement:
-                agreement["status"] = "settled"
+                settled = {
+                    item["installment_number"]
+                    for item in state["payments"].values()
+                    if item["agreement_id"] == agreement["agreement_id"]
+                    and item["status"] == "settled"
+                }
+                if settled == set(range(1, len(agreement["installment_schedule"]) + 1)):
+                    agreement["status"] = "settled"
         return {
             "payment_id": payment_id,
             "status": payment["status"],

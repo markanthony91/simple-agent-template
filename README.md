@@ -1,4 +1,9 @@
-# Agent Runtime — OKF simulator (0.14.1)
+# Agent Runtime — OKF simulator (0.14.2)
+
+Contrato canônico por modalidade e entrada opcional em `generate_payment_offer`.
+O backend separa desconto à vista de parcelado, valida valores mínimos e preserva
+a exigência de entrada por atraso. Entrada integra o total de pagamentos e não
+liquida sozinha o acordo. Veja [contrato e orientação do gerador](docs/policy-contract/README.md).
 
 Recuperação de política auxiliar: a tool retorna `canonical_policy_required`
 e `canonical_policy_path`; a LLM precisa ler esse documento no OKF e pode tentar

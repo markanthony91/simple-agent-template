@@ -214,6 +214,7 @@ def _generate_offer(
     discount_percentage: str,
     policy_path: str,
     runtime: ToolRuntime,
+    down_payment_amount: str = "0",
 ) -> dict:
     if not state["identity_verified"]:
         return {"available": False, "reason": "identity_verification_required"}
@@ -230,13 +231,17 @@ def _generate_offer(
             or discount > 100
         ):
             raise ValueError("customer_eligibility_exceeded")
-        evidence = validate_policy(state, policy_path, payment_type, count, discount)
+        evidence = validate_policy(
+            state, policy_path, payment_type, count, discount, down_payment_amount
+        )
     except (ValueError, ArithmeticError) as exc:
         return {"available": False, "reason": str(exc)}
     message_id, user_text = latest_user_message(runtime)
+    entry = money(down_payment_amount)
     key = hashlib.sha256(
         json.dumps(
-            [message_id or user_text, payment_type, count, str(discount), evidence],
+            [message_id or user_text, payment_type, count, str(discount), evidence]
+            + ([format(entry, ".2f")] if entry else []),
             sort_keys=True,
         ).encode()
     ).hexdigest()
@@ -249,11 +254,14 @@ def _generate_offer(
     total = (current * (1 - discount / 100)).quantize(
         Decimal("0.01"), rounding=ROUND_HALF_UP
     )
-    cents, remainder = divmod(int(total * 100), count)
+    remaining_count = count - bool(entry)
+    cents, remainder = divmod(int((total - entry) * 100), remaining_count)
     schedule = [
         _amount(Decimal(cents + (1 if i < remainder else 0)) / 100)
-        for i in range(count)
+        for i in range(remaining_count)
     ]
+    if entry:
+        schedule.insert(0, _amount(entry))
     now = datetime.now(timezone.utc)
     offer = {
         "available": True,
@@ -278,6 +286,8 @@ def _generate_offer(
         "source_message_id": message_id,
     }
     state["offers"][key] = offer
+    if entry:
+        offer["down_payment_amount"] = _amount(entry)
     return offer
 
 
@@ -301,6 +311,7 @@ def _create_agreement(
             offer["payment_type"],
             offer["installments"],
             money(offer["discount_percentage"]),
+            offer.get("down_payment_amount", "0"),
         )
     except ValueError as exc:
         return {"created": False, "reason": str(exc)}
@@ -328,6 +339,8 @@ def _create_agreement(
         },
     }
     state["agreements"][offer_id] = agreement
+    if offer.get("down_payment_amount"):
+        agreement["down_payment_amount"] = offer["down_payment_amount"]
     offer["status"] = "accepted"
     return agreement
 

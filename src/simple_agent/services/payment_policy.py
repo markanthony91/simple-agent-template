@@ -7,6 +7,7 @@ from simple_agent.services.offer_policy import (
     money,
     read_policy_document,
     resolve_offer_discount,
+    terms_for_payment_type,
     validate_policy,
 )
 
@@ -17,6 +18,7 @@ def validate_requested_payment_policy(
     payment_type: str,
     installments: int,
     method: str,
+    down_payment_amount: str = "0",
 ) -> tuple[str, str, bool]:
     """Validate the exact OKF policy selected and read by the agent."""
     snapshot = state.get("snapshot_id")
@@ -27,19 +29,18 @@ def validate_requested_payment_policy(
     except FileNotFoundError:
         raise ValueError("policy_not_found") from None
     require_canonical_policy(state, canonical, content_hash, metadata)
-    negotiation = metadata.get("negotiation")
-    if not isinstance(negotiation, dict):
-        raise ValueError("policy_terms_undefined") from None
+    negotiation = terms_for_payment_type(metadata.get("negotiation"), payment_type)
     configured_discount = resolve_offer_discount(negotiation, state["fixture"])
     count = 1 if payment_type == "cash" else installments
     evidence = validate_policy(
-        state, canonical, payment_type, count, configured_discount
+        state, canonical, payment_type, count, configured_discount, down_payment_amount
     )
     agreement = {
         "policy_source": evidence,
         "payment_type": payment_type,
         "installments": count,
         "discount_percentage": format(configured_discount.normalize(), "f"),
+        "down_payment_amount": down_payment_amount,
     }
     validate_payment_policy(state, agreement, method)
     allowed = metadata["payment"]["methods_by_payment_type"][payment_type]
@@ -58,6 +59,7 @@ def validate_payment_policy(
         agreement["payment_type"],
         agreement["installments"],
         money(agreement["discount_percentage"]),
+        agreement.get("down_payment_amount", "0"),
     )
     _, _, meta = read_policy_document(evidence["snapshot_id"], evidence["path"])
     payment = meta.get("payment")

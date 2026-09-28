@@ -7,7 +7,7 @@ from contextvars import ContextVar
 
 import hashlib
 from datetime import date, datetime, timezone
-from decimal import Decimal
+from decimal import Decimal, ROUND_HALF_UP, ROUND_CEILING
 from pathlib import PurePosixPath
 
 from simple_agent.services.okf_store import PersistentOKFStore
@@ -56,6 +56,12 @@ class CanonicalPolicyRequired(ValueError):
     def __init__(self, path: str):
         super().__init__("canonical_policy_required")
         self.path = path
+
+
+class DownPaymentRequired(ValueError):
+    def __init__(self, minimum: Decimal):
+        super().__init__("down_payment_required")
+        self.minimum = format(minimum, ".2f")
 
 
 def require_canonical_policy(
@@ -108,9 +114,66 @@ def money(value) -> Decimal:
     return number
 
 
+def terms_for_payment_type(policy: dict, payment_type: str) -> dict:
+    """Select declared modality terms; preserve legacy single-modality policies."""
+    if not isinstance(policy, dict):
+        raise ValueError("policy_terms_undefined")
+    if "by_payment_type" not in policy:
+        return policy
+    branches = policy["by_payment_type"]
+    types = policy.get("payment_types")
+    if (
+        not isinstance(branches, dict)
+        or not isinstance(types, list)
+        or not all(isinstance(kind, str) for kind in types)
+        or set(branches) != set(types)
+        or any(
+            key in policy
+            for key in (
+                "offer_discount_percentage",
+                "initial_offer_discount_percentage",
+                "discount_tiers",
+            )
+        )
+        or not all(isinstance(branch, dict) for branch in branches.values())
+    ):
+        raise ValueError("policy_terms_invalid")
+    if payment_type not in branches:
+        raise ValueError("payment_type_not_allowed")
+    branch = branches[payment_type]
+    allowed = {
+        "max_discount_percentage",
+        "offer_discount_percentage",
+        "initial_offer_discount_percentage",
+        "discount_tiers",
+    }
+    if not set(branch) <= allowed or "max_discount_percentage" not in branch:
+        raise ValueError("policy_terms_invalid")
+    if money(branch["max_discount_percentage"]) > money(
+        policy.get("max_discount_percentage")
+    ):
+        raise ValueError("policy_terms_invalid")
+    return {**policy, **branch}
+
+
+def debt_days_overdue(fixture: dict) -> int:
+    debt = fixture.get("debt", {})
+    days = debt.get("days_overdue")
+    if days is None:
+        try:
+            days = max(0, (date.today() - date.fromisoformat(debt["due_date"])).days)
+        except (KeyError, TypeError, ValueError):
+            raise ValueError("debt_context_required") from None
+    if type(days) is not int or days < 0:
+        raise ValueError("debt_context_required")
+    return days
+
+
 def resolve_offer_discount(policy: dict, fixture: dict) -> Decimal:
     """Resolve creditor-owned terms from trusted debt context, never model input."""
     if "discount_tiers" not in policy:
+        if "initial_offer_discount_percentage" in policy:
+            raise ValueError("policy_terms_invalid")
         if "offer_discount_percentage" not in policy:
             raise ValueError("policy_terms_undefined")
         return money(policy["offer_discount_percentage"])
@@ -122,15 +185,7 @@ def resolve_offer_discount(policy: dict, fixture: dict) -> Decimal:
     ):
         raise ValueError("policy_terms_invalid")
     maximum = money(policy.get("max_discount_percentage"))
-    debt = fixture.get("debt", {})
-    days = debt.get("days_overdue")
-    if days is None:
-        try:
-            days = max(0, (date.today() - date.fromisoformat(debt["due_date"])).days)
-        except (KeyError, TypeError, ValueError):
-            raise ValueError("debt_context_required") from None
-    if type(days) is not int or days < 0:
-        raise ValueError("debt_context_required")
+    days = debt_days_overdue(fixture)
     expected_min = 0
     selected = None
     for index, tier in enumerate(tiers):
@@ -156,11 +211,21 @@ def resolve_offer_discount(policy: dict, fixture: dict) -> Decimal:
         expected_min = upper + 1 if upper is not None else 0
     if selected is None:
         raise ValueError("policy_terms_invalid")
+    if "initial_offer_discount_percentage" in policy:
+        initial = money(policy["initial_offer_discount_percentage"])
+        if any(initial > money(tier["offer_discount_percentage"]) for tier in tiers):
+            raise ValueError("policy_terms_invalid")
+        return initial
     return selected
 
 
 def validate_policy(
-    state: dict, path: str, payment_type: str, count: int, discount: Decimal
+    state: dict,
+    path: str,
+    payment_type: str,
+    count: int,
+    discount: Decimal,
+    down_payment_amount: str = "0",
 ) -> dict:
     snapshot = state.get("snapshot_id")
     receipt = state.get("receipts", {}).get(path)
@@ -188,7 +253,7 @@ def validate_policy(
         "product"
     ) != fixture.get("product"):
         raise ValueError("policy_scope_mismatch")
-    policy = meta.get("negotiation")
+    policy = terms_for_payment_type(meta.get("negotiation"), payment_type)
     if (
         not isinstance(policy, dict)
         or not {
@@ -209,13 +274,74 @@ def validate_policy(
     offered = resolve_offer_discount(policy, fixture)
     if maximum > 100 or offered > maximum:
         raise ValueError("policy_terms_invalid")
+    max_installments = policy["max_installments"]
+    entry_rule = policy.get("down_payment", {})
+    if not isinstance(entry_rule, dict) or set(entry_rule) - {
+        "allowed",
+        "min_percentage",
+    }:
+        raise ValueError("policy_terms_invalid")
+    allowed_entry = entry_rule.get("allowed", False)
+    if type(allowed_entry) is not bool:
+        raise ValueError("policy_terms_invalid")
+    minimum_percentage = money(entry_rule.get("min_percentage", "0"))
+    if minimum_percentage > 100:
+        raise ValueError("policy_terms_invalid")
+    entry_required = False
+    if payment_type == "installment" and "installment_overdue_rule" in policy:
+        rule = policy["installment_overdue_rule"]
+        if (
+            not isinstance(rule, dict)
+            or set(rule)
+            != {"min_days_overdue", "max_installments", "min_down_payment_percentage"}
+            or type(rule["min_days_overdue"]) is not int
+            or rule["min_days_overdue"] < 0
+            or type(rule["max_installments"]) is not int
+            or not 1 <= rule["max_installments"] <= 360
+            or not 0 < money(rule["min_down_payment_percentage"]) <= 100
+        ):
+            raise ValueError("policy_terms_invalid")
+        if debt_days_overdue(fixture) >= rule["min_days_overdue"]:
+            max_installments = rule["max_installments"]
+            minimum_percentage = money(rule["min_down_payment_percentage"])
+            entry_required = True
+            allowed_entry = True
     if (
         payment_type not in policy["payment_types"]
-        or count > policy["max_installments"]
+        or type(count) is not int
+        or count < 1
+        or count > max_installments
         or discount > maximum
-        or ("discount_tiers" in policy and discount > offered)
+        or (
+            ("discount_tiers" in policy or "by_payment_type" in policy)
+            and discount > offered
+        )
     ):
         raise ValueError("policy_terms_exceeded")
+    # Compare the smallest actual installment after cent rounding, not an average.
+    total = (
+        money(fixture.get("debt", {}).get("current_amount", 0)) * (1 - discount / 100)
+    ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    entry = money(down_payment_amount)
+    if entry != entry.quantize(Decimal("0.01")):
+        raise ValueError("invalid_down_payment")
+    if entry and (payment_type != "installment" or count < 2 or entry >= total):
+        raise ValueError("invalid_down_payment")
+    if entry and not allowed_entry:
+        raise ValueError("down_payment_not_allowed")
+    minimum_entry = (total * minimum_percentage / 100).quantize(
+        Decimal("0.01"), rounding=ROUND_CEILING
+    )
+    if (entry_required or entry > 0) and entry < minimum_entry:
+        raise DownPaymentRequired(minimum_entry)
+    if "min_negotiated_amount" in policy and total < money(
+        policy["min_negotiated_amount"]
+    ):
+        raise ValueError("negotiated_amount_below_minimum")
+    if payment_type == "installment" and "min_installment_amount" in policy:
+        smallest = Decimal(int((total - entry) * 100) // (count - bool(entry))) / 100
+        if smallest < money(policy["min_installment_amount"]):
+            raise ValueError("installment_amount_below_minimum")
     return {
         "path": canonical,
         "content_hash": receipt["hash"],

@@ -1,0 +1,13 @@
+{
+  "source_bundle_id": "okf_wiki_v6_2026-09-28-20260928T025106Z-f44695b6",
+  "policy_path": "COMPANIES/fastpay/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/policies/politica-negociacao.md",
+  "source_sha256": {
+    "index.md": "3fb3d1e810e0ed8a21b2270e27238c7dd9fa8b211296d9a96b6d9cf0d65d5d91",
+    "politica-negociacao.md": "f002efd2810d982618fa39cb8d44facef741c7c32e01431a979d6315b1abc169",
+    "limites-desconto.md": "30433de746d99ec68acbaa00d3f884283d441b3ecca01ba6d05bf010e5cba94c",
+    "parcelamento.md": "45c7e46a03f0a9168fe1b2f5232ec42cac5378d46342798ca3d04c6754274280",
+    "pagamento-parametros.md": "d9346bc5af2615dc6c11604e784122560b9a1727a91c2c347a74ad6d2044a7a0",
+    "negociacao-parametros.md": "1665d7f67674eb52fb6decb04511ae73c472fc503b4db4b25666cfe09b89d4b1"
+  },
+  "candidate_sha256": "8570483b77688c268165137e6314c14da08070c1469bf778804dfeefc795bd72"
+}

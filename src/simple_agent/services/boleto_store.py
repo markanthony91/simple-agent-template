@@ -168,5 +168,6 @@ def second_copy(
             )
         },
         "due_date": due_date,
+        "is_down_payment": payment.get("is_down_payment", False),
         "due_date_available": bool(due_date),
     }

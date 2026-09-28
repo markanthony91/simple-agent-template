@@ -122,6 +122,10 @@ def _direct_failure(reason: str) -> str:
         "policy_not_published": "A política encontrada ainda não está publicada e não autoriza uma proposta.",
         "policy_not_current": "A política encontrada não está vigente e não autoriza uma proposta.",
         "policy_terms_undefined": "As condições da política ainda não foram definidas.",
+        "invalid_down_payment": "O valor de entrada informado não é válido para esse parcelamento. Nenhum acordo foi criado.",
+        "down_payment_not_allowed": "A política não permite entrada para essa modalidade. Nenhum acordo foi criado.",
+        "negotiated_amount_below_minimum": "O total negociado fica abaixo do mínimo permitido pela política. Nenhum acordo foi criado.",
+        "installment_amount_below_minimum": "Essa quantidade de parcelas deixa o valor de uma parcela abaixo do mínimo permitido. Podemos avaliar uma quantidade menor.",
         "debt_context_required": "Não foi possível confirmar o atraso da dívida para aplicar as condições da proposta.",
         "policy_terms_invalid": "As condições publicadas estão inválidas e não autorizam uma proposta.",
         "policy_terms_exceeded": "A condição solicitada ultrapassa o limite da política publicada. Informe outra opção.",
@@ -155,6 +159,13 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
     if tool_name != "generate_payment_offer":
         return None
     if not payload.get("created"):
+        if payload.get("reason") == "down_payment_required" and payload.get(
+            "minimum_down_payment_amount"
+        ):
+            return (
+                f"Para essa condição, a entrada mínima é de {_brl(payload['minimum_down_payment_amount'])}. "
+                "Você consegue pagar esse valor de entrada?"
+            )
         return _direct_failure(str(payload.get("reason") or ""))
     offer = payload["offer"]
     payment = payload["payment"]
@@ -165,7 +176,11 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
     schedule_lines = f"- Parcela: {schedule}"
     if offer["payment_type"] == "installment" and payment["method"] == "boleto":
         schedule_lines = "\n".join(
-            f"- {index}ª parcela: {_brl(amount)}"
+            (
+                f"- Entrada (1ª parcela): {_brl(amount)}"
+                if index == 1 and offer.get("down_payment_amount")
+                else f"- {index}ª parcela: {_brl(amount)}"
+            )
             for index, amount in enumerate(offer["installment_schedule"], 1)
         )
     payment_label = (
