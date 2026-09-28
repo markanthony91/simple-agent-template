@@ -6,7 +6,8 @@ import json
 import hashlib
 import re
 import sqlite3
-from datetime import date, datetime, timedelta, timezone
+from calendar import monthrange
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Literal
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -256,11 +257,17 @@ def create_payment_instruction(
         return _json(_create_payment(state, agreement, method, installment_number))
 
 
+def _installment_date(first_date: date, months: int) -> date:
+    year, month_index = divmod(first_date.year * 12 + first_date.month - 1 + months, 12)
+    month = month_index + 1
+    return date(year, month, min(first_date.day, monthrange(year, month)[1]))
+
+
 def _upcoming_installments(schedule: list[str], current: int, sent_date: date) -> str:
     return (
         "\n".join(
             f"{number}ª parcela: R$ {format(Decimal(amount), ',.2f').translate(str.maketrans(',.', '.,'))}"
-            f" — {(sent_date + timedelta(days=30 * (number - current))).strftime('%d/%m/%Y')}"
+            f" — {_installment_date(sent_date, number - current).strftime('%d/%m/%Y')}"
             for number, amount in enumerate(schedule, 1)
             if number > current
         )

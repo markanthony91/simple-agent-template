@@ -263,13 +263,16 @@ def test_email_context_hides_pix_installment_and_includes_payment_date():
     )
 
 
-def test_upcoming_installments_use_exact_values_and_30_day_intervals():
+def test_upcoming_installments_use_exact_values_and_same_calendar_day():
     schedule = ["1957.81", "1957.81", "1957.80"]
-    assert payment_tools._upcoming_installments(schedule, 1, date(2026, 1, 31)) == (
-        "2ª parcela: R$ 1.957,81 — 02/03/2026\n3ª parcela: R$ 1.957,80 — 01/04/2026"
+    assert payment_tools._upcoming_installments(schedule, 1, date(2026, 9, 28)) == (
+        "2ª parcela: R$ 1.957,81 — 28/10/2026\n3ª parcela: R$ 1.957,80 — 28/11/2026"
     )
     assert payment_tools._upcoming_installments(schedule, 2, date(2026, 12, 15)) == (
-        "3ª parcela: R$ 1.957,80 — 14/01/2027"
+        "3ª parcela: R$ 1.957,80 — 15/01/2027"
+    )
+    assert payment_tools._upcoming_installments(schedule, 1, date(2026, 1, 31)) == (
+        "2ª parcela: R$ 1.957,81 — 28/02/2026\n3ª parcela: R$ 1.957,80 — 31/03/2026"
     )
     assert (
         payment_tools._upcoming_installments(schedule, 3, date(2026, 1, 31)) == "none"

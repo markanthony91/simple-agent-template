@@ -517,3 +517,9 @@ Coordinate PR integration before another main autodeploy.
 - [x] Authorized deployment-only Railway rollout, both services 0.3.0; published settings and Qwen tool/profile check passed.
 - [x] Original conversations, managed Assistant settings and all 25 previous session rows preserved; 4170 file hashes unchanged after canaries, with two new synthetic SQLite sessions.
 - [ ] Known model limitation: spontaneous self-introduction was omitted in the time-query probe; explicit name query passed. See docs/RELEASE_LLM_SETTINGS_2026-09-17.md.
+
+## Datas mensais das parcelas no e-mail — 0.14.3
+
+- [x] Manter o dia da primeira parcela nos meses seguintes.
+- [x] Limitar ao último dia apenas quando o mês não possuir o dia original.
+- [x] Preservar o cronograma somente para boleto; PIX continua sem próximas parcelas.
