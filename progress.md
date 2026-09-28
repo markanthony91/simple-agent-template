@@ -1,3 +1,20 @@
+# Contexto de empresa e diretório OKF — 0.13.13
+
+- [x] Cadastro opcional `company`, preservado nas sessões Demo e após reset.
+- [x] Retorno de empresa/origem/diretório/status após identificação válida.
+- [x] Resolver somente diretórios existentes no snapshot fixado na sessão.
+- [x] Sem cadastro, aceitar apenas uma correspondência de instituição/produto;
+  informar origem `okf_snapshot`, sem preencher o cadastro ou inferir autorização.
+- [x] Casos ambíguos, ausentes, inseguros e bundle indisponível não escolhem empresa.
+- [x] Suíte: 369 aprovados, 1 ignorado, 1 xfail preexistente, 89,30% de cobertura.
+  O novo resolvedor atingiu 100% de cobertura; Ruff aprovado.
+- [ ] Deploy e teste do backend publicado: pendentes.
+
+Não modifica Workflow, políticas, parâmetros financeiros ou dados existentes.
+Não inclui a correção separada de checkpoints. O teste de integração exercita
+`verify_and_get_customer` e confirma que o contexto só aparece após sucesso e
+não cria recibos de leitura de políticas.
+
 # Recuperação de caminho OKF inválido — 0.13.12
 
 - [x] Retornar o ancestral existente mais próximo com caminho canônico.

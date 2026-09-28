@@ -1,4 +1,21 @@
-# Agent Runtime — OKF simulator (0.13.12)
+# Agent Runtime — OKF simulator (0.13.13)
+
+Após identificação, `verify_and_get_customer` e `get_customer` incluem `company`,
+`company_source`, `okf_directory` e `okf_context_status`. O campo opcional `company`
+do cadastro tem prioridade; nas sessões Demo, é preservado nos dados da dívida,
+inclusive após reset. Não há migração nem preenchimento dos cadastros existentes.
+
+Sem empresa cadastrada, uma única correspondência de instituição/produto na árvore
+`COMPANIES/<empresa>/INSTITUTIONS/<credor>/<produto>` do snapshot da sessão pode
+orientar a busca (`company_source=okf_snapshot`). Essa origem não confirma vínculo
+cadastral. Duas correspondências retornam `ambiguous`, sem empresa inferida ou
+diretório escolhido; ausência ou falha retornam `not_found` ou `unavailable`.
+Empresa explicitamente cadastrada sem correspondência não permite escolher outra.
+
+O diretório é descoberto entre pastas existentes, com grafia canônica e fronteira
+do bundle verificadas. Não lê condições comerciais nem registra recibo de leitura:
+a LLM deve consultar `okf_index` nesse diretório e ler a política aplicável antes
+de gerar uma oferta. Workflow e validações financeiras permanecem inalterados.
 
 Quando `okf_index` recebe um diretório inexistente, retorna em
 `OKF_CANONICAL_PARENT` o ancestral existente mais próximo, com a grafia canônica

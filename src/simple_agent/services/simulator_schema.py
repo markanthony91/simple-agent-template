@@ -39,6 +39,7 @@ class Fixture(BaseModel):
     phone: str | None = None
     birth_date: str
     institution: str
+    company: Annotated[str, Field(min_length=1, max_length=120)] | None = None
     creditor_name: str | None = None
     product: str
     debt: Debt

@@ -157,7 +157,7 @@ class SessionStore:
         ).fetchone()
         if not row:
             return None
-        return {
+        fixture = {
             "customer_id": row[0],
             "full_name": row[1],
             "cpf": row[2],
@@ -170,6 +170,9 @@ class SessionStore:
             "eligibility": json.loads(row[8]),
             "identity_policy": json.loads(row[9]),
         }
+        if fixture["debt"].get("company"):
+            fixture["company"] = fixture["debt"]["company"]
+        return fixture
 
     @classmethod
     def _state(cls, db: sqlite3.Connection, key: str, data: str) -> dict:
@@ -239,7 +242,9 @@ class SessionStore:
                 if demo:
                     now = datetime.now(timezone.utc).isoformat()
                     customer_id = str(fixture["customer_id"])
-                    debt = fixture["debt"]
+                    debt = dict(fixture["debt"])
+                    if fixture.get("company"):
+                        debt["company"] = fixture["company"]
                     debt_id = str(debt["debt_id"])
                     db.execute(
                         "INSERT INTO tenants(id,name,created_at) VALUES(?,?,?) "

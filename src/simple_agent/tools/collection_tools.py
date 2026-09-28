@@ -21,6 +21,7 @@ from simple_agent.services.session_store import (
 )
 from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.services.identity_policy import matches, policy_for
+from simple_agent.services.customer_knowledge import customer_knowledge
 
 
 def _digits(value: str) -> str:
@@ -65,6 +66,7 @@ def _customer_payload(state: dict, cpf: str = "") -> dict:
         "cpf": _mask_document(fixture["cpf"]),
         "institution": fixture.get("institution"),
         "product": fixture.get("product"),
+        **customer_knowledge(state),
         "debt": {
             **debt,
             "days_overdue": debt.get("days_overdue")
@@ -161,6 +163,13 @@ def verify_and_get_customer(
     Use instead of separate verification and customer lookup. The session contract
     defines the required CPF segment and secondary factors. Only verified=true
     includes customer data; failures never expose financial data.
+
+    If customer.okf_directory is present, start OKF navigation with
+    okf_index(directory=customer.okf_directory); this is a verified existing
+    branch in the session snapshot, not a policy reading or offer authorization.
+    company_source distinguishes registered customer data from a unique OKF
+    branch match. Never construct paths from company/institution display names.
+    Without a resolved directory, use normal OKF discovery; never guess a company.
     """
     with SessionStore().transaction(thread_id(runtime)) as state:
         result = _verify_identity(state, runtime, cpf, full_name, birth_date)
