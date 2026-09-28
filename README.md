@@ -1,18 +1,19 @@
-# Agent Runtime — OKF simulator (0.14.1 local)
+# Agent Runtime — OKF simulator (0.14.1)
 
-Recuperação local de política auxiliar: a tool retorna `canonical_policy_required`
+Recuperação de política auxiliar: a tool retorna `canonical_policy_required`
 e `canonical_policy_path`; a LLM precisa ler esse documento no OKF e pode tentar
 novamente uma vez com os mesmos termos. Política incompleta, referência inválida,
 escopo incompatível e falta de recibo continuam bloqueando a oferta.
 `utc_now` mantém o nome legado, mas retorna ISO 8601 no fuso `America/Sao_Paulo`,
 com offset explícito. Timestamps de banco e logs continuam em UTC.
-Veja [contrato e validação local](docs/canonical-policy-local-time.md).
+Veja [contrato e validação](docs/canonical-policy-local-time.md) e
+[deploy e bloqueio encontrado no OKF publicado](docs/RELEASE_0141_2026-09-28.md).
 
-Implementação local de `get_boleto_second_copy`, com persistência transacional de
+Implementação de `get_boleto_second_copy`, com persistência transacional de
 acordos e instruções emitidas. Consulta por identidade e vínculo cadastral confiável,
 sem criar outra oferta ou disparar mensagens. Reset Demo limpa somente a origem.
 Consulte [contrato, limites e exemplos para Workflow/AGENTS.md](docs/boleto-second-copy.md).
-Ainda sem deploy; novos disparos Demo continuam com IDs próprios e não são
+Publicado no Railway; novos disparos Demo continuam com IDs próprios e não são
 automaticamente vinculados ao mesmo acordo.
 
 Após identificação, `verify_and_get_customer` e `get_customer` incluem `company`,

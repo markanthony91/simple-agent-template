@@ -1,6 +1,9 @@
-# Segunda via de boleto — implementação local
+# Segunda via de boleto
 
-Status: local; sem deploy, migração em produção ou alteração do Assistant salvo.
+Status: publicado no runtime 0.14.1; tabelas aditivas presentes, sem violações de FK.
+O teste conversacional publicado não chegou à recuperação: a política canônica
+sem `negotiation` impediu criar o boleto. Os testes locais passaram; isso não
+comprova o caminho completo em produção. Ver [release](RELEASE_0141_2026-09-28.md).
 
 ## O que foi implementado
 
@@ -134,4 +137,5 @@ Para cada nova ferramenta:
 Não foi criado um interpretador de código, cadastro de endpoints arbitrários ou
 novo roteador por intenção. Novas capacidades ainda precisam ser implementadas.
 Os trechos acima são exemplos para revisão; o Workflow e o AGENTS.md salvos no
-Assistant de produção não foram modificados.
+Assistant de produção não receberam esses exemplos. A única alteração do
+Assistant nesse rollout foi alinhar o contrato de horário de `utc_now`.

@@ -1,4 +1,8 @@
-# Política canônica e horário local — somente local
+# Política canônica e horário local
+
+Publicado em 28/09/2026 no deployment `467170eb-e4ed-4dc3-a889-701501f87c50`.
+O relógio passou no teste real; a geração PIX/boleto segue bloqueada pelo documento
+canônico publicado sem `negotiation`. Ver [evidências do rollout](RELEASE_0141_2026-09-28.md).
 
 ## Diagnóstico e recuperação
 
@@ -53,8 +57,9 @@ Timestamps técnicos continuam em UTC, e os cálculos existentes de atraso/vigê
 não foram modificados. `config/AGENTS.md` é fallback: instruções salvas no Assistant
 têm precedência. No rollout, revisar overrides que ainda digam que `utc_now`
 retorna UTC e substituir por: “utc_now retorna America/Sao_Paulo em ISO com offset;
-use a hora local para saudações, sem converter novamente”. Nenhum override de
-produção foi alterado nesta rodada.
+use a hora local para saudações, sem converter novamente”. No rollout autorizado,
+o override `agent_instructions` foi alinhado na versão 134 do Assistant;
+demais campos preservados com leitura de confirmação.
 
 ## Validação
 
@@ -63,7 +68,7 @@ auxiliar → erro específico → leitura canônica → geração PIX; métodos 
 assíncrono; preservação de termos; leitura obrigatória; escopo incorreto; condições
 indefinidas; recibo obsoleto; referências inválidas; ciclos; saída do bundle;
 conversão de data/hora e compatibilidade do catálogo. Sem chamadas LLM, e-mails,
-pagamentos reais ou deploy nesta rodada.
+pagamentos reais nessa suíte local. A validação publicada está no relatório de release.
 
 Resultado: 408 testes aprovados, 1 ignorado e 1 xfail preexistente; cobertura
 89,80%. Ruff e verificação de whitespace aprovados.
