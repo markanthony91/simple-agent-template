@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.14.3)
+# Agent Runtime — OKF simulator (0.14.4)
 
 Após criar uma proposta, o chat apresenta um resumo com dívida, desconto aplicado, valor final, modalidade e método. Parcelamentos preservam uma linha por pagamento e identificam a entrada; a economia só aparece quando há desconto. Os valores vêm do resultado da tool.
 
@@ -49,8 +49,8 @@ pelas opções retornadas. Publicado no deployment
 `7c602efb-95dd-4bb6-a811-081b17b81281`; avaliação no Playground pendente.
 
 O contexto de e-mail inclui `upcoming_installments`: parcelas restantes do boleto,
-com os valores exatos do acordo e datas a cada 30 dias a partir do envio da
-instrução atual (America/Sao_Paulo). PIX, parcela final e ligação sem cronograma
+com os valores exatos do acordo e o mesmo dia de vencimento nos meses seguintes,
+limitado ao último dia quando o mês for menor (America/Sao_Paulo). PIX, parcela final e ligação sem cronograma
 retornam `none`, ocultando a seção. A regra é da simulação; não altera os dados
 financeiros nem cria vencimentos no banco. Requer o template atualizado no Canais.
 
