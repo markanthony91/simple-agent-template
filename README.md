@@ -1,4 +1,11 @@
-# Agent Runtime — OKF simulator (0.13.10)
+# Agent Runtime — OKF simulator (0.13.12)
+
+Quando `okf_index` recebe um diretório inexistente, retorna em
+`OKF_CANONICAL_PARENT` o ancestral existente mais próximo, com a grafia canônica
+e seus destinos disponíveis. Por exemplo, `COMPANIES/empresa-inexistente/produto`
+retorna `COMPANIES` quando esse diretório existe. O runtime não escolhe outra
+instituição nem altera políticas ou Workflow; o agente continua a navegação
+pelas opções retornadas. Ajuste local, ainda não publicado.
 
 O contexto de e-mail inclui `upcoming_installments`: parcelas restantes do boleto,
 com os valores exatos do acordo e datas a cada 30 dias a partir do envio da

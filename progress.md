@@ -1,3 +1,24 @@
+# Recuperação de caminho OKF inválido — 0.13.12 (local)
+
+- [x] Retornar o ancestral existente mais próximo com caminho canônico.
+- [x] Preservar ramos legados, caminhos válidos e rejeição de caminhos inseguros.
+- [x] Reproduzir seis falhas antes da correção e validar a recuperação pela tool.
+- [x] Suíte local: 356 aprovados, 1 ignorado, 1 xfail preexistente; cobertura 89,15%.
+- [x] Ruff, formatação e `git diff --check` aprovados.
+- [ ] Publicação e avaliação no Playground: pendentes, sem deploy nesta etapa.
+
+Branch `fix/okf-existing-ancestor`, baseada em `46d8973`, base implantada usada
+na investigação. A `origin/main` consultada (`8d965b8`) está defasada em relação
+a essa base. A correção de releitura de checkpoints (`28439c1`) não está incluída.
+Workflow, instruções gerenciadas e dados de produção não foram alterados.
+O erro `provider_response_incomplete` permanece fora deste ajuste.
+
+Validação: `PYTHONPATH=src python -c 'import asyncio, uvloop, pytest;
+asyncio.set_event_loop_policy(uvloop.EventLoopPolicy());
+raise SystemExit(pytest.main(["tests", "-q", "--cov=simple_agent",
+"--cov-fail-under=80"]))'`, usando o ambiente de dependências já instalado
+na worktree `checkpoint-read-reuse` e fontes desta branch.
+
 # Resposta pós-identificação orientada pelo Workflow — 0.13.3
 
 - [x] Preservar a validação e o retorno atômico de `verify_and_get_customer`.

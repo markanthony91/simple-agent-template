@@ -71,17 +71,26 @@ class IndexNavigation:
 
         Requires: directory to exist and have index.md.
         On success: returns content with OKF_CANONICAL_DIRECTORY, OKF_CHILD_DIRECTORIES, OKF_CONCEPT_PATHS markers.
-        On missing directory: returns OKF_REQUESTED_DIRECTORY, OKF_CANONICAL_PARENT, available children from parent.
+        On missing directory: returns the nearest existing canonical ancestor and its available children.
         """
         # Try to resolve the requested directory
         try:
             cleaned = self.canonical_directory(directory)
         except FileNotFoundError:
-            # Directory does not exist; respond with parent and available alternatives
-            requested = self._collapse_duplicate_root(directory.strip("/"))
-            parent = str(Path(requested).parent).replace("\\", "/") if requested else ""
-            if parent == ".":
-                parent = ""
+            # A guessed path may have several missing levels. Only advertise an
+            # ancestor after resolving its existence and canonical casing.
+            if not self.root.is_dir():
+                raise FileNotFoundError("OKF bundle root not found")
+            requested = directory.replace("\\", "/").strip("/")
+            candidate = Path(requested).parent
+            while True:
+                try:
+                    parent = self.canonical_directory(
+                        "" if candidate == Path(".") else candidate.as_posix()
+                    )
+                    break
+                except FileNotFoundError:
+                    candidate = candidate.parent
 
             # Get actual children from canonical parent
             parent_children, parent_concepts = self._get_child_directories_and_concepts(

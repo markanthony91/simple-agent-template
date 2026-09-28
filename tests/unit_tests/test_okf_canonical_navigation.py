@@ -93,6 +93,61 @@ def test_missing_child_index_returns_parent_and_available_children(tmp_path):
     assert "Choose only from these destinations" in result
 
 
+@pytest.mark.parametrize(
+    ("requested", "expected_parent", "destination"),
+    [
+        (
+            "COMPANIES/will-bank/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/",
+            "COMPANIES",
+            "COMPANIES/fastpay",
+        ),
+        ("companies/unknown/product/policies", "COMPANIES", "COMPANIES/fastpay"),
+        (r"companies\unknown\product", "COMPANIES", "COMPANIES/fastpay"),
+        ("UNKNOWN/company/product", "<root>", "COMPANIES"),
+        (
+            "INSTITUTIONS/FASTPAY/missing/deeper",
+            "INSTITUTIONS/fastpay",
+            "INSTITUTIONS/fastpay/policies",
+        ),
+    ],
+)
+def test_missing_deep_directory_returns_existing_canonical_ancestor(
+    tmp_path, requested, expected_parent, destination
+):
+    root = _build_okf(tmp_path)
+    (root / "COMPANIES/fastpay").mkdir(parents=True)
+    service = OKFService(root)
+
+    result = service.read_index(requested)
+
+    assert f"OKF_CANONICAL_PARENT: {expected_parent}\n" in result
+    assert f"`{destination}`" in result
+    assert (root / ("" if expected_parent == "<root>" else expected_parent)).is_dir()
+    assert "No child directories or concepts found in parent." not in result
+
+
+def test_missing_directory_preserves_existing_nested_root_ancestor(tmp_path):
+    root = _build_okf(tmp_path)
+    parent = "INSTITUTIONS/fastpay/INSTITUTIONS/legacy"
+    (root / parent / "policies").mkdir(parents=True)
+
+    result = OKFService(root).read_index(f"{parent}/missing/deeper")
+
+    assert f"OKF_CANONICAL_PARENT: {parent}\n" in result
+    assert f"`{parent}/policies`" in result
+
+
+@pytest.mark.parametrize("path", ["../missing/deep", "/missing/deep"])
+def test_index_recovery_does_not_repair_unsafe_paths(tmp_path, path):
+    with pytest.raises(ValueError):
+        OKFService(_build_okf(tmp_path)).read_index(path)
+
+
+def test_index_recovery_does_not_advertise_missing_bundle_root(tmp_path):
+    with pytest.raises(FileNotFoundError, match="bundle root not found"):
+        OKFService(tmp_path / "missing-bundle").read_index("unknown/deeper")
+
+
 def test_search_canonicalizes_scope_case_insensitive(tmp_path):
     """Search scope should be case-insensitive and always return OKF_CANONICAL_SCOPE marker."""
     service = OKFService(_build_okf(tmp_path))

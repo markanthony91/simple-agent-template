@@ -39,6 +39,30 @@ def test_knowledge_wrappers_and_recoverable_errors(isolated):
     assert json.loads(tools.okf_list.func(runtime=empty))["error"] is True
 
 
+def test_index_tool_recovers_to_existing_snapshot_branch(isolated):
+    from simple_agent.tools import okf_tools as tools
+
+    isolated.import_bundle(
+        "synthetic-navigation",
+        "0.2",
+        {
+            "index.md": "# Root\n[Companies](COMPANIES/index.md)",
+            "COMPANIES/index.md": "# Companies\n[Fastpay](fastpay/index.md)",
+            "COMPANIES/fastpay/index.md": "# Synthetic company",
+        },
+    )
+    runtime = SimpleNamespace(config={"configurable": {"thread_id": "navigation"}})
+    result = tools.okf_index.func(
+        runtime=runtime,
+        directory="COMPANIES/will-bank/INSTITUTIONS/will-bank/CARTAO_DE_CREDITO/",
+    )
+    assert "OKF_CANONICAL_PARENT: COMPANIES\n" in result
+    assert "`COMPANIES/fastpay`" in result
+    recovered = tools.okf_index.func(runtime=runtime, directory="COMPANIES/fastpay")
+    assert "OKF_CANONICAL_DIRECTORY: COMPANIES/fastpay\n" in recovered
+    assert "# Synthetic company" in recovered
+
+
 @pytest.mark.anyio
 async def test_async_tool_middleware_success_and_error(monkeypatch):
     from simple_agent.tool_middleware import filter_enabled_tools, registry
