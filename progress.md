@@ -1,11 +1,19 @@
-# Recuperação de caminho OKF inválido — 0.13.12 (local)
+# Recuperação de caminho OKF inválido — 0.13.12
 
 - [x] Retornar o ancestral existente mais próximo com caminho canônico.
 - [x] Preservar ramos legados, caminhos válidos e rejeição de caminhos inseguros.
 - [x] Reproduzir seis falhas antes da correção e validar a recuperação pela tool.
 - [x] Suíte local: 356 aprovados, 1 ignorado, 1 xfail preexistente; cobertura 89,15%.
 - [x] Ruff, formatação e `git diff --check` aprovados.
-- [ ] Publicação e avaliação no Playground: pendentes, sem deploy nesta etapa.
+- [x] Publicado no Railway em 28/09/2026: deployment `7c602efb-95dd-4bb6-a811-081b17b81281`, status SUCCESS.
+- [ ] Avaliação no Playground: Chromium bloqueado nesta sessão por `setsockopt: Operation not permitted`.
+
+Artefato enviado do commit `80dbcb1` com projeto, ambiente e serviço explícitos.
+Logs confirmaram `Application started up in 42.003s` em
+`2026-09-28T16:09:57.427778Z`, fila com zero execuções pendentes e worker disponível.
+O acesso HTTP direto e a inspeção SSH também ficaram indisponíveis nesta sessão;
+não houve validação do hash dentro do contêiner nem teste conversacional em produção.
+Nenhuma conversa foi exportada e nenhuma mensagem/e-mail de teste foi enviada.
 
 Branch `fix/okf-existing-ancestor`, baseada em `46d8973`, base implantada usada
 na investigação. A `origin/main` consultada (`8d965b8`) está defasada em relação

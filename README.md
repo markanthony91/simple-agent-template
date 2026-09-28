@@ -5,7 +5,8 @@ Quando `okf_index` recebe um diretório inexistente, retorna em
 e seus destinos disponíveis. Por exemplo, `COMPANIES/empresa-inexistente/produto`
 retorna `COMPANIES` quando esse diretório existe. O runtime não escolhe outra
 instituição nem altera políticas ou Workflow; o agente continua a navegação
-pelas opções retornadas. Ajuste local, ainda não publicado.
+pelas opções retornadas. Publicado no deployment
+`7c602efb-95dd-4bb6-a811-081b17b81281`; avaliação no Playground pendente.
 
 O contexto de e-mail inclui `upcoming_installments`: parcelas restantes do boleto,
 com os valores exatos do acordo e datas a cada 30 dias a partir do envio da
