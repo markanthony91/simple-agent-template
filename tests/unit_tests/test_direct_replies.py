@@ -80,9 +80,7 @@ def test_transactional_result_is_rendered_without_second_model_call(isolated):
     assert audit["semantic_fidelity"] == "backend_template"
     assert audit["pre_display_protection"] is True
     assert (
-        "1ª parcela: **R$ 1.957,81**\n"
-        "2ª parcela: **R$ 1.957,81**\n"
-        "3ª parcela: **R$ 1.957,80**\n"
+        "1ª parcela: R$ 1.957,81\n2ª parcela: R$ 1.957,81\n3ª parcela: R$ 1.957,80\n"
     ) in result["messages"][-1].content
     assert "- Cronograma:" not in result["messages"][-1].content
     assert "- Acordo:" not in result["messages"][-1].content
@@ -187,4 +185,26 @@ def test_cash_summary_matches_requested_format(method, label):
 def test_no_discount_does_not_claim_savings():
     text = render_direct_reply("generate_payment_offer", payment_result())
     assert "Desconto" not in text and "economiza" not in text
-    assert "Forma de pagamento: **Parcelado**" in text
+    assert "Forma de pagamento: Parcelado" in text
+
+
+def test_installment_summary_preserves_requested_blocks_and_exact_cents():
+    payload = payment_result()
+    payload["offer"].update(
+        installments=5,
+        installment_schedule=["1174.69", "1174.69", "1174.68", "1174.68", "1174.68"],
+    )
+    text = render_direct_reply("generate_payment_offer", payload)
+    assert text.split("\n\nCódigo dummy:")[0] == (
+        "Resumo da sua negociação\n\n"
+        "Valor da dívida: R$ 5.873,42\n"
+        "Forma de pagamento: Parcelado\n"
+        "Método: Boleto\n\n"
+        "Parcelamento\n"
+        "1ª parcela: R$ 1.174,69\n"
+        "2ª parcela: R$ 1.174,69\n"
+        "3ª parcela: R$ 1.174,68\n"
+        "4ª parcela: R$ 1.174,68\n"
+        "5ª parcela: R$ 1.174,68\n\n"
+        "Total da negociação: R$ 5.873,42"
+    )

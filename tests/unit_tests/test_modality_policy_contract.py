@@ -227,7 +227,7 @@ def test_optional_entry_is_atomic_idempotent_and_retrievable(isolated):
     from simple_agent.tool_middleware import render_direct_reply
 
     rendered = render_direct_reply("generate_payment_offer", result)
-    assert "Entrada (1ª parcela): **R$ 1.000,00**" in rendered
+    assert "Entrada (1ª parcela): R$ 1.000,00" in rendered
     simulate_payment_settled("optional", result["payment"]["payment_id"])
     agreement = next(iter(SessionStore().read("optional")["agreements"].values()))
     assert agreement["status"] == "payment_pending"

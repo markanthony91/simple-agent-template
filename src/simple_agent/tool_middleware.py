@@ -191,13 +191,31 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         ]
     )
     if not cash:
+        lines = [
+            "Resumo da sua negociação",
+            "",
+            f"Valor da dívida: {_brl(offer['debt_amount'])}",
+        ]
+        if has_discount:
+            lines.append(
+                f"Desconto ({percentage}%): − {_brl(offer['discount_amount'])}"
+            )
+        lines.extend(
+            [
+                "Forma de pagamento: Parcelado",
+                f"Método: {'PIX' if payment['method'] == 'pix' else 'Boleto'}",
+                "",
+                "Parcelamento",
+            ]
+        )
         for index, amount in enumerate(offer["installment_schedule"], 1):
             label = (
                 "Entrada (1ª parcela)"
                 if index == 1 and Decimal(offer.get("down_payment_amount", "0")) > 0
                 else f"{index}ª parcela"
             )
-            lines.append(f"{label}: **{_brl(amount)}**")
+            lines.append(f"{label}: {_brl(amount)}")
+        lines.extend(["", f"Total da negociação: {_brl(offer['negotiated_amount'])}"])
     if has_discount:
         ending = " pagando à vista" if cash else ""
         lines.append(f"**Você economiza {_brl(offer['discount_amount'])}{ending}.**")
