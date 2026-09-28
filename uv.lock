@@ -1604,7 +1604,7 @@ wheels = [
 
 [[package]]
 name = "simple-agent-template"
-version = "0.14.5"
+version = "0.14.6"
 source = { editable = "." }
 dependencies = [
     { name = "langchain" },
@@ -1612,6 +1612,7 @@ dependencies = [
     { name = "langgraph" },
     { name = "langgraph-api" },
     { name = "langgraph-cli", extra = ["inmem"] },
+    { name = "langgraph-runtime-inmem" },
     { name = "python-dotenv" },
     { name = "pyyaml" },
 ]
@@ -1631,6 +1632,7 @@ requires-dist = [
     { name = "langgraph", specifier = ">=1.0.0" },
     { name = "langgraph-api", specifier = ">=0.14.0,<0.15.0" },
     { name = "langgraph-cli", extras = ["inmem"], specifier = ">=0.4.10" },
+    { name = "langgraph-runtime-inmem", specifier = "==0.34.0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
     { name = "pyyaml", specifier = ">=6.0.2,<7" },
 ]

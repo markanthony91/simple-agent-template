@@ -7,7 +7,8 @@ RUN env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy pip install --
 
 COPY . .
 
-RUN env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy uv sync --frozen --no-dev
+RUN env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy uv sync --frozen --no-dev \
+    && .venv/bin/python scripts/patch_checkpoint_reads.py
 
 ENV PATH="/app/.venv/bin:$PATH"
 

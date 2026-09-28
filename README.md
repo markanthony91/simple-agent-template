@@ -1,4 +1,9 @@
-# Agent Runtime — OKF simulator (0.14.5)
+# Agent Runtime — OKF simulator (0.14.6)
+
+Consultas de estado e histórico reutilizam o checkpoint já carregado pelo
+`langgraph-runtime-inmem 0.34.0`. O build valida o hash do pacote antes de
+aplicar a correção e falha com segurança se a dependência mudar. Persistência,
+formato dos checkpoints e dados existentes permanecem inalterados.
 
 Após criar uma proposta, o chat apresenta um resumo com dívida, modalidade e método. Parcelamentos usam blocos separados, uma linha por pagamento, identificação da entrada quando existente e total da negociação ao final. A economia só aparece quando há desconto. Os valores vêm do resultado da tool. O frontend 0.6.5 preserva as quebras de linha e impede que `R$` seja interpretado como fórmula matemática.
 
