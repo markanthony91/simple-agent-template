@@ -8,7 +8,12 @@
 - [x] Casos ambíguos, ausentes, inseguros e bundle indisponível não escolhem empresa.
 - [x] Suíte: 369 aprovados, 1 ignorado, 1 xfail preexistente, 89,30% de cobertura.
   O novo resolvedor atingiu 100% de cobertura; Ruff aprovado.
-- [ ] Deploy e teste do backend publicado: pendentes.
+- [x] Deploy `3edaf743-51b1-42d9-814a-120f0652c27a` concluído com status SUCCESS,
+  no serviço `langgraph-simple-agent-clean`, projeto `agent-runtime-console`,
+  ambiente `production`. Artefato enviado do commit `49877c1`.
+- [ ] Teste funcional do endpoint publicado: bloqueado nesta sessão por DNS;
+  SSH também retornou `Operation not permitted`. Testes locais não equivalem
+  a uma conversa com a LLM em produção. Nenhum teste de negócio foi disparado.
 
 Não modifica Workflow, políticas, parâmetros financeiros ou dados existentes.
 Não inclui a correção separada de checkpoints. O teste de integração exercita
