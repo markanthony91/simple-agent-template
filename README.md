@@ -1,4 +1,6 @@
-# Agent Runtime — OKF simulator (0.14.3)
+# Agent Runtime — OKF simulator (0.14.4)
+
+Após criar uma proposta, o chat apresenta um resumo com dívida, desconto aplicado, valor final, modalidade e método. Parcelamentos preservam uma linha por pagamento e identificam a entrada; a economia só aparece quando há desconto. Os valores vêm do resultado da tool.
 
 Contrato canônico por modalidade e entrada opcional em `generate_payment_offer`.
 O backend separa desconto à vista de parcelado, valida valores mínimos e preserva

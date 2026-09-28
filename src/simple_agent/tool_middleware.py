@@ -169,33 +169,40 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         return _direct_failure(str(payload.get("reason") or ""))
     offer = payload["offer"]
     payment = payload["payment"]
-    schedule = "; ".join(
-        f"{index}ª {_brl(amount)}"
-        for index, amount in enumerate(offer["installment_schedule"], 1)
+    cash = offer["payment_type"] == "cash"
+    lines = [
+        "**Resumo da sua negociação**",
+        f"Valor da dívida: **{_brl(offer['debt_amount'])}**",
+    ]
+    has_discount = Decimal(offer["discount_amount"]) > 0
+    if has_discount:
+        percentage = format(
+            Decimal(offer["discount_percentage"]).normalize(), "f"
+        ).replace(".", ",")
+        label = "Desconto à vista" if cash else "Desconto"
+        lines.append(f"{label} ({percentage}%): − **{_brl(offer['discount_amount'])}**")
+    lines.extend(
+        [
+            f"**Valor final: {_brl(offer['negotiated_amount'])}**",
+            "Forma de pagamento: **À vista**"
+            if cash
+            else "Forma de pagamento: **Parcelado**",
+            f"Método: **{'PIX' if payment['method'] == 'pix' else 'Boleto'}**",
+        ]
     )
-    schedule_lines = f"- Parcela: {schedule}"
-    if offer["payment_type"] == "installment" and payment["method"] == "boleto":
-        schedule_lines = "\n".join(
-            (
-                f"- Entrada (1ª parcela): {_brl(amount)}"
-                if index == 1 and offer.get("down_payment_amount")
-                else f"- {index}ª parcela: {_brl(amount)}"
+    if not cash:
+        for index, amount in enumerate(offer["installment_schedule"], 1):
+            label = (
+                "Entrada (1ª parcela)"
+                if index == 1 and Decimal(offer.get("down_payment_amount", "0")) > 0
+                else f"{index}ª parcela"
             )
-            for index, amount in enumerate(offer["installment_schedule"], 1)
-        )
-    payment_label = (
-        "à vista"
-        if offer["payment_type"] == "cash"
-        else f"{offer['installments']} parcelas"
-    )
-    return (
-        "Proposta simulada criada com sucesso.\n\n"
-        f"- Total negociado: {_brl(offer['negotiated_amount'])}\n"
-        f"- Forma: {payment_label}\n"
-        f"{schedule_lines}\n"
-        f"- Método: {str(payment['method']).upper()}\n"
-        f"- Código dummy: {payment['payment_code']}\n"
-        "\n"
+            lines.append(f"{label}: **{_brl(amount)}**")
+    if has_discount:
+        ending = " pagando à vista" if cash else ""
+        lines.append(f"**Você economiza {_brl(offer['discount_amount'])}{ending}.**")
+    return "\n".join(lines) + (
+        f"\n\nCódigo dummy: {payment['payment_code']}\n\n"
         "Esta simulação não gera cobrança nem pagamento real.\n\n"
         "Para concluir, informe o e-mail que receberá a proposta e as instruções simuladas."
     )
