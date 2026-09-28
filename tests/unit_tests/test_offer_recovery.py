@@ -74,7 +74,7 @@ def test_unread_policy_recovers_without_customer_repeating_terms(isolated, async
     assert json.loads(first.content)["recoverable"] is True
     assert "okf_read" in json.loads(first.content)["recovery"]
     assert result["messages"][-1].additional_kwargs["deterministic_reply"] is True
-    assert "Proposta simulada criada" in result["messages"][-1].content
+    assert "Resumo da sua negociação" in result["messages"][-1].content
     state = SessionStore().read(key)
     assert (
         len(state["offers"]) == len(state["agreements"]) == len(state["payments"]) == 1
@@ -104,7 +104,7 @@ def test_recovery_stops_after_one_retry_and_resets_next_turn(isolated):
         {"configurable": {"thread_id": key}},
     )
     assert model.calls == 3
-    assert "Proposta simulada criada" in result["messages"][-1].content
+    assert "Resumo da sua negociação" in result["messages"][-1].content
 
 
 def test_undefined_terms_are_not_retried(isolated):

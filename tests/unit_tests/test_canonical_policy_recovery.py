@@ -93,7 +93,7 @@ def test_auxiliary_read_then_canonical_read_and_pix_without_new_question(
     assert first["reason"] == "canonical_policy_required"
     assert first["canonical_policy_path"] == PATH
     assert first["recoverable"] and "okf_read" in first["recovery"]
-    assert "Proposta simulada criada com sucesso" in messages[-1].content
+    assert "Resumo da sua negociação" in messages[-1].content
     assert [m.name for m in messages if m.type == "tool"] == [
         "generate_payment_offer",
         "okf_read",
@@ -193,7 +193,7 @@ def test_auxiliary_cycle_stops_after_one_retry(isolated):
         {"configurable": {"thread_id": "canonical-test"}},
     )
     assert model.calls == 3
-    assert "Proposta simulada criada" not in result["messages"][-1].content
+    assert "Resumo da sua negociação" not in result["messages"][-1].content
     assert_no_financial_action("canonical-test")
 
 
