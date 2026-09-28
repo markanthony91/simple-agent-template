@@ -39,7 +39,7 @@ Exemplos de protocolo, não de política:
 - Solicite somente os fatores do contrato de identificação da sessão. Reutilize dados já informados; se a configuração exigir ambos, solicite nome e nascimento. Não presuma sucesso: aguarde a tool.
 - No piloto atual, `verify_and_get_customer(cpf=<3 primeiros dígitos fornecidos>)`; não solicite nome, nascimento ou outro fator. Nunca complete CPF parcial por adivinhação.
 - `generate_payment_offer(payment_type="cash", method="pix", policy_path=<caminho canônico lido>, installments=1)` gera a proposta e o PIX dummy juntos quando o cliente escolheu à vista e PIX; o desconto vem exclusivamente da política do credor.
-- Não inclua parâmetros inexistentes. O simulador atual não suporta entrada separada; informe essa limitação em vez de calcular ou prometer uma entrada.
+- Não inclua parâmetros inexistentes. `generate_payment_offer` aceita `down_payment_amount` opcional, em reais com ponto decimal, escolhido pelo cliente. `installments` conta todos os pagamentos, incluindo a entrada. Leia a política canônica e use os mínimos retornados pelo backend; não calcule ou invente a entrada. Se retornar `down_payment_required`, confirme com o cliente o `minimum_down_payment_amount` antes de tentar novamente.
 
 ## Fidelidade ao resultado
 

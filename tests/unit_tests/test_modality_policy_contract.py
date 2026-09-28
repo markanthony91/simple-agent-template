@@ -325,3 +325,38 @@ def test_actual_candidate_document_with_runtime_tools(
     )
     assert result["created"], result
     assert result["payment"]["amount"] == expected
+
+
+@pytest.mark.parametrize("customer_limit,created", [(10, False), (12, True)])
+def test_canonical_overdue_override_never_expands_customer_eligibility(
+    isolated, customer_limit, created
+):
+    rt, _ = prepare(isolated, "overdue-limit", days=181)
+    candidate = (
+        Path(__file__).resolve().parents[2]
+        / "docs/policy-contract/will-bank/politica-negociacao.md"
+    )
+    (isolated.bundle_root(isolated.active_bundle_id()) / PATH).write_text(
+        candidate.read_text()
+    )
+    with SessionStore().transaction("overdue-limit") as state:
+        state["fixture"].update(institution="will-bank", product="cartao_de_credito")
+        state["fixture"]["eligibility"]["max_installments"] = customer_limit
+    read_policy(rt)
+    result = call(
+        generate_payment_offer,
+        rt,
+        payment_type="installment",
+        installments=12,
+        method="boleto",
+        policy_path=PATH,
+        down_payment_amount="1200.00",
+    )
+    assert result["created"] is created
+    if created:
+        schedule = result["offer"]["installment_schedule"]
+        assert len(schedule) == 12 and schedule[0] == "1200.00"
+        assert sum(map(Decimal, schedule)) == Decimal("5873.42")
+    else:
+        assert result["reason"] == "customer_eligibility_exceeded"
+        assert_no_financial_action("overdue-limit")
