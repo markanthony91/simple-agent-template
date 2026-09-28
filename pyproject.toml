@@ -1,6 +1,6 @@
 [project]
 name = "simple-agent-template"
-version = "0.14.5"
+version = "0.14.6"
 description = "Minimal LangChain agent template for LangGraph deployment"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -10,6 +10,7 @@ dependencies = [
     "langgraph>=1.0.0",
     "langgraph-cli[inmem]>=0.4.10",
     "langgraph-api>=0.14.0,<0.15.0",
+    "langgraph-runtime-inmem==0.34.0",
     "python-dotenv>=1.0.1",
     "PyYAML>=6.0.2,<7",
 ]
