@@ -46,6 +46,8 @@ async def test_announcement_continues_without_fake_customer_or_extra_tool(async_
     assert sum(m.type == "human" for m in messages) == 1
     assert model.calls == 2
     assert CONTINUE_REVIEW in model.seen[1][0].content
+    assert model.seen[1][-1].type == "human"
+    assert not any(m.type == "ai" for m in model.seen[1])
     assert not any(
         m.type == "system" for m in messages
     )  # Internal guidance is not saved.
@@ -123,6 +125,7 @@ def test_resumed_agent_can_consult_tools_without_another_resume():
     )
     result = graph.invoke({"messages": [HumanMessage(content="Preciso de desconto.")]})
     assert calls == [1] and model.calls == 3
+    assert model.seen[2][-1].type == "tool"
     assert result["messages"][-1].content == UNAVAILABLE
 
 

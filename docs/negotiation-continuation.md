@@ -1,6 +1,6 @@
 # Continuação da revisão de negociação — 0.14.10
 
-Status: 0.14.9 publicada; ajuste complementar 0.14.10 em validação local.
+Status: 0.14.10 publicada; compatibilidade da retomada 0.14.11 em validação local.
 Base: artefato publicado 0.14.7 (`7936185`). A configuração de Workflow da
 branch `feat/workflow-review-delay` (0.14.8 local) não faz parte desta alteração.
 
@@ -66,3 +66,14 @@ emite deltas no evento `messages`, ausente no filtro de 0.14.7. A pausa posterio
 do snapshot `values` não protege texto já exibido. A versão 0.14.10 cobre esse
 formato também; o teste de regressão inclui mensagem inteira e fragmentos de 7
 e 1 caractere, seguida de snapshot, preservando texto e metadados uma única vez.
+
+## Resposta vazia na retomada com o provedor real
+
+O canário de 0.14.10 confirmou pausa visual de 7,7 segundos com consultas OKF.
+O cenário de encerramento após anúncio, porém, produziu `finish_reason=no_content`
+na segunda chamada em dois testes isolados. O runtime corretamente rejeitou essa
+resposta vazia. A 0.14.11 preserva a abertura e o marcador no estado, mas omite a
+abertura somente no pedido imediato de continuação ao modelo. A orientação
+temporária informa que ela já foi enviada. O pedido volta a terminar na mensagem
+original do cliente; resultados posteriores de tools continuam integralmente
+no contexto. Nenhum novo retry e nenhuma mensagem humana artificial.

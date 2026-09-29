@@ -1,5 +1,11 @@
 # Agent Runtime — OKF simulator (0.14.10)
 
+## 0.14.11 — compatibilidade da retomada com o provedor
+
+A retomada mantém a abertura no histórico, mas omite essa última mensagem apenas
+no pedido de continuação ao modelo. Evita resposta vazia (`no_content`) observada
+no canário; não aceita respostas incompletas nem cria mensagem humana artificial.
+
 ## 0.14.10 — pausa nos fragmentos do Playground
 
 O stream nativo `messages`/`messages-tuple` também separa a abertura da continuação. Fragmentos são divididos sem repetir texto, tool calls ou contagem de tokens; o prefixo adicional retido é limitado a 512 caracteres. Preserva o caminho `values` usado pelo WhatsApp.

@@ -81,8 +81,13 @@ class NegotiationContinuationMiddleware(AgentMiddleware):
             if isinstance(content, str)
             else [*content, {"type": "text", "text": CONTINUE_REVIEW}]
         )
+        messages = request.messages
+        if messages and messages[-1].additional_kwargs.get(MARKER) is True:
+            # Keep the sent opening in state, but avoid assistant-prefill on resumption.
+            messages = messages[:-1]
         return request.override(
-            system_message=message.model_copy(update={"content": content})
+            system_message=message.model_copy(update={"content": content}),
+            messages=messages,
         )
 
     def wrap_model_call(self, request, handler):
