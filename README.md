@@ -1,4 +1,8 @@
-# Agent Runtime — OKF simulator (0.14.9)
+# Agent Runtime — OKF simulator (0.14.10)
+
+## 0.14.10 — pausa nos fragmentos do Playground
+
+O stream nativo `messages`/`messages-tuple` também separa a abertura da continuação. Fragmentos são divididos sem repetir texto, tool calls ou contagem de tokens; o prefixo adicional retido é limitado a 512 caracteres. Preserva o caminho `values` usado pelo WhatsApp.
 
 ## 0.14.9 — continuação após a abertura
 

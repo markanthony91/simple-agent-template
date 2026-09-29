@@ -166,3 +166,92 @@ async def test_other_routes_and_normal_text_are_unchanged():
             {"type": "http", "method": "POST", "path": path}, receive, send
         )
         assert b"".join(x.get("body", b"") for x in sent) == original
+
+
+@pytest.mark.anyio
+@pytest.mark.parametrize(
+    "chunk_size,message_type",
+    [(1000, "ai"), (7, "AIMessageChunk"), (1, "AIMessageChunk")],
+)
+async def test_native_sdk_deltas_pause_before_continuation_without_duplicate_text(
+    chunk_size, message_type, monkeypatch
+):
+    sent, waits = [], []
+    metadata = {"langgraph_node": "model"}
+    usage = {"input_tokens": 10, "output_tokens": 20, "total_tokens": 30}
+
+    def messages():
+        return [
+            json.loads(line[6:])[0]
+            for e in sent
+            for line in e.get("body", b"").splitlines()
+            if line.startswith(b"data: [")
+        ]
+
+    async def wait(seconds):
+        waits.append(seconds)
+        assert "".join(m.get("content", "") for m in messages()) == FIRST
+
+    monkeypatch.setattr("simple_agent.message_delay.asyncio.sleep", wait)
+
+    async def app(scope, receive, send):
+        await receive()
+        await send(
+            {
+                "type": "http.response.start",
+                "headers": [(b"content-type", b"text/event-stream")],
+            }
+        )
+        for start in range(0, len(FINAL), chunk_size):
+            chunk = {
+                "id": "answer",
+                "type": message_type,
+                "content": FINAL[start : start + chunk_size],
+            }
+            if start + chunk_size >= len(FINAL):
+                chunk.update(
+                    usage_metadata=usage, response_metadata={"finish_reason": "stop"}
+                )
+            await send(
+                {
+                    "type": "http.response.body",
+                    "body": frame("messages", [chunk, metadata]),
+                    "more_body": True,
+                }
+            )
+        # The final snapshot must not apply a second pause or duplicate the prefix.
+        await send(
+            {
+                "type": "http.response.body",
+                "body": frame(
+                    "values",
+                    {
+                        "messages": [
+                            {"id": "u", "type": "human"},
+                            {"id": "answer", "type": "ai", "content": FINAL},
+                        ]
+                    },
+                ),
+                "more_body": False,
+            }
+        )
+
+    async def receive():
+        return {"type": "http.request", "body": b'{"input":{"messages":[{"id":"u"}]}}'}
+
+    async def send(event):
+        sent.append(event)
+
+    await CashMessageDelay(app)(
+        {"type": "http", "method": "POST", "path": "/threads/t/runs/stream"},
+        receive,
+        send,
+    )
+    assert waits == [5]
+    assert "".join(m.get("content", "") for m in messages()) == FINAL
+    assert [m["usage_metadata"] for m in messages() if m.get("usage_metadata")] == [
+        usage
+    ]
+    assert [
+        m["response_metadata"] for m in messages() if m.get("response_metadata")
+    ] == [{"finish_reason": "stop"}]

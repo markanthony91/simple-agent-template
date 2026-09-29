@@ -11,6 +11,11 @@ Quando um evento AI do turno atual contém a abertura existente
 libera esse trecho imediatamente e espera cinco segundos antes de liberar os
 bytes originais e a continuação do stream. A espera é assíncrona e acontece somente
 uma vez por resposta HTTP. Eventos values e messages/partial/complete são suportados.
+Desde 0.14.10, também trata os deltas nativos `messages` usados quando o Playground
+solicita `messages-tuple`. Divide o fragmento no fim da abertura e entrega o restante
+após a pausa, sem reenviar prefixos ou duplicar uso de tokens/tool calls. Retém
+no máximo 512 caracteres do prefixo da mensagem atual. O WhatsApp solicita apenas
+`values` e mantém seu caminho anterior.
 Nenhum histórico/checkpoint é reescrito; o marcador de entrega existe somente no
 stream. Não muda as respostas de runs/wait, leituras de histórico ou outros endpoints.
 

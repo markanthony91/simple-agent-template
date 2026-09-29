@@ -1,6 +1,6 @@
-# Continuação da revisão de negociação — 0.14.9
+# Continuação da revisão de negociação — 0.14.10
 
-Status: implementação local; publicação e validação no Railway pendentes.
+Status: 0.14.9 publicada; ajuste complementar 0.14.10 em validação local.
 Base: artefato publicado 0.14.7 (`7936185`). A configuração de Workflow da
 branch `feat/workflow-review-delay` (0.14.8 local) não faz parte desta alteração.
 
@@ -48,12 +48,21 @@ após anúncio, limite da retomada, novo turno, tools sem duplicação, resposta
 completas, falha de provedor, isolamento de sessões e streaming com a pausa existente.
 Não enviam mensagens, e-mails ou pagamentos reais.
 
-Resultado local: 468 testes da suíte e 13 cenários específicos aprovados (três
-dos cenários específicos foram acrescentados após a execução da suíte). Cobertura
-da suíte: 90%; middleware de continuação: 98%. Ruff e `git diff --check` aprovados.
+Resultado local: 474 testes aprovados, incluindo 13 cenários de continuação e
+regressões do streaming nativo do Playground. Cobertura da suíte: 90%; middleware
+de continuação: 98%. Ruff e `git diff --check` aprovados.
 Validação com modelo real e Playground publicado ainda pendente.
 
 Antes de publicar: confirmar o artefato de produção e a ausência de deploys
 concorrentes, executar o procedimento de backup do serviço, publicar somente
 runtime e validar em sessão sintética no Playground. Canais e Chat não precisam
 de alteração. Rollback: artefato 0.14.7, preservando o volume.
+
+## Complemento encontrado no teste publicado
+
+No primeiro canário de 0.14.9, o modelo produziu abertura e continuação, mas o
+Playground recebeu ambas sem intervalo. O SDK solicita `messages-tuple`; o servidor
+emite deltas no evento `messages`, ausente no filtro de 0.14.7. A pausa posterior
+do snapshot `values` não protege texto já exibido. A versão 0.14.10 cobre esse
+formato também; o teste de regressão inclui mensagem inteira e fragmentos de 7
+e 1 caractere, seguida de snapshot, preservando texto e metadados uma única vez.
