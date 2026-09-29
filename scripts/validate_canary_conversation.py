@@ -31,12 +31,16 @@ def main() -> None:
             return json.loads(body) if body else {}
 
     source = Path(__file__).parents[1] / "examples" / "pilot-okf"
-    files = {
-        path.relative_to(source).as_posix(): path.read_text().replace(
-            "status: draft", "status: published"
+    files = {}
+    for path in source.rglob("*.md"):
+        relative = path.relative_to(source).as_posix().replace(
+            "INSTITUTIONS/", "COMPANIES/"
         )
-        for path in source.rglob("*.md")
-    }
+        files[relative] = (
+            path.read_text()
+            .replace("status: draft", "status: published")
+            .replace("INSTITUTIONS", "COMPANIES")
+        )
     imported = request(
         "/runs/wait",
         {
