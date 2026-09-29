@@ -64,8 +64,19 @@ class OKFService(IndexNavigation):
             or ".." in Path(relative_path.replace("\\", "/")).parts
         ):
             raise ValueError("Invalid OKF path")
-        collapsed = self._collapse_duplicate_root(relative_path)
-        parts = [part for part in collapsed.split("/") if part]
+        # Published bundles can legitimately contain repeated roots. Never redirect
+        # an existing path to a different concept/parent just because it looks odd.
+        cleaned = relative_path.replace("\\", "/")
+        try:
+            return self._walk_path(cleaned, require_exists)
+        except FileNotFoundError:
+            collapsed = self._collapse_duplicate_root(cleaned)
+            if collapsed == cleaned:
+                raise
+            return self._walk_path(collapsed, require_exists)
+
+    def _walk_path(self, relative_path: str, require_exists: bool) -> Path:
+        parts = [part for part in relative_path.split("/") if part not in {"", "."}]
         current = self.root
 
         for index, part in enumerate(parts):
@@ -115,7 +126,7 @@ class OKFService(IndexNavigation):
             or ".." in Path(directory.replace("\\", "/")).parts
         ):
             raise ValueError("Invalid OKF directory")
-        cleaned = self._collapse_duplicate_root(directory)
+        cleaned = directory.replace("\\", "/")
         if not cleaned:
             return ""
         resolved = self._resolve_case_insensitive(
@@ -330,7 +341,13 @@ class OKFService(IndexNavigation):
             if match and len(match.group(1)) <= start_level:
                 break
             collected.append(line)
-        result = "\n".join(collected)[: self.max_chars_per_file]
+        # Lifecycle/scope/conditions apply to every section. Dropping frontmatter
+        # makes a published policy indistinguishable from unapproved prose.
+        document = content.partition("\n\n")[2]
+        metadata = ""
+        if document.startswith("---\n") and "\n---" in document[4:]:
+            metadata = document[: document.index("\n---", 4) + 4] + "\n\n"
+        result = (metadata + "\n".join(collected))[: self.max_chars_per_file]
         prefix = f"OKF_CANONICAL_PATH: {canonical}\n\n"
 
         # Return with resolved heading note

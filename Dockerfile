@@ -3,7 +3,7 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir uv
+RUN env -u HTTP_PROXY -u HTTPS_PROXY -u http_proxy -u https_proxy pip install --no-cache-dir uv
 
 COPY . .
 

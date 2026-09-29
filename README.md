@@ -1,4 +1,6 @@
-# Agent Runtime — OKF simulator (0.2.0)
+# Agent Runtime — OKF simulator (0.2.2)
+
+Published runtime/chat and direct sharing validation: [2026-09-15 release](docs/RELEASE_2026-09-15.md).
 
 LangChain/LangGraph runtime, controlled OKF tools and synthetic debt negotiation.
 The separate `agent-chat-ui` repository provides the Next.js frontend.
@@ -6,6 +8,14 @@ This release does not modify WhatsApp or the original FastAPI console.
 
 Published status and evidence: [Railway release 2026-09-14](docs/RELEASE_2026-09-14.md).
 Real-model results and remaining blockers: [Qwen E2E 2026-09-14](docs/QWEN_E2E_2026-09-14.md).
+
+Candidate changes, isolated tests and publication boundaries:
+[OKF ingestion and grounding](docs/OKF_INGESTION_GROUNDING.md).
+RAW instructions now distinguish uppercase domain roots from lowercase new slugs.
+Published legacy paths remain readable without silently redirecting repeated roots.
+The Playground receives a post-stream numeric diagnostic, NOT a text safety gate.
+The [synthetic pilot bundle](examples/pilot-okf/index.md) remains a draft proposal;
+tests approve a copy only in temporary storage, never in the live bundle.
 
 ## Run
 
@@ -25,7 +35,7 @@ Streaming uses the SDK; no automatic retry after partial text. No new inference 
 ```bash
 uv run pytest -q
 uv run ruff check src tests
-docker build -t agent-runtime:0.2.0 .
+docker build -t agent-runtime:0.2.2 .
 ```
 
 Tests force synthetic credentials and temporary storage. They do not call Qwen.
@@ -40,3 +50,10 @@ The optional legacy integration test remains skipped; see
 Only a synthetic single-operator laboratory is supported by the current anonymous API.
 An approval checkbox is not administrative authentication. Do not expose customer
 data or real financial actions through this deployment.
+# Shared pilot chat
+
+The LLM is pinned by server `LLM_MODEL` (legacy fallback `SIMPLE_AGENT_MODEL`).
+Neither message text nor Runnable `configurable.model` selects another model.
+Endpoint/key stay on the backend; changing models is a server configuration and
+rollout operation, not a visitor preference. Use synthetic data in this lab:
+the shared link is not an authenticated, read-only guest role.

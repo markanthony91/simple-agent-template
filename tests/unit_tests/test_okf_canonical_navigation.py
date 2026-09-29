@@ -1,5 +1,6 @@
 from simple_agent.services.okf_service import OKFService
 from simple_agent.prompt_loader import load_agent_prompt
+import pytest
 
 
 def _build_okf(tmp_path):
@@ -44,6 +45,40 @@ def test_duplicate_root_prefix_is_collapsed(tmp_path):
     result = service.read_section(duplicated, "Limites de desconto")
     assert "OKF_CANONICAL_PATH: INSTITUTIONS/fastpay/policies/desconto.md" in result
     assert "A DEFINIR PELA OPERAÇÃO" in result
+
+
+def test_existing_nested_roots_never_redirect_to_parent(tmp_path):
+    root = _build_okf(tmp_path)
+    nested = root / "INSTITUTIONS/fastpay/INSTITUTIONS"
+    nested.mkdir()
+    (nested / "index.md").write_text("# Nested legacy branch\n")
+    (nested / "policy.md").write_text("---\ntype: Policy\n---\n# Nested fact")
+    service = OKFService(root)
+    path = "INSTITUTIONS/fastpay/INSTITUTIONS"
+    assert service.canonical_directory(path) == path
+    assert f"OKF_CANONICAL_DIRECTORY: {path}" in service.read_index(path)
+    assert "Nested fact" in service.read_file(f"{path}/policy.md")
+    assert "Nested fact" in service.search("Nested", scope=path)
+
+
+def test_two_legacy_root_cases_remain_distinct_without_guessing(tmp_path):
+    root = _build_okf(tmp_path)
+    lower = root / "institutions"
+    lower.mkdir()
+    (lower / "index.md").write_text("# Lower legacy branch")
+    service = OKFService(root)
+    assert service.canonical_directory("institutions") == "institutions"
+    assert service.canonical_directory("INSTITUTIONS") == "INSTITUTIONS"
+    with pytest.raises(ValueError, match="Ambiguous"):
+        service.canonical_directory("Institutions")
+
+
+@pytest.mark.parametrize(
+    "path", ["../INSTITUTIONS", "/INSTITUTIONS", "INSTITUTIONS/../GLOBAL"]
+)
+def test_invalid_paths_are_not_repaired(tmp_path, path):
+    with pytest.raises(ValueError):
+        OKFService(_build_okf(tmp_path)).canonical_directory(path)
 
 
 def test_missing_child_index_returns_parent_and_available_children(tmp_path):
@@ -103,6 +138,19 @@ def test_read_section_missing_heading_lists_available_and_requires_retry(tmp_pat
     assert '"Installments"' in result
     assert "Retry with one of these exact headings" in result
     assert "OKF_CANONICAL_PATH:" in result
+
+
+def test_read_section_preserves_policy_metadata(tmp_path):
+    root = _build_okf(tmp_path)
+    path = "INSTITUTIONS/fastpay/policies/desconto.md"
+    (root / path).write_text(
+        "---\ntype: Policy\nstatus: published\ninstitution: FastPay\nnegotiation:\n  max_installments: 6\n---\n# Terms\nSource conditions.\n# Other\nOther body."
+    )
+    result = OKFService(root).read_section(path, "Terms")
+    assert "status: published" in result
+    assert "max_installments: 6" in result
+    assert "Source conditions." in result
+    assert "Other body." not in result
 
 
 def test_duplicate_root_collapse_before_existence_check(tmp_path):

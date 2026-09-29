@@ -10,6 +10,7 @@ from typing import Any
 from simple_agent.llm import create_llm
 from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.ingestion_lock import serialized
+from simple_agent.services.ingestion_paths import ingestion_path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_AGENTS_PATH = PROJECT_ROOT / "config" / "RAW_AGENTS.md"
@@ -119,6 +120,7 @@ class RawOKFCompiler:
                             "source_name": source_name,
                             "untrusted_document": raw_text,
                             "existing_concepts": related,
+                            "existing_paths": list(existing),
                         }
                     ),
                 ),
@@ -130,7 +132,7 @@ class RawOKFCompiler:
             else str(response.content)
         )
         plan = self._parse_json(text)
-        plan = self._normalize_plan(plan)
+        plan = self._normalize_plan(plan, set(existing))
         payload = {
             "ingestion_id": ingestion_id,
             "source_name": source_name,
@@ -163,7 +165,9 @@ class RawOKFCompiler:
             raise ValueError("ingestion_conflict_requires_source_review")
         if self.store.active_bundle_id() != payload.get("source_bundle_id"):
             raise ValueError("ingestion_base_changed: analyze again")
-        files = plan.get("files") or []
+        base = payload.get("source_bundle_id")
+        existing = self.store._root_files(self.store.bundle_root(base)) if base else {}
+        files = self._normalize_plan(plan, set(existing))["files"]
         if not files or all(item.get("action") == "noop" for item in files):
             return {
                 "no_changes": True,
@@ -247,7 +251,9 @@ class RawOKFCompiler:
             raise ValueError("Compiler plan must be a JSON object")
         return data
 
-    def _normalize_plan(self, plan: dict[str, Any]) -> dict[str, Any]:
+    def _normalize_plan(
+        self, plan: dict[str, Any], existing: set[str] | None = None
+    ) -> dict[str, Any]:
         domain = str(plan.get("domain") or "GLOBAL").upper()
         if domain not in {"GLOBAL", "INSTITUTIONS", "PRODUCTS"}:
             domain = "GLOBAL"
@@ -267,19 +273,16 @@ class RawOKFCompiler:
                 "agent.md",
             }:
                 raise ValueError("reserved_path_in_ingestion_plan")
-            if path.split("/", 1)[0].upper() not in {
-                "GLOBAL",
-                "INSTITUTIONS",
-                "PRODUCTS",
-            }:
-                path = f"{domain}/{path}"
-            if path in seen or raw.get("action", "create") not in {
+            path = ingestion_path(
+                path, str(raw.get("action", "create")), domain, existing or set()
+            )
+            if path.casefold() in seen or raw.get("action", "create") not in {
                 "create",
                 "append",
                 "noop",
             }:
                 raise ValueError("invalid_plan_action_or_duplicate")
-            seen.add(path)
+            seen.add(path.casefold())
             if raw.get("action") != "noop" and (
                 not isinstance(raw.get("content"), str) or not raw["content"].strip()
             ):

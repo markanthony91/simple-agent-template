@@ -16,7 +16,12 @@ You are an OKF 0.2 knowledge compiler responsible for turning raw operational co
 - Prefer `INSTITUTIONS/<slug>/...` for institution-specific facts.
 - Prefer `PRODUCTS/<slug>/...` for product-specific facts that are not tied to one institution.
 - Prefer `GLOBAL/...` only for cross-cutting rules shared across domains.
-- Use lowercase `snake_case` path segments.
+- The three domain roots are exactly `GLOBAL/`, `PRODUCTS/`, and `INSTITUTIONS/` (uppercase). Only NEW segments BELOW these roots use lowercase `snake_case`.
+- `institutions/` is not a second domain. Never create a parallel lowercase root, or repeat a domain root inside another directory.
+- Inspect the supplied existing paths and reuse an existing concept's EXACT path for `append` or `noop`, including legacy casing and spelling. Do not rename or move published concepts during ingestion.
+- For a new concept, use the canonical uppercase root. If that would duplicate an existing concept or branch differing only by case, report a conflict for human review rather than copying or merging it silently.
+- Paths are bundle-relative: `INSTITUTIONS/banco_aurora/policy.md`, never `INSTITUTIONS/banco_aurora/INSTITUTIONS/...`.
+- Reserved navigation/history filenames are always lowercase `index.md` and `log.md`; the backend maintains them. This ingestion `AGENTS.md` stays outside the OKF bundle.
 
 ## Allowed concept types
 
