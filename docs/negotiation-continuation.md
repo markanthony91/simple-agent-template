@@ -1,6 +1,6 @@
-# Continuação da revisão de negociação — 0.14.10
+# Continuação da revisão de negociação — 0.14.11
 
-Status: 0.14.10 publicada; compatibilidade da retomada 0.14.11 em validação local.
+Status: 0.14.11 publicada e validada para pausa e retomada; ver limites do canário.
 Base: artefato publicado 0.14.7 (`7936185`). A configuração de Workflow da
 branch `feat/workflow-review-delay` (0.14.8 local) não faz parte desta alteração.
 
@@ -51,12 +51,12 @@ Não enviam mensagens, e-mails ou pagamentos reais.
 Resultado local: 474 testes aprovados, incluindo 13 cenários de continuação e
 regressões do streaming nativo do Playground. Cobertura da suíte: 90%; middleware
 de continuação: 98%. Ruff e `git diff --check` aprovados.
-Validação com modelo real e Playground publicado ainda pendente.
+Validação publicada: retomada controlada com duas respostas e uma mensagem humana;
+Playground com intervalo de 7.886 ms. Ver [evidência e limitações](RELEASE_01411_2026-09-29.md).
 
-Antes de publicar: confirmar o artefato de produção e a ausência de deploys
-concorrentes, executar o procedimento de backup do serviço, publicar somente
-runtime e validar em sessão sintética no Playground. Canais e Chat não precisam
-de alteração. Rollback: artefato 0.14.7, preservando o volume.
+O deployment preservou Canais, Chat e as configurações do Assistant. O Workflow
+foi alterado pelo operador de v47 para v49 durante a rodada; não houve escrita
+nesse conteúdo pelo deploy. Procedimento e rollback no registro de release.
 
 ## Complemento encontrado no teste publicado
 

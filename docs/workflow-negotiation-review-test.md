@@ -1,11 +1,12 @@
 # Workflow: revisão com pausa de cinco segundos
 
-A pausa é responsabilidade do runtime 0.14.10 e usa a frase existente como gatilho.
+A pausa é responsabilidade do runtime 0.14.11 e usa a frase existente como gatilho.
 `negotiation_review_delay_ms = 5000` não é interpretado como comando nessa versão.
 Não há uma nova tool nem um evento externo necessário para continuar.
 
-O Workflow ativo v47 já orienta a continuação na mesma execução. Ao editar a
+O Workflow v47 inspecionado já orientava a continuação na mesma execução. Ao editar a
 etapa existente, substitua a orientação correspondente; não duplique o bloco.
+Na validação final o operador já havia ativado o v49.
 Mantenha os critérios comerciais de entrada da etapa e as políticas OKF.
 
 ## Trecho de referência
@@ -22,8 +23,9 @@ existentes. Não encerre o turno aguardando outra mensagem do cliente ou evento.
 Não solicite uma tool de espera: o runtime aplica a pausa na entrega.
 Consulte a política aplicável no OKF quando necessário e apresente apenas
 condições comprovadas. Não invente desconto nem calcule valores financeiros.
-Se faltar uma escolha obrigatória, pergunte somente o que falta; não escolha
-PIX ou boleto pelo cliente. Se a consulta falhar, explique a impossibilidade.
+Antes de chamar generate_payment_offer, confirme que o cliente escolheu o meio
+de pagamento. Se faltar essa escolha, pergunte PIX ou boleto conforme a política;
+não escolha pelo cliente e não gere proposta para descobrir desconto. Se a consulta falhar, explique a impossibilidade.
 ```
 
 ## Teste manual curto
