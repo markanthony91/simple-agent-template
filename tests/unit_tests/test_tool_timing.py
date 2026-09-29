@@ -116,3 +116,58 @@ def test_timing_is_logged_for_failures_and_context_cleared(caplog):
     assert event["status"] == "error"
     assert "synthetic_phase" in event["phases_ms"]
     assert timing_summary() == {}
+
+
+def test_model_timing_logs_sizes_and_usage_without_content(isolated, monkeypatch, caplog):
+    from langchain.agents.middleware import ModelRequest, ModelResponse
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+    from langgraph.runtime import Runtime
+    from simple_agent import managed_graph, tool_middleware
+
+    marker = "PRIVATE_MARKER"
+    monkeypatch.setattr(
+        tool_middleware,
+        "get_config",
+        lambda: {"configurable": {"thread_id": "model-timing"}},
+    )
+    request = ModelRequest(
+        model=managed_graph.create_llm(),
+        messages=[HumanMessage(content=marker)],
+        system_message=SystemMessage(content=f"SYSTEM_{marker}"),
+        runtime=Runtime(context={}),
+        state={"messages": [HumanMessage(content=marker)]},
+    )
+    caplog.set_level("INFO", logger="simple_agent.tools")
+    response = filter_enabled_tools.wrap_model_call(
+        request,
+        lambda _: ModelResponse(
+            result=[
+                AIMessage(
+                    content="ok",
+                    response_metadata={"finish_reason": "stop"},
+                    usage_metadata={
+                        "input_tokens": 10,
+                        "output_tokens": 2,
+                        "total_tokens": 12,
+                    },
+                )
+            ]
+        ),
+    )
+
+    assert response.result[0].content == "ok"
+    event = next(
+        json.loads(record.message)
+        for record in caplog.records
+        if '"event": "MODEL_CALL"' in record.message
+    )
+    assert event["status"] == "success"
+    assert set(event["phases_ms"]) == {
+        "model_prepare",
+        "model_provider",
+        "model_audit",
+    }
+    assert event["usage"]["total_tokens"] == 12
+    assert event["message_count"] == 1
+    assert event["system_prompt_chars"] > len(marker)
+    assert marker not in json.dumps(event)

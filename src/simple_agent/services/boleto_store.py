@@ -92,9 +92,28 @@ def second_copy(
                AND (?='' OR agreement_id=?) ORDER BY agreement_id LIMIT 21""",
             (session_id, agreement_id, agreement_id),
         ).fetchall()
-    if not rows:
-        return {"found": False, "reason": "boleto_not_found"}
     agreements = [json.loads(row[0]) for row in rows]
+    payments = []
+    if len(agreements) == 1:
+        payments = [
+            json.loads(row[0])
+            for row in db.execute(
+                """SELECT data FROM payment_instructions WHERE agreement_id=? AND method='boleto'
+                   AND (? IS NULL OR installment_number=?) ORDER BY installment_number LIMIT 21""",
+                (
+                    agreements[0]["agreement_id"],
+                    installment_number,
+                    installment_number,
+                ),
+            ).fetchall()
+        ]
+    return second_copy_result(agreements, payments)
+
+
+def second_copy_result(agreements: list[dict], payments: list[dict]) -> dict:
+    """Apply the same safe response contract to either database backend."""
+    if not agreements:
+        return {"found": False, "reason": "boleto_not_found"}
     if len(agreements) > 1:
         return {
             "found": False,
@@ -112,14 +131,6 @@ def second_copy(
             "reason": "agreement_not_payable",
             "status": agreement.get("status"),
         }
-    payments = [
-        json.loads(row[0])
-        for row in db.execute(
-            """SELECT data FROM payment_instructions WHERE agreement_id=? AND method='boleto'
-               AND (? IS NULL OR installment_number=?) ORDER BY installment_number LIMIT 21""",
-            (agreement["agreement_id"], installment_number, installment_number),
-        ).fetchall()
-    ]
     if not payments:
         return {"found": False, "reason": "boleto_not_issued"}
     if len(payments) > 1:

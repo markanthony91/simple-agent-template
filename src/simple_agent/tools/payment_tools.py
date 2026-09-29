@@ -6,6 +6,7 @@ import json
 import hashlib
 import re
 import sqlite3
+import psycopg
 from calendar import monthrange
 from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
@@ -599,7 +600,7 @@ def get_boleto_second_copy(
         result = SessionStore().boleto_second_copy(
             thread_id(runtime), agreement_id, installment_number
         )
-    except (sqlite3.Error, OSError, ValueError, KeyError, TypeError):
+    except (sqlite3.Error, psycopg.Error, OSError, ValueError, KeyError, TypeError):
         result = {"found": False, "reason": "query_failed"}
     return _json(result)
 

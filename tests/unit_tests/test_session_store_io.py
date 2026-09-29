@@ -77,3 +77,27 @@ def test_first_read_preserves_initialization_and_snapshot(isolated):
     assert store.read("new") == first
     with pytest.raises(ValueError, match="server_thread_id_required"):
         store.read("")
+
+
+def test_sqlite_durability_modes_are_opt_in(tmp_path, monkeypatch):
+    monkeypatch.setenv("SESSION_BACKEND", "sqlite")
+    monkeypatch.setenv("SESSION_SQLITE_JOURNAL_MODE", "WAL")
+    monkeypatch.setenv("SESSION_SQLITE_SYNCHRONOUS", "NORMAL")
+    store = SessionStore(tmp_path)
+    with store._connect() as db:
+        assert db.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
+        assert db.execute("PRAGMA synchronous").fetchone()[0] == 1
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "error"),
+    [
+        ("SESSION_SQLITE_JOURNAL_MODE", "MEMORY", "unsupported_sqlite_journal_mode"),
+        ("SESSION_SQLITE_SYNCHRONOUS", "OFF", "unsupported_sqlite_synchronous"),
+    ],
+)
+def test_sqlite_durability_modes_reject_unsafe_values(tmp_path, monkeypatch, name, value, error):
+    monkeypatch.setenv("SESSION_BACKEND", "sqlite")
+    monkeypatch.setenv(name, value)
+    with pytest.raises(ValueError, match=error):
+        SessionStore(tmp_path)

@@ -28,6 +28,18 @@ def thread_id(runtime) -> str:
 
 
 class SessionStore:
+    def __new__(cls, root: Path | None = None):
+        backend = os.getenv("SESSION_BACKEND", "sqlite").strip().lower()
+        if cls is SessionStore and root is None and backend == "postgres":
+            from simple_agent.services.postgres_session_store import (
+                PostgresSessionStore,
+            )
+
+            return PostgresSessionStore()
+        if backend != "sqlite":
+            raise ValueError("unsupported_session_backend")
+        return super().__new__(cls)
+
     def __init__(self, root: Path | None = None):
         self.root = root or Path(os.getenv("SESSION_ROOT", "/data/sessions"))
         self.root.mkdir(parents=True, exist_ok=True)
@@ -107,6 +119,16 @@ class SessionStore:
             db = sqlite3.connect(self.database, timeout=10)
         try:
             with db:
+                journal = os.getenv("SESSION_SQLITE_JOURNAL_MODE", "").upper()
+                synchronous = os.getenv("SESSION_SQLITE_SYNCHRONOUS", "").upper()
+                if journal not in {"", "DELETE", "WAL"}:
+                    raise ValueError("unsupported_sqlite_journal_mode")
+                if synchronous not in {"", "FULL", "NORMAL"}:
+                    raise ValueError("unsupported_sqlite_synchronous")
+                if journal:
+                    db.execute(f"PRAGMA journal_mode = {journal}")
+                if synchronous:
+                    db.execute(f"PRAGMA synchronous = {synchronous}")
                 db.execute("PRAGMA foreign_keys = ON")
                 yield db
                 with timed_phase("session_commit"):
