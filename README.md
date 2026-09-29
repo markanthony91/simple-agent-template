@@ -1,10 +1,4 @@
-# Agent Runtime — OKF simulator (0.14.12)
-
-## 0.14.12 — saudação local sem tool
-
-O middleware calcula `current_datetime_brt` e `saudacao_local` em
-`America/Sao_Paulo` antes de cada chamada ao modelo. A LLM não recebe mais
-`utc_now`, evitando uma segunda rodada apenas para escolher a saudação.
+# Agent Runtime — OKF simulator (0.14.10)
 
 ## 0.14.11 — compatibilidade da retomada com o provedor
 
@@ -42,9 +36,6 @@ novamente uma vez com os mesmos termos. Política incompleta, referência invál
 escopo incompatível e falta de recibo continuam bloqueando a oferta.
 `utc_now` mantém o nome legado, mas retorna ISO 8601 no fuso `America/Sao_Paulo`,
 com offset explícito. Timestamps de banco e logs continuam em UTC.
-Nas conversas, o middleware injeta `current_datetime_brt` e `saudacao_local`
-diretamente no contexto da LLM e oculta `utc_now`, evitando outra rodada de modelo
-apenas para escolher entre bom dia, boa tarde e boa noite.
 Veja [contrato e validação](docs/canonical-policy-local-time.md) e
 [deploy e bloqueio encontrado no OKF publicado](docs/RELEASE_0141_2026-09-28.md).
 

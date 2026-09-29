@@ -1,7 +1,5 @@
 import json
-from datetime import datetime
 from types import SimpleNamespace
-from zoneinfo import ZoneInfo
 
 import pytest
 from langchain_core.messages import HumanMessage
@@ -206,8 +204,6 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
             "CUSTOM_AGENTS",
             "CUSTOM_WORKFLOW",
             "Sophia",
-            "current_datetime_brt:",
-            "saudacao_local:",
             '"creditor": "Fastpay"',
             "CPF completo",
             "Tentativas restantes: 3",
@@ -218,26 +214,6 @@ def test_runtime_appends_pinned_policy_without_replacing_prompts(isolated, monke
     monkeypatch.setattr(tool_middleware, "get_config", lambda: {})
     with pytest.raises(ValueError, match="server_thread_id_required"):
         tool_middleware.filter_enabled_tools._filtered_request(request)
-
-
-@pytest.mark.parametrize(
-    "hour,expected",
-    [
-        (4, "Boa noite"),
-        (5, "Bom dia"),
-        (11, "Bom dia"),
-        (12, "Boa tarde"),
-        (17, "Boa tarde"),
-        (18, "Boa noite"),
-    ],
-)
-def test_runtime_time_context_uses_brasilia_greeting(hour, expected):
-    from simple_agent.tool_middleware import _runtime_time_context
-
-    now = datetime(2026, 9, 29, hour, tzinfo=ZoneInfo("America/Sao_Paulo"))
-    context = _runtime_time_context(now)
-    assert f"current_datetime_brt: {now.isoformat()}" in context
-    assert f"saudacao_local: {expected}" in context
 
 
 def test_unbound_whatsapp_hides_financial_tools_and_identity_prompt(
@@ -262,7 +238,6 @@ def test_unbound_whatsapp_hides_financial_tools_and_identity_prompt(
     )
     filtered = tool_middleware.filter_enabled_tools._filtered_request(request)
     names = {tool.name for tool in filtered.tools}
-    assert "utc_now" not in names
     assert names.isdisjoint(tool_middleware.FINANCIAL_TOOLS)
     assert "okf_index" in names
     assert "Sessão sem dívida vinculada" in filtered.system_message.content

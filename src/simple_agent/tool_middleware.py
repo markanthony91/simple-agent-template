@@ -6,11 +6,9 @@ import asyncio
 import logging
 import socket
 import unicodedata
-from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from time import perf_counter
 from typing import Any, Awaitable, Callable
-from zoneinfo import ZoneInfo
 
 from langchain.agents.middleware import (
     AgentMiddleware,
@@ -96,22 +94,6 @@ UNBOUND_IDENTITY_REPLY = (
     "Para consultar ou negociar uma dívida, é necessário iniciar pelo formulário "
     "da demonstração."
 )
-
-
-def _runtime_time_context(now: datetime | None = None) -> str:
-    current = now or datetime.now(ZoneInfo("America/Sao_Paulo"))
-    hour = current.hour
-    if 5 <= hour < 12:
-        greeting = "Bom dia"
-    elif 12 <= hour < 18:
-        greeting = "Boa tarde"
-    else:
-        greeting = "Boa noite"
-    return (
-        "\n\n# Contexto temporal calculado pelo backend\n"
-        f"current_datetime_brt: {current.isoformat()}\n"
-        f"saudacao_local: {greeting}\n"
-    )
 
 
 def _brl(value: Any) -> str:
@@ -604,18 +586,16 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             content = content.replace("{{credor}}", creditor)
             if agent_name:
                 content = content.replace("{{nome_agente}}", agent_name)
-        runtime_context = _runtime_time_context()
         content = (
-            content + runtime_context + contract
+            content + contract
             if isinstance(content, str)
-            else [*content, {"type": "text", "text": runtime_context + contract}]
+            else [*content, {"type": "text", "text": contract}]
         )
         enabled = registry.enabled_names()
         tools = [
             tool
             for tool in request.tools
             if getattr(tool, "name", None) in enabled
-            and getattr(tool, "name", None) != "utc_now"
             and (not unbound or getattr(tool, "name", None) not in FINANCIAL_TOOLS)
         ]
         return request.override(
