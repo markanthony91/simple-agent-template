@@ -11,6 +11,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from starlette.applications import Starlette
+from starlette.middleware import Middleware
+from simple_agent.message_delay import CashMessageDelay
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -143,6 +145,7 @@ async def send_demo_email(request: Request) -> JSONResponse:
 
 
 app = Starlette(
+    middleware=[Middleware(CashMessageDelay)],
     routes=[
         Route(
             "/integrations/elevenlabs/send-payment-instruction",
@@ -154,5 +157,5 @@ app = Starlette(
             send_demo_email,
             methods=["POST"],
         ),
-    ]
+    ],
 )

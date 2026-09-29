@@ -1,5 +1,9 @@
 # Agent Runtime — OKF simulator (0.14.6)
 
+## 0.14.7 — pausa de entrega
+
+Separação da frase existente de verificação e sua continuação por cinco segundos no streaming, sem nova tool ou alteração de instruções/cálculos. [Contrato](docs/cash-message-delay.md).
+
 Consultas de estado e histórico reutilizam o checkpoint já carregado pelo
 `langgraph-runtime-inmem 0.34.0`. O build valida o hash do pacote antes de
 aplicar a correção e falha com segurança se a dependência mudar. Persistência,
