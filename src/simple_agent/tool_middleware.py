@@ -7,7 +7,7 @@ import logging
 import socket
 import unicodedata
 from decimal import Decimal, InvalidOperation
-from time import perf_counter
+from time import perf_counter, sleep
 from typing import Any, Awaitable, Callable
 
 from langchain.agents.middleware import (
@@ -43,10 +43,12 @@ RESET_DEMO_REPLY = (
 )
 RESET_DEMO_UNAVAILABLE = "Comando indisponível nesta sessão."
 DIRECT_REPLY_TOOLS = {
+    "check_cash_payment_condition",
     "generate_payment_offer",
     "send_payment_instruction",
 }
 FINANCIAL_TOOLS = {
+    "check_cash_payment_condition",
     "get_boleto_second_copy",
     "verify_and_get_customer",
     "generate_payment_offer",
@@ -146,6 +148,31 @@ def render_direct_reply(tool_name: str, content: Any) -> str | None:
         return None
     if not isinstance(payload, dict):
         return None
+    if tool_name == "check_cash_payment_condition":
+        if payload.get("available") is not True:
+            return _direct_failure(str(payload.get("reason") or ""))
+        name = str(payload.get("full_name") or "").split()
+        prefix = f"{name[0]}, " if name else ""
+        offer = payload["offer"]
+        percentage = format(
+            Decimal(offer["discount_percentage"]).normalize(), "f"
+        ).replace(".", ",")
+        if Decimal(percentage.replace(",", ".")) > 0:
+            text = (
+                f"{prefix}consegui uma condição especial para pagamento à vista hoje, "
+                f"com {percentage}% de desconto. Com essa condição, o valor para quitação "
+                f"fica em {_brl(offer['negotiated_amount'])}. "
+            )
+        else:
+            text = (
+                f"{prefix}verifiquei as condições e não há desconto à vista disponível. "
+                f"O valor para quitação é {_brl(offer['negotiated_amount'])}. "
+            )
+        methods = payload["methods"]
+        if len(methods) > 1:
+            return text + "Você prefere pagar por PIX ou boleto?"
+        label = "PIX" if methods[0] == "pix" else "boleto"
+        return text + f"O pagamento está disponível por {label}. Podemos seguir?"
     if tool_name == "send_payment_instruction":
         if not payload.get("sent"):
             return (
@@ -284,6 +311,98 @@ class DemoResetMiddleware(AgentMiddleware):
         return await asyncio.to_thread(self.before_model, state, runtime)
 
 
+class CashConditionPauseMiddleware(AgentMiddleware):
+    """Announce the specific check, then pause before its tool without holding locks."""
+
+    @staticmethod
+    def _first_check(state):
+        messages = state.get("messages", [])
+        calls = getattr(messages[-1], "tool_calls", []) if messages else []
+        if len(calls) != 1 or calls[0].get("name") != "check_cash_payment_condition":
+            return False
+        for message in reversed(messages[:-1]):
+            if getattr(message, "type", None) == "human":
+                return True
+            if (
+                message.additional_kwargs.get("negotiation_stage")
+                == "checking_cash_condition"
+            ):
+                return False
+        return False
+
+    def after_model(self, state, runtime):
+        if (
+            not self._first_check(state)
+            or "check_cash_payment_condition" not in registry.enabled_names()
+        ):
+            return None
+        key = get_config().get("configurable", {}).get("thread_id")
+        session = SessionStore().read(key)
+        if not session.get("identity_verified") or session.get("unbound_session"):
+            return None
+        words = str(session.get("fixture", {}).get("full_name") or "").split()
+        salutation = f"Entendi, {words[0]}." if words else "Entendi."
+        message = state["messages"][-1]
+        return {
+            "messages": [
+                message.model_copy(
+                    update={
+                        "content": salutation
+                        + " Vou verificar internamente se consigo uma condição especial para pagamento à vista hoje.",
+                        "additional_kwargs": {
+                            **message.additional_kwargs,
+                            "negotiation_stage": "checking_cash_condition",
+                        },
+                    }
+                )
+            ]
+        }
+
+    async def aafter_model(self, state, runtime):
+        return await asyncio.to_thread(self.after_model, state, runtime)
+
+    @staticmethod
+    def _should_wait(request):
+        messages = request.state.get("messages", [])
+        return (
+            request.tool_call.get("name") == "check_cash_payment_condition"
+            and CashConditionPauseMiddleware._first_check(request.state)
+            and messages[-1].additional_kwargs.get("negotiation_stage")
+            == "checking_cash_condition"
+        )
+
+    @staticmethod
+    def _parallel_rejection(request):
+        if (
+            request.tool_call.get("name") == "check_cash_payment_condition"
+            and len(request.state["messages"][-1].tool_calls) != 1
+        ):
+            return ToolMessage(
+                name="check_cash_payment_condition",
+                tool_call_id=request.tool_call["id"],
+                content=json.dumps(
+                    {"available": False, "reason": "cash_condition_call_must_be_alone"}
+                ),
+            )
+        return None
+
+    def wrap_tool_call(self, request, handler):
+        rejected = self._parallel_rejection(request)
+        if rejected is not None:
+            return rejected
+        if self._should_wait(request):
+            sleep(5)
+        return handler(request)
+
+    async def awrap_tool_call(self, request, handler):
+        rejected = self._parallel_rejection(request)
+        if rejected is not None:
+            return rejected
+        if self._should_wait(request):
+            await asyncio.sleep(5)
+        return await handler(request)
+
+
 class DirectReplyMiddleware(AgentMiddleware):
     """Append a user-facing AI message after a return-direct transactional tool."""
 
@@ -295,9 +414,9 @@ class DirectReplyMiddleware(AgentMiddleware):
         for message in reversed(state.get("messages", [])):
             if getattr(message, "type", None) == "human":
                 break
-            if (
-                getattr(message, "type", None) == "tool"
-                and message.name == "generate_payment_offer"
+            if getattr(message, "type", None) == "tool" and message.name in (
+                "generate_payment_offer",
+                "check_cash_payment_condition",
             ):
                 attempts.append(message)
         if not attempts:
@@ -310,6 +429,7 @@ class DirectReplyMiddleware(AgentMiddleware):
         if not isinstance(payload, dict):
             payload = {}
         recovery = {
+            "cash_condition_call_must_be_alone": "Retry check_cash_payment_condition alone, with no other tool calls and no accompanying text. Do not create an agreement in this preview step.",
             "canonical_policy_required": "Read canonical_policy_path returned in this result with okf_read. Then retry once with that exact policy_path and the customer's existing payment type, method and installments. Do not ask the customer to repeat their choices. The target must pass all normal policy and receipt validations.",
             "offer_terms_missing": "Use the installment count already chosen in this conversation. If it is still missing or ambiguous, ask only for that field; never invent it.",
             "policy_read_required": "Read the selected canonical policy with okf_read or okf_read_section, then retry with the customer's existing choices.",
@@ -317,7 +437,11 @@ class DirectReplyMiddleware(AgentMiddleware):
             "policy_not_found": "Navigate OKF indexes to find and read the applicable policy. Never guess a path.",
             "policy_scope_mismatch": "Locate and read the policy matching the institution and product returned by identity verification.",
         }.get(payload.get("reason"))
-        if not payload.get("created") and recovery and len(attempts) < 2:
+        if (
+            not (payload.get("created") or payload.get("available"))
+            and recovery
+            and len(attempts) < 2
+        ):
             if not payload.get("recovery"):
                 payload.update(recoverable=True, recovery=recovery)
                 return {

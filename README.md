@@ -1,4 +1,9 @@
-# Agent Runtime — OKF simulator (0.14.6)
+# Agent Runtime — OKF simulator (0.15.0, local)
+
+Consulta de condição à vista com duas mensagens e pausa de cinco segundos no
+runtime, preservando os cálculos e validações da política. Ainda não publicada;
+o WhatsApp precisa de adaptação em Canais para receber a mensagem intermediária.
+Veja [comportamento e limites](docs/cash-condition-pause.md).
 
 Consultas de estado e histórico reutilizam o checkpoint já carregado pelo
 `langgraph-runtime-inmem 0.34.0`. O build valida o hash do pacote antes de

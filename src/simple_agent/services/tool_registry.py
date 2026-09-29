@@ -9,6 +9,7 @@ from typing import Any
 
 
 DEFAULT_TOOLS: dict[str, dict[str, Any]] = {
+    "check_cash_payment_condition": {"name": "check_cash_payment_condition", "description": "Quote a verified customer's cash discount from the canonical policy, with a five-second announced pause; creates no agreement or payment.", "category": "collection", "enabled": True, "mode": "write", "risk": "medium", "requires_auth": True},
     "get_boleto_second_copy": {"name": "get_boleto_second_copy", "description": "Retrieve an existing simulated boleto for the verified customer; does not issue or send payments.", "category": "collection", "enabled": True, "mode": "read_only", "risk": "medium", "requires_auth": True},
     "utc_now": {"name": "utc_now", "description": "Current America/Sao_Paulo (Brasilia) date and time with ISO offset; legacy tool name.", "category": "utility", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
     "calculator": {"name": "calculator", "description": "Safe arithmetic calculator.", "category": "utility", "enabled": True, "mode": "read_only", "risk": "low", "requires_auth": False},
