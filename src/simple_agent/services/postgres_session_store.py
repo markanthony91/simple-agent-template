@@ -13,6 +13,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from simple_agent.services.okf_store import PersistentOKFStore
+from simple_agent.services.boleto_store import second_copy_result
 from simple_agent.services.session_store import validate_thread_id
 from simple_agent.services.simulator_store import SimulatorStore
 from simple_agent.tool_timing import timed_phase
@@ -163,6 +164,10 @@ class PostgresSessionStore:
             if not row or row[0].get("demo_session") is not True:
                 return False
             state = self._state(row[0])
+            db.execute(
+                "DELETE FROM runtime.payment_agreements WHERE origin_session_id=%s",
+                (key,),
+            )
             reset = {
                 "fixture": state["fixture"],
                 "identity_verified": False,
@@ -188,8 +193,6 @@ class PostgresSessionStore:
     def transaction(
         self, key: str, *, persist_payments: bool = False
     ) -> Iterator[dict]:
-        if persist_payments:
-            raise RuntimeError("postgres_payment_persistence_not_enabled")
         key = validate_thread_id(key)
         with self.pool.connection() as db, db.transaction():
             with timed_phase("session_write_wait"):
@@ -229,9 +232,102 @@ class PostgresSessionStore:
                                 for path, receipt in state["receipts"].items()
                             ],
                         )
+                if persist_payments:
+                    self._save_payments(db, key, state)
+
+    @staticmethod
+    def _save_payments(db, key: str, state: dict) -> None:
+        for agreement in state.get("agreements", {}).values():
+            saved = db.execute(
+                """INSERT INTO runtime.payment_agreements(
+                       agreement_id,origin_session_id,data
+                   ) VALUES (%s,%s,%s)
+                   ON CONFLICT (agreement_id) DO UPDATE SET
+                     data=excluded.data,updated_at=now()
+                   WHERE runtime.payment_agreements.origin_session_id=
+                         excluded.origin_session_id
+                   RETURNING agreement_id""",
+                (agreement["agreement_id"], key, Jsonb(agreement)),
+            ).fetchone()
+            if not saved:
+                raise ValueError("agreement_origin_mismatch")
+        for payment in state.get("payments", {}).values():
+            owner = db.execute(
+                """SELECT origin_session_id FROM runtime.payment_agreements
+                   WHERE agreement_id=%s""",
+                (payment["agreement_id"],),
+            ).fetchone()
+            if not owner or owner[0] != key:
+                raise ValueError("payment_origin_mismatch")
+            saved = db.execute(
+                """INSERT INTO runtime.payment_instructions(
+                       payment_id,agreement_id,method,installment_number,data
+                   ) VALUES (%s,%s,%s,%s,%s)
+                   ON CONFLICT (payment_id) DO UPDATE SET
+                     data=excluded.data,updated_at=now()
+                   WHERE runtime.payment_instructions.agreement_id=
+                         excluded.agreement_id
+                     AND runtime.payment_instructions.method=excluded.method
+                     AND runtime.payment_instructions.installment_number=
+                         excluded.installment_number
+                   RETURNING payment_id""",
+                (
+                    payment["payment_id"],
+                    payment["agreement_id"],
+                    payment["method"],
+                    payment["installment_number"],
+                    Jsonb(payment),
+                ),
+            ).fetchone()
+            if not saved:
+                raise ValueError("payment_origin_mismatch")
 
     def boleto_second_copy(
         self, key: str, agreement_id: str = "", installment_number: int | None = None
     ) -> dict:
-        del key, agreement_id, installment_number
-        raise RuntimeError("postgres_payment_persistence_not_enabled")
+        key = validate_thread_id(key)
+        with self.pool.connection() as db, db.transaction():
+            session = db.execute(
+                """SELECT state,tenant_id,portfolio_id,customer_id,debt_id
+                   FROM runtime.sessions WHERE id=%s FOR SHARE""",
+                (key,),
+            ).fetchone()
+            if not session or session[0].get("identity_verified") is not True:
+                return {"found": False, "reason": "identity_verification_required"}
+            context = session[1:]
+            if all(context):
+                rows = db.execute(
+                    """SELECT a.data FROM runtime.payment_agreements a
+                       JOIN runtime.sessions s ON s.id=a.origin_session_id
+                       WHERE (s.tenant_id,s.portfolio_id,s.customer_id,s.debt_id)=
+                             (%s,%s,%s,%s)
+                         AND (%s='' OR a.agreement_id=%s)
+                       ORDER BY a.agreement_id LIMIT 21 FOR SHARE OF s""",
+                    (*context, agreement_id, agreement_id),
+                ).fetchall()
+            else:
+                rows = db.execute(
+                    """SELECT data FROM runtime.payment_agreements
+                       WHERE origin_session_id=%s
+                         AND (%s='' OR agreement_id=%s)
+                       ORDER BY agreement_id LIMIT 21""",
+                    (key, agreement_id, agreement_id),
+                ).fetchall()
+            agreements = [row[0] for row in rows]
+            payments = []
+            if len(agreements) == 1:
+                payments = [
+                    row[0]
+                    for row in db.execute(
+                        """SELECT data FROM runtime.payment_instructions
+                           WHERE agreement_id=%s AND method='boleto'
+                             AND (%s::integer IS NULL OR installment_number=%s)
+                           ORDER BY installment_number LIMIT 21""",
+                        (
+                            agreements[0]["agreement_id"],
+                            installment_number,
+                            installment_number,
+                        ),
+                    ).fetchall()
+                ]
+            return second_copy_result(agreements, payments)

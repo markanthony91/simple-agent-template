@@ -246,11 +246,12 @@ python scripts/apply_postgres_migrations.py
 python scripts/benchmark_session_backends.py
 ```
 
-The migration creates the `runtime`, `okf` and reserved `langgraph` schemas,
-plus indexes for session context, recent updates and OKF receipts. The canary
-supports session state, identity tools and OKF reads. Payment persistence and
-second-copy lookup intentionally fail closed until their normalized migration
-is implemented. No production cutover is performed by these commands.
+The migrations create the `runtime`, `okf` and reserved `langgraph` schemas,
+plus indexed session context, OKF receipts, payment agreements and payment
+instructions. The canary supports session state, identity, OKF reads, payment
+offers, payment status and boleto second-copy lookup. The benchmark uses only
+synthetic data, checks reset and cross-session ownership, and removes its rows
+after each run. No production cutover is performed by these commands.
 Real-model results and remaining blockers: [Qwen E2E 2026-09-14](docs/QWEN_E2E_2026-09-14.md).
 
 Candidate changes, isolated tests and publication boundaries:

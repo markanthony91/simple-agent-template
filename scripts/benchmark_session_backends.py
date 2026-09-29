@@ -18,9 +18,26 @@ type: Policy
 status: published
 institution: FastPay
 product: cartao_de_credito
+effective_from: "2026-01-01T00:00:00Z"
+effective_until: "2027-01-01T00:00:00Z"
+negotiation:
+  max_installments: 3
+  max_discount_percentage: "0"
+  offer_discount_percentage: "0"
+  payment_types: [cash, installment]
+payment:
+  methods: [pix, boleto]
+  methods_by_payment_type:
+    cash: [pix, boleto]
+    installment: [boleto]
+  delivery_channels: [email]
 ---
 # Synthetic benchmark policy
 No customer data is used by this benchmark.
+
+## Payment terms
+
+Up to three synthetic boleto installments, with no discount.
 """
 
 
@@ -53,11 +70,15 @@ def main() -> None:
         )
         okf_tools.store = okf_store
 
-        def runtime(key: str) -> ToolRuntime:
+        def mark_session(store, key: str) -> None:
+            with store.transaction(key) as state:
+                state["benchmark"] = True
+
+        def runtime(
+            key: str, text: str = "12345678900", message_id: str = "synthetic"
+        ) -> ToolRuntime:
             return ToolRuntime(
-                state={
-                    "messages": [HumanMessage(content="12345678900", id="synthetic")]
-                },
+                state={"messages": [HumanMessage(content=text, id=message_id)]},
                 context={},
                 config={"configurable": {"thread_id": key}},
                 stream_writer=lambda _: None,
@@ -66,6 +87,9 @@ def main() -> None:
             )
 
         def measure(backend: str) -> dict[str, dict[str, float]]:
+            from simple_agent.graph import calculator, utc_now
+            from simple_agent.tools import payment_tools
+
             os.environ["SESSION_BACKEND"] = backend
             contract_key = f"{prefix}-{backend}-contract"
             contract_store = SessionStore()
@@ -89,6 +113,56 @@ def main() -> None:
                 raise RuntimeError("synthetic_transaction_rollback_failed")
             if not contract_store.reset_demo(contract_key):
                 raise RuntimeError("synthetic_demo_reset_failed")
+            contract_rt = runtime(contract_key)
+            verified = json.loads(
+                collection_tools.verify_and_get_customer.func(
+                    cpf="12345678900",
+                    full_name="João da Silva",
+                    runtime=contract_rt,
+                )
+            )
+            if verified.get("verified") is not True:
+                raise RuntimeError("synthetic_demo_identity_failed")
+            okf_tools.okf_read.func(path=POLICY_PATH, runtime=contract_rt)
+            contract_offer = json.loads(
+                payment_tools.generate_payment_offer.func(
+                    payment_type="installment",
+                    installments=3,
+                    method="boleto",
+                    policy_path=POLICY_PATH,
+                    runtime=runtime(
+                        contract_key,
+                        "Quero pagar em três parcelas por boleto",
+                        "contract-payment",
+                    ),
+                )
+            )
+            if contract_offer.get("created") is not True:
+                raise RuntimeError("synthetic_demo_payment_failed")
+            if not json.loads(
+                payment_tools.get_boleto_second_copy.func(runtime=contract_rt)
+            ).get("found"):
+                raise RuntimeError("synthetic_demo_second_copy_failed")
+            attacker = f"{contract_key}-attacker"
+            try:
+                with SessionStore().transaction(
+                    attacker, persist_payments=True
+                ) as state:
+                    state["agreements"]["copy"] = contract_offer["agreement"]
+            except ValueError as error:
+                if str(error) != "agreement_origin_mismatch":
+                    raise
+            else:
+                raise RuntimeError("synthetic_payment_origin_guard_failed")
+            if SessionStore().exists(attacker):
+                raise RuntimeError("synthetic_payment_origin_rollback_failed")
+            if not contract_store.reset_demo(contract_key):
+                raise RuntimeError("synthetic_demo_payment_reset_failed")
+            reset_copy = json.loads(
+                payment_tools.get_boleto_second_copy.func(runtime=contract_rt)
+            )
+            if reset_copy.get("reason") != "identity_verification_required":
+                raise RuntimeError("synthetic_demo_payment_reset_leaked")
             unbound_key = f"{contract_key}-unbound"
             if not contract_store.ensure_unbound(unbound_key):
                 raise RuntimeError("synthetic_unbound_create_failed")
@@ -96,37 +170,122 @@ def main() -> None:
                 raise RuntimeError("synthetic_unbound_idempotency_failed")
             SessionStore().read(f"{prefix}-{backend}-warmup")
             samples: dict[str, list[float]] = {
+                "utc_now": [],
+                "calculator": [],
                 "session_transaction": [],
+                "okf_index": [],
+                "okf_list": [],
+                "okf_search": [],
                 "okf_read": [],
+                "okf_read_section": [],
                 "verify_identity": [],
+                "generate_payment_offer": [],
+                "get_boleto_second_copy": [],
+                "get_payment_status": [],
             }
-            for index in range(iterations):
-                key = f"{prefix}-{backend}-{index}"
+
+            def timed(name: str, function):
                 started = time.perf_counter()
-                with SessionStore().transaction(key) as state:
-                    state["benchmark"] = True
-                samples["session_transaction"].append(
-                    (time.perf_counter() - started) * 1000
+                result = function()
+                samples[name].append((time.perf_counter() - started) * 1000)
+                return result
+
+            for index in range(iterations):
+                timed("utc_now", lambda: utc_now.invoke({}))
+                timed("calculator", lambda: calculator.invoke({"expression": "17*19"}))
+
+                key = f"{prefix}-{backend}-{index}"
+                timed(
+                    "session_transaction",
+                    lambda: mark_session(SessionStore(), key),
+                )
+                rt = runtime(key)
+                timed("okf_index", lambda: okf_tools.okf_index.func(runtime=rt))
+                timed("okf_list", lambda: okf_tools.okf_list.func(runtime=rt))
+                timed(
+                    "okf_search",
+                    lambda: okf_tools.okf_search.func(
+                        query="synthetic benchmark", runtime=rt
+                    ),
+                )
+                timed(
+                    "okf_read",
+                    lambda: okf_tools.okf_read.func(path=POLICY_PATH, runtime=rt),
+                )
+                timed(
+                    "okf_read_section",
+                    lambda: okf_tools.okf_read_section.func(
+                        path=POLICY_PATH, heading="Payment terms", runtime=rt
+                    ),
                 )
 
-                started = time.perf_counter()
-                okf_tools.okf_read.func(path=POLICY_PATH, runtime=runtime(key))
-                samples["okf_read"].append((time.perf_counter() - started) * 1000)
-
                 identity_key = f"{key}-identity"
-                started = time.perf_counter()
                 result = json.loads(
-                    collection_tools.verify_and_get_customer.func(
-                        cpf="12345678900",
-                        full_name="João da Silva",
-                        runtime=runtime(identity_key),
+                    timed(
+                        "verify_identity",
+                        lambda: collection_tools.verify_and_get_customer.func(
+                            cpf="12345678900",
+                            full_name="João da Silva",
+                            runtime=runtime(identity_key),
+                        ),
                     )
                 )
                 if result.get("verified") is not True:
                     raise RuntimeError("synthetic_identity_benchmark_failed")
-                samples["verify_identity"].append(
-                    (time.perf_counter() - started) * 1000
+
+                payment_key = f"{key}-payment"
+                payment_rt = runtime(payment_key)
+                verified = json.loads(
+                    collection_tools.verify_and_get_customer.func(
+                        cpf="12345678900",
+                        full_name="João da Silva",
+                        runtime=payment_rt,
+                    )
                 )
+                if verified.get("verified") is not True:
+                    raise RuntimeError("synthetic_payment_identity_failed")
+                okf_tools.okf_read.func(path=POLICY_PATH, runtime=payment_rt)
+                offer = json.loads(
+                    timed(
+                        "generate_payment_offer",
+                        lambda: payment_tools.generate_payment_offer.func(
+                            payment_type="installment",
+                            installments=3,
+                            method="boleto",
+                            policy_path=POLICY_PATH,
+                            runtime=runtime(
+                                payment_key,
+                                "Quero pagar em três parcelas por boleto",
+                                f"payment-{index}",
+                            ),
+                        ),
+                    )
+                )
+                if offer.get("created") is not True:
+                    raise RuntimeError(f"synthetic_payment_offer_failed:{offer}")
+                second_copy = json.loads(
+                    timed(
+                        "get_boleto_second_copy",
+                        lambda: payment_tools.get_boleto_second_copy.func(
+                            runtime=payment_rt
+                        ),
+                    )
+                )
+                if second_copy.get("found") is not True:
+                    raise RuntimeError(
+                        f"synthetic_second_copy_failed:{backend}:{second_copy}"
+                    )
+                status = json.loads(
+                    timed(
+                        "get_payment_status",
+                        lambda: payment_tools.get_payment_status.func(
+                            payment_id=offer["payment"]["payment_id"],
+                            runtime=payment_rt,
+                        ),
+                    )
+                )
+                if status.get("found") is not True:
+                    raise RuntimeError("synthetic_payment_status_failed")
             return {
                 name: {
                     "p50_ms": round(statistics.median(values), 2),
