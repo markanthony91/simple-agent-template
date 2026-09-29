@@ -23,6 +23,7 @@ from simple_agent.services.offer_policy import (
     policy_document_scope,
 )
 from simple_agent.services.payment_policy import (
+    resolve_requested_payment_policy,
     validate_requested_payment_policy,
     validate_payment_policy,
 )
@@ -31,7 +32,11 @@ from simple_agent.services.session_store import (
     latest_user_message,
     thread_id,
 )
-from simple_agent.tools.collection_tools import _create_agreement, _generate_offer
+from simple_agent.tools.collection_tools import (
+    _calculate_offer,
+    _create_agreement,
+    _generate_offer,
+)
 
 EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
 
@@ -103,6 +108,78 @@ def _create_payment(
 
 @tool
 @timed_tool
+def get_payment_offer_preview(
+    payment_type: Literal["cash", "installment"],
+    policy_path: str,
+    runtime: ToolRuntime,
+    installments: int | None = None,
+    down_payment_amount: str = "0",
+) -> str:
+    """Read backend-calculated terms BEFORE the customer chooses PIX or boleto.
+
+    Requires verified identity and the exact applicable canonical OKF policy already
+    read in this session. Returns available=true, debt_amount, discount_percentage,
+    discount_amount, negotiated_amount, installment_schedule and allowed_methods.
+    No method argument, offer/agreement/payment IDs, code, persistence or dispatch.
+    Never use generate_payment_offer merely to discover a discounted amount.
+    Present only returned figures and ask which allowed method the customer prefers.
+    Call generate_payment_offer only after their choice (or a sole policy method).
+    The preview is not an issued offer or payment; issuance revalidates all terms.
+    For installments supply the chosen count, including any chosen down payment.
+    Do not invent count, entry, discount or final amount. On down_payment_required,
+    ask about minimum_down_payment_amount. On canonical_policy_required read
+    canonical_policy_path with okf_read and retry once. Neither hint is approval.
+    """
+    if payment_type == "installment" and installments is None:
+        return _json(
+            {
+                "available": False,
+                "reason": "offer_terms_missing",
+                "missing_fields": ["installments"],
+            }
+        )
+    count = 1 if installments is None else installments
+    if type(count) is not int or count < 1 or (payment_type == "cash" and count != 1):
+        return _json({"available": False, "reason": "invalid_payment_terms"})
+    with policy_document_scope():
+        state = SessionStore().read(thread_id(runtime), initialize=False)
+        if not state.get("identity_verified") or state.get("unbound_session") is True:
+            return _json(
+                {"available": False, "reason": "identity_verification_required"}
+            )
+        try:
+            path, discount, methods = resolve_requested_payment_policy(
+                state, policy_path, payment_type, count, down_payment_amount
+            )
+            terms = _calculate_offer(
+                state, payment_type, count, discount, path, down_payment_amount
+            )
+        except DownPaymentRequired as exc:
+            return _json(
+                {
+                    "available": False,
+                    "reason": "down_payment_required",
+                    "minimum_down_payment_amount": exc.minimum,
+                }
+            )
+        except CanonicalPolicyRequired as exc:
+            return _json(
+                {
+                    "available": False,
+                    "reason": "canonical_policy_required",
+                    "canonical_policy_path": exc.path,
+                }
+            )
+        except (KeyError, ValueError, ArithmeticError) as exc:
+            reason = "policy_terms_undefined" if isinstance(exc, KeyError) else str(exc)
+            return _json({"available": False, "reason": reason})
+        if terms["available"]:
+            terms.update(allowed_methods=methods, is_simulation=True)
+        return _json(terms)
+
+
+@tool
+@timed_tool
 def generate_payment_offer(
     payment_type: Literal["cash", "installment"],
     method: Literal["pix", "boleto"],
@@ -125,6 +202,8 @@ def generate_payment_offer(
     refusal supersedes earlier choices. Never call for a refusal, an informational
     question or unclear intent. Ask only for missing terms; do not ask the customer
     to repeat known terms. Do not infer a payment method when policy allows several.
+    To consult amounts before method selection, use get_payment_offer_preview;
+    a preview does not authorize issuing a payment without the customer's choice.
     For installments, always supply the selected count; absence is not one installment.
     down_payment_amount is optional, in BRL as a decimal string (e.g. "1000.00").
     Omit it unless the customer chose an entry. installments counts ALL payments,
@@ -666,6 +745,7 @@ def simulate_payment_settled(session_id: str, payment_id: str) -> dict:
 
 
 PAYMENT_TOOLS = [
+    get_payment_offer_preview,
     generate_payment_offer,
     get_boleto_second_copy,
     send_payment_instruction,

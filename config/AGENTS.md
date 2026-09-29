@@ -29,6 +29,7 @@
 | Tool | Quando usar | Argumentos e resultado |
 |---|---|---|
 | verify_and_get_customer | Antes de dados financeiros pessoais | Use uma única vez com o método de CPF e fatores do contrato de identificação injetado pelo backend. Só verified=true inclui o cliente fixado e sua dívida. Aguarde o resultado e responda conforme o Workflow ativo; não chame outra tool no mesmo turno. |
+| get_payment_offer_preview | Após identificação e leitura da política canônica, para consultar a condição antes da escolha de PIX/boleto | payment_type, policy_path; installments para parcelado e down_payment_amount somente se escolhido. Não recebe method nem desconto. Só available=true contém valores calculados e allowed_methods; não cria proposta, acordo, pagamento ou código. |
 | generate_payment_offer | Após ler no OKF a política publicada da instituição/produto e obter a escolha do cliente | payment_type cash ou installment, method pix ou boleto, policy_path canônico lido e installments inteiro. Não envie desconto: o backend valida o documento e aplica o desconto fixado pelo credor. Se a política tiver um único método para a modalidade, não peça ao cliente que o repita. Gera proposta, acordo e código dummy juntos; só created=true autoriza apresentar o resultado. |
 | send_payment_instruction | Após criar a instrução e receber o e-mail em nova mensagem humana | payment_id e o e-mail exatamente informado. Só sent=true autoriza a mensagem fixa de envio solicitado com sucesso; internamente, o resultado representa aceite do provedor e não comprova entrega. |
 | get_payment_status | Para consultar a instrução dummy | payment_id persistido. Só found=true contém status; apenas settled confirma a baixa simulada. |
@@ -38,6 +39,7 @@
 Exemplos de protocolo, não de política:
 - Solicite somente os fatores do contrato de identificação da sessão. Reutilize dados já informados; se a configuração exigir ambos, solicite nome e nascimento. Não presuma sucesso: aguarde a tool.
 - No piloto atual, `verify_and_get_customer(cpf=<3 primeiros dígitos fornecidos>)`; não solicite nome, nascimento ou outro fator. Nunca complete CPF parcial por adivinhação.
+- Para consultar o valor antes da escolha do meio, use `get_payment_offer_preview(payment_type="cash", policy_path=<caminho canônico lido>)`. Apresente discount_percentage e negotiated_amount retornados e pergunte somente pelos meios de allowed_methods. Não use a geração como consulta e não interprete available=true como pagamento emitido.
 - `generate_payment_offer(payment_type="cash", method="pix", policy_path=<caminho canônico lido>, installments=1)` gera a proposta e o PIX dummy juntos quando o cliente escolheu à vista e PIX; o desconto vem exclusivamente da política do credor.
 - Não inclua parâmetros inexistentes. `generate_payment_offer` aceita `down_payment_amount` opcional, em reais com ponto decimal, escolhido pelo cliente. `installments` conta todos os pagamentos, incluindo a entrada. Leia a política canônica e use os mínimos retornados pelo backend; não calcule ou invente a entrada. Se retornar `down_payment_required`, confirme com o cliente o `minimum_down_payment_amount` antes de tentar novamente.
 

@@ -44,21 +44,44 @@ def audit_response(text: str, session: dict, *, tool_messages=()) -> dict:
     allowed_amounts: set[Decimal] = set()
     allowed_percentages: set[Decimal] = set()
     if session.get("identity_verified"):
-        # A second copy may belong to another session. Use only successful tool
-        # results from this turn, never client messages or an old lookup.
+        # Previews are read-only; second copies may belong to another session.
+        # Use only successful tool results from this turn, never client messages
+        # or an old lookup.
         for message in reversed(tool_messages):
             if getattr(message, "type", None) == "human":
                 break
             if (
                 getattr(message, "type", None) != "tool"
-                or getattr(message, "name", None) != "get_boleto_second_copy"
+                or getattr(message, "name", None)
+                not in {"get_boleto_second_copy", "get_payment_offer_preview"}
                 or getattr(message, "status", "success") != "success"
             ):
                 continue
             try:
                 result = json.loads(message.content)
-                if result.get("found") is True:
+                if (
+                    message.name == "get_boleto_second_copy"
+                    and result.get("found") is True
+                ):
                     allowed_amounts.add(money(result["payment"]["amount"]))
+                elif (
+                    message.name == "get_payment_offer_preview"
+                    and result.get("available") is True
+                    and result.get("snapshot_id") == session.get("snapshot_id")
+                ):
+                    figures = {
+                        money(result[k])
+                        for k in (
+                            "debt_amount",
+                            "discount_amount",
+                            "negotiated_amount",
+                            "installment_amount",
+                        )
+                    }
+                    figures.update(map(money, result["installment_schedule"]))
+                    percentage = money(result["discount_percentage"])
+                    allowed_amounts.update(figures)
+                    allowed_percentages.add(percentage)
             except (ValueError, TypeError, KeyError, AttributeError, InvalidOperation):
                 continue
         debt = session.get("fixture", {}).get("debt", {})
