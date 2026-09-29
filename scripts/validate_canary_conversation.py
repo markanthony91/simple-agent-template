@@ -27,7 +27,8 @@ def main() -> None:
             method=method,
         )
         with urllib.request.urlopen(req, timeout=180) as response:
-            return json.load(response)
+            body = response.read()
+            return json.loads(body) if body else {}
 
     source = Path(__file__).parents[1] / "examples" / "pilot-okf"
     files = {
