@@ -31,6 +31,8 @@ class CashMessageDelay:
         streaming = False
         paused = False
         buffer = b""
+        chunk_id = None
+        chunk_prefix = ""
 
         async def read():
             nonlocal enabled
@@ -51,20 +53,65 @@ class CashMessageDelay:
             return event
 
         def preview(frame):
-            if b"Vou verificar internamente" not in frame:
-                return None
+            nonlocal chunk_id, chunk_prefix
             lines = frame.splitlines()
             kind = next(
                 (line[6:].strip() for line in lines if line.startswith(b"event:")), b""
             )
-            if kind not in (b"values", b"messages/partial", b"messages/complete"):
+            if kind not in (
+                b"values",
+                b"messages/partial",
+                b"messages/complete",
+                b"messages",
+            ):
                 return None
+            if kind != b"messages" and b"Vou verificar internamente" not in frame:
+                return None
+
+            def encode(data):
+                head = [
+                    line for line in lines if not line.startswith(b"data:") and line
+                ]
+                return (
+                    b"\n".join(
+                        head
+                        + [b"data: " + json.dumps(data, ensure_ascii=False).encode()]
+                    )
+                    + b"\n\n"
+                )
+
             try:
                 data = json.loads(
                     b"\n".join(
                         line[5:].lstrip() for line in lines if line.startswith(b"data:")
                     )
                 )
+                if kind == b"messages":
+                    # SDK tuples are deltas; keep only the current bounded opening.
+                    message, metadata = data
+                    text = message.get("content")
+                    if (
+                        message.get("type") not in ("ai", "AIMessageChunk")
+                        or not message.get("id")
+                        or not isinstance(text, str)
+                    ):
+                        return None
+                    if chunk_id != message["id"]:
+                        chunk_id, chunk_prefix = message["id"], ""
+                    previous = chunk_prefix
+                    match = ANNOUNCEMENT.match(previous + text)
+                    chunk_prefix = (previous + text)[:512]
+                    if not match:
+                        return None
+                    cut = match.end() - len(previous)
+                    first = {
+                        "id": message["id"],
+                        "type": message["type"],
+                        "content": text[:cut],
+                    }
+                    # Preserve metadata, tool calls and usage only on the original tail.
+                    message["content"] = text[cut:]
+                    return encode([first, metadata]), encode(data)
                 messages = data.get("messages", []) if kind == b"values" else data
                 if kind == b"values":
                     human = next(
@@ -88,16 +135,7 @@ class CashMessageDelay:
                     "negotiation_stage": "cash_message_pause",
                 }
                 # This marker exists only on the wire. The original snapshot follows.
-                head = [
-                    line for line in lines if not line.startswith(b"data:") and line
-                ]
-                return (
-                    b"\n".join(
-                        head
-                        + [b"data: " + json.dumps(data, ensure_ascii=False).encode()]
-                    )
-                    + b"\n\n"
-                )
+                return encode(data), frame
             except (ValueError, TypeError, AttributeError, IndexError):
                 return None
 
@@ -123,8 +161,13 @@ class CashMessageDelay:
                 frame, buffer = buffer[: boundary.end()], buffer[boundary.end() :]
                 first = preview(frame)
                 if first is not None and not paused:
+                    first_body, frame = first
                     await send(
-                        {"type": "http.response.body", "body": first, "more_body": True}
+                        {
+                            "type": "http.response.body",
+                            "body": first_body,
+                            "more_body": True,
+                        }
                     )
                     paused = True
                     await asyncio.sleep(5)
