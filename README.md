@@ -252,6 +252,14 @@ instructions. The canary supports session state, identity, OKF reads, payment
 offers, payment status and boleto second-copy lookup. The benchmark uses only
 synthetic data, checks reset and cross-session ownership, and removes its rows
 after each run. No production cutover is performed by these commands.
+
+The benchmark compares SQLite `DELETE/FULL`, `WAL/FULL`, `WAL/NORMAL` and
+PostgreSQL, including four concurrent writers by default. `BENCHMARK_ROOT=/data`
+can place the temporary SQLite databases on a canary volume. Model calls emit
+only timing, character counts, tool counts and provider token usage; prompt and
+message content are never logged. Queue tuning is opt-in through
+`LANGGRAPH_QUEUE_POLL_SECONDS` and `LANGGRAPH_N_JOBS_PER_WORKER`; their defaults
+remain 0.5 seconds and one job for backward compatibility.
 Real-model results and remaining blockers: [Qwen E2E 2026-09-14](docs/QWEN_E2E_2026-09-14.md).
 
 Candidate changes, isolated tests and publication boundaries:

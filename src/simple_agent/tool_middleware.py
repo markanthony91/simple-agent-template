@@ -22,6 +22,7 @@ from langgraph.graph.message import REMOVE_ALL_MESSAGES
 
 from simple_agent.services.tool_registry import ToolRegistry
 from simple_agent.tool_observability import (
+    extract_trace_ids,
     sanitize_result,
     sanitize_tool_args,
     tool_outcome,
@@ -428,6 +429,50 @@ def _plain_text(value) -> str:
     return ""
 
 
+def _content_chars(value: Any) -> int:
+    if isinstance(value, str):
+        return len(value)
+    if isinstance(value, list):
+        return sum(_content_chars(item.get("text", "")) for item in value if isinstance(item, dict))
+    return 0
+
+
+def _log_model_call(
+    request: ModelRequest,
+    status: str,
+    started: float,
+    phases: dict[str, float],
+    response: ModelResponse | None = None,
+    error: Exception | None = None,
+) -> None:
+    messages = list(request.messages)
+    usage: dict[str, int] = {}
+    if response:
+        for message in response.result:
+            for key, value in (getattr(message, "usage_metadata", None) or {}).items():
+                if isinstance(value, int):
+                    usage[key] = usage.get(key, 0) + value
+    payload = {
+        "event": "MODEL_CALL",
+        "hostname": socket.gethostname(),
+        "status": status,
+        "duration_ms": round((perf_counter() - started) * 1000, 2),
+        "phases_ms": {key: round(value, 2) for key, value in phases.items()},
+        "system_prompt_chars": _content_chars(
+            request.system_message.content if request.system_message else ""
+        ),
+        "conversation_chars": sum(_content_chars(message.content) for message in messages),
+        "message_count": len(messages),
+        "tool_count": len(request.tools),
+        **extract_trace_ids(request),
+    }
+    if usage:
+        payload["usage"] = usage
+    if error:
+        payload["error_type"] = type(error).__name__
+    logger.info(json.dumps(payload, ensure_ascii=False))
+
+
 def _normalize(value: str) -> str:
     return "".join(
         character
@@ -610,18 +655,48 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
     def wrap_model_call(
         self, request: ModelRequest, handler: Callable[[ModelRequest], ModelResponse]
     ) -> ModelResponse:
-        filtered = self._filtered_request(request)
-        response = self._completed(handler(filtered))
-        return _audit_final(filtered, response)
+        started = perf_counter()
+        phases: dict[str, float] = {}
+        observed = request
+        try:
+            phase = perf_counter()
+            observed = self._filtered_request(request)
+            phases["model_prepare"] = (perf_counter() - phase) * 1000
+            phase = perf_counter()
+            response = self._completed(handler(observed))
+            phases["model_provider"] = (perf_counter() - phase) * 1000
+            phase = perf_counter()
+            response = _audit_final(observed, response)
+            phases["model_audit"] = (perf_counter() - phase) * 1000
+        except Exception as error:
+            _log_model_call(observed, "error", started, phases, error=error)
+            raise
+        _log_model_call(observed, "success", started, phases, response=response)
+        return response
 
     async def awrap_model_call(
         self,
         request: ModelRequest,
         handler: Callable[[ModelRequest], Awaitable[ModelResponse]],
     ) -> ModelResponse:
-        filtered = await asyncio.to_thread(self._filtered_request, request)
-        response = self._completed(await handler(filtered))
-        return await asyncio.to_thread(_audit_final, filtered, response)
+        started = perf_counter()
+        phases: dict[str, float] = {}
+        observed = request
+        try:
+            phase = perf_counter()
+            observed = await asyncio.to_thread(self._filtered_request, request)
+            phases["model_prepare"] = (perf_counter() - phase) * 1000
+            phase = perf_counter()
+            response = self._completed(await handler(observed))
+            phases["model_provider"] = (perf_counter() - phase) * 1000
+            phase = perf_counter()
+            response = await asyncio.to_thread(_audit_final, observed, response)
+            phases["model_audit"] = (perf_counter() - phase) * 1000
+        except Exception as error:
+            _log_model_call(observed, "error", started, phases, error=error)
+            raise
+        _log_model_call(observed, "success", started, phases, response=response)
+        return response
 
     def wrap_tool_call(self, request: ToolCallRequest, handler):
         with capture_timing():

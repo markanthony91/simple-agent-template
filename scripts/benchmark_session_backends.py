@@ -8,6 +8,7 @@ import os
 import statistics
 import tempfile
 import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from uuid import uuid4
 
@@ -50,11 +51,16 @@ def main() -> None:
     if not os.getenv("SESSION_DATABASE_URL", "").strip():
         raise SystemExit("SESSION_DATABASE_URL_required")
     iterations = max(3, int(os.getenv("BENCHMARK_ITERATIONS", "20")))
+    workers = max(1, int(os.getenv("BENCHMARK_CONCURRENCY", "4")))
     prefix = f"canary-{uuid4().hex}"
-    with tempfile.TemporaryDirectory(prefix="session-backend-benchmark-") as root:
+    benchmark_root = os.getenv("BENCHMARK_ROOT", "").strip() or None
+    if benchmark_root and not Path(benchmark_root).is_dir():
+        raise SystemExit("BENCHMARK_ROOT_must_exist")
+    with tempfile.TemporaryDirectory(
+        prefix="session-backend-benchmark-", dir=benchmark_root
+    ) as root:
         os.environ["OKF_DATA_ROOT"] = str(Path(root) / "okf")
         os.environ["SIMULATOR_ROOT"] = str(Path(root) / "simulator")
-        os.environ["SESSION_ROOT"] = str(Path(root) / "sessions")
 
         from langchain.tools import ToolRuntime
         from langchain_core.messages import HumanMessage
@@ -86,12 +92,24 @@ def main() -> None:
                 store=None,
             )
 
-        def measure(backend: str) -> dict[str, dict[str, float]]:
+        def measure(
+            label: str,
+            backend: str,
+            journal: str = "",
+            synchronous: str = "",
+        ) -> dict:
             from simple_agent.graph import calculator, utc_now
             from simple_agent.tools import payment_tools
 
             os.environ["SESSION_BACKEND"] = backend
-            contract_key = f"{prefix}-{backend}-contract"
+            os.environ["SESSION_ROOT"] = str(Path(root) / "sessions" / label)
+            if journal:
+                os.environ["SESSION_SQLITE_JOURNAL_MODE"] = journal
+                os.environ["SESSION_SQLITE_SYNCHRONOUS"] = synchronous
+            else:
+                os.environ.pop("SESSION_SQLITE_JOURNAL_MODE", None)
+                os.environ.pop("SESSION_SQLITE_SYNCHRONOUS", None)
+            contract_key = f"{prefix}-{label}-contract"
             contract_store = SessionStore()
             fixture = SimulatorStore().load()
             fixture.setdefault("creditor_name", fixture["institution"])
@@ -168,7 +186,7 @@ def main() -> None:
                 raise RuntimeError("synthetic_unbound_create_failed")
             if contract_store.ensure_unbound(unbound_key):
                 raise RuntimeError("synthetic_unbound_idempotency_failed")
-            SessionStore().read(f"{prefix}-{backend}-warmup")
+            SessionStore().read(f"{prefix}-{label}-warmup")
             samples: dict[str, list[float]] = {
                 "utc_now": [],
                 "calculator": [],
@@ -194,7 +212,7 @@ def main() -> None:
                 timed("utc_now", lambda: utc_now.invoke({}))
                 timed("calculator", lambda: calculator.invoke({"expression": "17*19"}))
 
-                key = f"{prefix}-{backend}-{index}"
+                key = f"{prefix}-{label}-{index}"
                 timed(
                     "session_transaction",
                     lambda: mark_session(SessionStore(), key),
@@ -286,24 +304,58 @@ def main() -> None:
                 )
                 if status.get("found") is not True:
                     raise RuntimeError("synthetic_payment_status_failed")
-            return {
+            measured = {
                 name: {
                     "p50_ms": round(statistics.median(values), 2),
                     "p95_ms": round(percentile(values, 0.95), 2),
                 }
                 for name, values in samples.items()
             }
+            started = time.perf_counter()
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                list(
+                    pool.map(
+                        lambda index: mark_session(
+                            SessionStore(), f"{prefix}-{label}-concurrent-{index}"
+                        ),
+                        range(iterations),
+                    )
+                )
+            duration = time.perf_counter() - started
+            return {
+                "operations": measured,
+                "concurrency": {
+                    "workers": workers,
+                    "operations": iterations,
+                    "duration_ms": round(duration * 1000, 2),
+                    "operations_per_second": round(iterations / duration, 2),
+                },
+            }
 
         import psycopg
 
         try:
-            results = {backend: measure(backend) for backend in ("sqlite", "postgres")}
+            variants = (
+                ("sqlite_delete_full", "sqlite", "DELETE", "FULL"),
+                ("sqlite_wal_full", "sqlite", "WAL", "FULL"),
+                ("sqlite_wal_normal", "sqlite", "WAL", "NORMAL"),
+                ("postgres", "postgres", "", ""),
+            )
+            results = {
+                label: measure(label, backend, journal, synchronous)
+                for label, backend, journal, synchronous in variants
+            }
         finally:
             with psycopg.connect(os.environ["SESSION_DATABASE_URL"]) as db:
                 db.execute(
                     "DELETE FROM runtime.sessions WHERE id LIKE %s", (f"{prefix}%",)
                 )
-        print(json.dumps({"iterations": iterations, "results": results}, indent=2))
+        print(
+            json.dumps(
+                {"iterations": iterations, "concurrency": workers, "results": results},
+                indent=2,
+            )
+        )
 
 
 if __name__ == "__main__":

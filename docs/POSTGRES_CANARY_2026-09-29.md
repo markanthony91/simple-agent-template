@@ -98,3 +98,22 @@ bridge still need their own model-call timing before any production tuning.
   pressure; it is not a replacement for the durable session source of truth.
 - Production remains on SQLite. This canary result does not prove end-to-end
   response-time improvement until shadow traffic includes model orchestration.
+
+## Queue and storage follow-up
+
+The next isolated canary keeps production defaults unchanged and adds:
+
+- structured `MODEL_CALL` timings for preparation, provider time and response
+  audit, with sizes and token counts but no prompt or message content;
+- a source-hash-guarded queue polling setting, defaulting to the existing 500 ms;
+- an opt-in job count, defaulting to the existing single job;
+- explicit SQLite `DELETE/FULL`, `WAL/FULL` and `WAL/NORMAL` comparisons against
+  PostgreSQL, plus concurrent writers;
+- one synthetic end-to-end negotiation that stops after creating a dummy boleto
+  agreement and never invokes channels or payment providers.
+
+Before deployment, eight concurrent admin runs with four clients completed in
+872.95 ms total. The first four requests took 842.68–856.45 ms and the second
+four 15.01–17.55 ms. This is the baseline for the canary-only 50 ms polling and
+four-job configuration. The measured post-deployment results are recorded below
+before any cutover decision.
