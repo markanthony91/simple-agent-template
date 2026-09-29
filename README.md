@@ -234,6 +234,23 @@ The separate `agent-chat-ui` repository provides the Next.js frontend.
 This release does not modify WhatsApp or the original FastAPI console.
 
 Published status and evidence: [Railway release 2026-09-14](docs/RELEASE_2026-09-14.md).
+
+### PostgreSQL session canary
+
+SQLite remains the default. To benchmark durable conversation state and OKF
+receipts on an isolated PostgreSQL database, set `SESSION_BACKEND=postgres` and
+`SESSION_DATABASE_URL`, then run:
+
+```bash
+python scripts/apply_postgres_migrations.py
+python scripts/benchmark_session_backends.py
+```
+
+The migration creates the `runtime`, `okf` and reserved `langgraph` schemas,
+plus indexes for session context, recent updates and OKF receipts. The canary
+supports session state, identity tools and OKF reads. Payment persistence and
+second-copy lookup intentionally fail closed until their normalized migration
+is implemented. No production cutover is performed by these commands.
 Real-model results and remaining blockers: [Qwen E2E 2026-09-14](docs/QWEN_E2E_2026-09-14.md).
 
 Candidate changes, isolated tests and publication boundaries:
