@@ -1,4 +1,12 @@
-# Agent Runtime — OKF simulator (0.14.12)
+# Agent Runtime — OKF simulator (0.15.0)
+
+## 0.15.0 — consulta antes da emissão (local, não publicado)
+
+`get_payment_offer_preview` consulta desconto, total, parcelas e meios permitidos
+sem criar oferta, acordo ou pagamento. Reutiliza o cálculo e a validação da emissão;
+`generate_payment_offer` continua sendo chamado depois da escolha do meio.
+Não grava a sessão durante a consulta nem cria uma sessão inexistente.
+Veja o [contrato e trecho para o Workflow](docs/payment-offer-preview.md).
 
 ## 0.14.12 — saudação local sem tool
 

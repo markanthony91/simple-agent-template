@@ -207,15 +207,15 @@ def generate_offer(
         )
 
 
-def _generate_offer(
+def _calculate_offer(
     state: dict,
     payment_type: str,
     installments: int,
     discount_percentage: str,
     policy_path: str,
-    runtime: ToolRuntime,
     down_payment_amount: str = "0",
 ) -> dict:
+    """Validate and calculate terms without creating identifiers or changing state."""
     if not state["identity_verified"]:
         return {"available": False, "reason": "identity_verification_required"}
     fixture = state["fixture"]
@@ -236,20 +236,7 @@ def _generate_offer(
         )
     except (ValueError, ArithmeticError) as exc:
         return {"available": False, "reason": str(exc)}
-    message_id, user_text = latest_user_message(runtime)
     entry = money(down_payment_amount)
-    key = hashlib.sha256(
-        json.dumps(
-            [message_id or user_text, payment_type, count, str(discount), evidence]
-            + ([format(entry, ".2f")] if entry else []),
-            sort_keys=True,
-        ).encode()
-    ).hexdigest()
-    previous = state["offers"].get(key)
-    if previous and datetime.now(timezone.utc) < datetime.fromisoformat(
-        previous["expires_at"]
-    ):
-        return previous
     current = money(fixture.get("debt", {}).get("current_amount", 0))
     total = (current * (1 - discount / 100)).quantize(
         Decimal("0.01"), rounding=ROUND_HALF_UP
@@ -262,13 +249,8 @@ def _generate_offer(
     ]
     if entry:
         schedule.insert(0, _amount(entry))
-    now = datetime.now(timezone.utc)
-    offer = {
+    terms = {
         "available": True,
-        "offer_id": f"OFF-{uuid4().hex}",
-        "status": "available",
-        "customer_id": fixture["customer_id"],
-        "debt_id": fixture.get("debt", {}).get("debt_id"),
         "payment_type": payment_type,
         "debt_amount": _amount(current),
         "discount_percentage": str(discount),
@@ -277,17 +259,68 @@ def _generate_offer(
         "installments": count,
         "installment_amount": schedule[0],
         "installment_schedule": schedule,
+        "policy_source": evidence,
+        "snapshot_id": state["snapshot_id"],
+    }
+    if entry:
+        terms["down_payment_amount"] = _amount(entry)
+    return terms
+
+
+def _generate_offer(
+    state: dict,
+    payment_type: str,
+    installments: int,
+    discount_percentage: str,
+    policy_path: str,
+    runtime: ToolRuntime,
+    down_payment_amount: str = "0",
+) -> dict:
+    terms = _calculate_offer(
+        state,
+        payment_type,
+        installments,
+        discount_percentage,
+        policy_path,
+        down_payment_amount,
+    )
+    if not terms["available"]:
+        return terms
+    message_id, user_text = latest_user_message(runtime)
+    entry = money(down_payment_amount)
+    key = hashlib.sha256(
+        json.dumps(
+            [
+                message_id or user_text,
+                payment_type,
+                terms["installments"],
+                str(money(discount_percentage)),
+                terms["policy_source"],
+            ]
+            + ([format(entry, ".2f")] if entry else []),
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+    previous = state["offers"].get(key)
+    if previous and datetime.now(timezone.utc) < datetime.fromisoformat(
+        previous["expires_at"]
+    ):
+        return previous
+    now = datetime.now(timezone.utc)
+    fixture = state["fixture"]
+    offer = {
+        **terms,
+        "offer_id": f"OFF-{uuid4().hex}",
+        "status": "available",
+        "customer_id": fixture["customer_id"],
+        "debt_id": fixture.get("debt", {}).get("debt_id"),
         "created_at": now.isoformat(),
         "expires_at": (
             now + timedelta(seconds=int(os.getenv("OFFER_TTL_SECONDS", "900")))
         ).isoformat(),
-        "policy_source": evidence,
-        "snapshot_id": state["snapshot_id"],
         "source_message_id": message_id,
     }
     state["offers"][key] = offer
-    if entry:
-        offer["down_payment_amount"] = _amount(entry)
     return offer
 
 

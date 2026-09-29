@@ -114,9 +114,10 @@ class SessionStore:
         finally:
             db.close()
 
-    def read(self, key: str) -> dict:
+    def read(self, key: str, *, initialize: bool = True) -> dict:
         """Return a detached snapshot; initialize missing Playground state once.
 
+        With initialize=False, missing sessions return an empty result without writes.
         Existing sessions use a deferred read transaction for consistent fixture
         hydration, without reserving a writer or saving unchanged state.
         """
@@ -132,6 +133,8 @@ class SessionStore:
                     state.setdefault("payments", {})
                     state.setdefault("deliveries", {})
                     return state
+        if not initialize:
+            return {}
         # Match transaction's existing initialization contract, after releasing
         # the read connection. transaction rechecks the row under its write lock.
         with self.transaction(key) as state:

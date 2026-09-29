@@ -49,6 +49,7 @@ DIRECT_REPLY_TOOLS = {
     "send_payment_instruction",
 }
 FINANCIAL_TOOLS = {
+    "get_payment_offer_preview",
     "get_boleto_second_copy",
     "verify_and_get_customer",
     "generate_payment_offer",

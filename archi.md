@@ -64,6 +64,16 @@ dev server a production-grade execution queue.
 Text still streams before semantic validation; this release does not implement
 an output Evidence Gate. Backend action validation is not proof of text fidelity.
 
+Verified identity + a read canonical policy → `get_payment_offer_preview` →
+backend-calculated terms and permitted methods, without a write transaction or
+offer/agreement/payment identifiers → customer method selection → issuance.
+The preview and issuance share the same calculation and policy validation.
+The preview is a detached read, not an authorization token or persisted reservation;
+issuance revalidates the current session and pinned policy. Numeric auditing can
+use successful preview tool results from the current turn and matching snapshot.
+Operational overrides already saved on the Assistant are not overwritten by this
+local default instruction change. The existing SSE five-second pause is unchanged.
+
 Customer-requested terms including PIX/boleto → one policy-gated transaction that
 creates offer, agreement and invalid dummy payment → explicit e-mail address →
 idempotent dispatch through Zerai Canais. The e-mail address is sent to the channel

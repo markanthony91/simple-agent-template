@@ -12,14 +12,13 @@ from simple_agent.services.offer_policy import (
 )
 
 
-def validate_requested_payment_policy(
+def resolve_requested_payment_policy(
     state: dict,
     policy_path: str,
     payment_type: str,
     installments: int,
-    method: str,
     down_payment_amount: str = "0",
-) -> tuple[str, str, bool]:
+) -> tuple[str, str, list[str]]:
     """Validate the exact OKF policy selected and read by the agent."""
     snapshot = state.get("snapshot_id")
     if not snapshot:
@@ -42,13 +41,29 @@ def validate_requested_payment_policy(
         "discount_percentage": format(configured_discount.normalize(), "f"),
         "down_payment_amount": down_payment_amount,
     }
-    validate_payment_policy(state, agreement, method)
+    validate_payment_policy(state, agreement, None)
     allowed = metadata["payment"]["methods_by_payment_type"][payment_type]
-    return canonical, agreement["discount_percentage"], len(allowed) == 1
+    return canonical, agreement["discount_percentage"], allowed
+
+
+def validate_requested_payment_policy(
+    state: dict,
+    policy_path: str,
+    payment_type: str,
+    installments: int,
+    method: str,
+    down_payment_amount: str = "0",
+) -> tuple[str, str, bool]:
+    canonical, discount, allowed = resolve_requested_payment_policy(
+        state, policy_path, payment_type, installments, down_payment_amount
+    )
+    if method not in allowed:
+        raise ValueError("payment_method_not_allowed")
+    return canonical, discount, len(allowed) == 1
 
 
 def validate_payment_policy(
-    state: dict, agreement: dict, method: str, channel: str = ""
+    state: dict, agreement: dict, method: str | None, channel: str = ""
 ) -> dict:
     source = agreement.get("policy_source")
     if not isinstance(source, dict) or not source.get("path"):
@@ -85,10 +100,11 @@ def validate_payment_policy(
         not isinstance(methods, list)
         or not isinstance(channels, list)
         or not isinstance(allowed, list)
+        or not allowed
         or not all(isinstance(item, str) and item in methods for item in allowed)
     ):
         raise ValueError("payment_terms_invalid")
-    if method not in allowed:
+    if method is not None and method not in allowed:
         raise ValueError("payment_method_not_allowed")
     if channel and channel not in channels:
         raise ValueError("delivery_channel_not_allowed")
