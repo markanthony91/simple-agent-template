@@ -115,5 +115,66 @@ The next isolated canary keeps production defaults unchanged and adds:
 Before deployment, eight concurrent admin runs with four clients completed in
 872.95 ms total. The first four requests took 842.68–856.45 ms and the second
 four 15.01–17.55 ms. This is the baseline for the canary-only 50 ms polling and
-four-job configuration. The measured post-deployment results are recorded below
-before any cutover decision.
+four-job configuration.
+
+### Queue result
+
+Deployment `4e27f8af-6edf-4602-9483-1cc4d82cbeba` was verified with four
+background workers, `LANGGRAPH_QUEUE_POLL_SECONDS=0.05`, runtime 0.34.0 and both
+source-hash-guarded patches. The same eight requests and four clients produced:
+
+| Metric | Before | Canary | Change |
+| --- | ---: | ---: | ---: |
+| Total | 872.95 ms | 283.33 ms | -67.5% |
+| p50 | 430.11 ms | 139.70 ms | -67.5% |
+| Maximum | 856.45 ms | 164.01 ms | -80.9% |
+| Errors | 0 | 0 | unchanged |
+
+### Persistent-volume storage result
+
+Twenty synthetic executions per mode used the canary's own `/data` volume and
+four concurrent writers. Selected measurements:
+
+| Mode | Session p95 | OKF read p95 | Identity p95 | Offer p95 | Concurrent writes/s |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| SQLite DELETE/FULL | 9.19 ms | 7.61 ms | 6.84 ms | 14.79 ms | 104.88 |
+| SQLite WAL/FULL | 11.28 ms | 9.87 ms | 9.20 ms | 17.72 ms | 174.04 |
+| SQLite WAL/NORMAL | 10.47 ms | 10.70 ms | 9.08 ms | 16.33 ms | 503.88 |
+| PostgreSQL | 10.29 ms | 19.15 ms | 10.29 ms | 21.91 ms | 288.84 |
+
+`WAL/NORMAL` had the highest synthetic write throughput but deliberately relaxes
+fsync guarantees. PostgreSQL beat both FULL SQLite modes under concurrent writes
+and remains the durable multi-replica candidate. On this clean canary volume,
+SQLite kept lower single-operation latency; the earlier 672 ms production-volume
+commit was not reproduced here.
+
+### End-to-end negotiation
+
+After configuring the canary with the same LLM gateway and private proxy as
+production, one isolated three-turn negotiation completed from initial request
+through identity, canonical OKF policy read and a dummy three-installment boleto
+agreement:
+
+| Turn | Duration |
+| --- | ---: |
+| Start negotiation | 1,163.55 ms |
+| Validate identity and read policy | 4,255.82 ms |
+| Create agreement | 1,177.86 ms |
+
+The identity tool took 18.49 ms, the OKF search 11.38 ms, the OKF read 24.18 ms
+and the offer 36.42 ms. Model provider phases ranged from 737.41 to 1,673.98 ms
+and dominated the turn duration. The gateway did not return token usage on these
+streaming responses, so the new event correctly omitted that optional field.
+No email, SMS, WhatsApp, phone or payment-provider tool ran. The runtime thread
+and PostgreSQL session were deleted after validation; no synthetic session rows
+remained.
+
+### Cutover decision
+
+No production cutover was made. PostgreSQL and the queue settings passed the
+isolated functional and concurrency checks, but the canary uses the compact
+repository prompt (17,359 system characters), not the current production
+Assistant context of about 102,578 characters. The excluded prompt/Workflow work
+therefore remains the dominant untested difference. Before a production change,
+run a controlled shadow using the production Assistant context and define rollback
+thresholds for queue errors, p95 response time and PostgreSQL pool saturation.
