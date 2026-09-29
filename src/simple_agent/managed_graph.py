@@ -13,6 +13,7 @@ from simple_agent.tools.payment_tools import PAYMENT_TOOLS
 from simple_agent.llm import create_llm
 from simple_agent.llm_fallback import LLMFallbackMiddleware
 from simple_agent.runtime_settings import AgentProfile
+from simple_agent.negotiation_continuation import NegotiationContinuationMiddleware
 
 
 @dynamic_prompt
@@ -45,6 +46,7 @@ graph = create_agent(
     middleware=[
         demo_reset,
         runtime_prompt,
+        NegotiationContinuationMiddleware(),
         filter_enabled_tools,
         LLMFallbackMiddleware(),
         direct_reply,

@@ -19,9 +19,9 @@ não reenvia o prefixo já aceito. Preserva a espera mínima após aceite da pri
 mensagem pelo provedor. Playground consome os eventos nativos existentes; não
 exige deploy de frontend.
 
-O restante do texto não é gerado por este middleware. Se a resposta original
-contiver somente o anúncio, somente ele será exibido; não há continuação artificial,
-segunda chamada LLM ou tool adicional. Se a frase não corresponder à abertura
+O restante do texto não é gerado por este middleware HTTP. A partir de 0.14.9,
+o middleware do agente pode retomar uma única vez quando o modelo encerra o turno
+somente com o anúncio; veja [continuação](negotiation-continuation.md). Se a frase não corresponder à abertura
 existente, o stream segue sem pausa. Essa detecção é de texto de saída, não de
 intenção nem condição comercial. Latência da rede pode alterar o intervalo percebido.
 

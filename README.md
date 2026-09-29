@@ -1,4 +1,8 @@
-# Agent Runtime — OKF simulator (0.14.6)
+# Agent Runtime — OKF simulator (0.14.9)
+
+## 0.14.9 — continuação após a abertura
+
+Quando a LLM encerra o turno somente com a frase de verificação, o runtime retoma o mesmo agente uma única vez. Preserva a sessão e as tools, não injeta mensagem do cliente e não exige um evento externo. Se a LLM repetir somente a promessa, informa indisponibilidade e encerra sem loop. A pausa de entrega continua em cinco segundos. [Contrato](docs/negotiation-continuation.md).
 
 ## 0.14.7 — pausa de entrega
 
