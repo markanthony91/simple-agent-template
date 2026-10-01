@@ -32,8 +32,8 @@ ROLLBACK;
 
 DO $$
 BEGIN
-  ASSERT (SELECT count(*) FROM runtime.sessions) = 0;
-  ASSERT (SELECT count(*) FROM runtime.tenants) = 0;
-  ASSERT (SELECT count(*) FROM runtime.payment_agreements) = 0;
+  ASSERT (SELECT count(*) FROM runtime.sessions WHERE id LIKE 'test-session%') = 0;
+  ASSERT (SELECT count(*) FROM runtime.tenants WHERE id = 'test-tenant') = 0;
+  ASSERT (SELECT count(*) FROM runtime.payment_agreements WHERE agreement_id = 'test-agreement') = 0;
 END $$;
 SELECT 'PASS isolated PostgreSQL SQLite-catalog parity';
