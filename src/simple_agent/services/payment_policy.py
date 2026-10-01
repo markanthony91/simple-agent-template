@@ -19,6 +19,7 @@ def validate_requested_payment_policy(
     installments: int,
     method: str,
     down_payment_amount: str = "0",
+    discount_percentage: str | None = None,
 ) -> tuple[str, str, bool]:
     """Validate the exact OKF policy selected and read by the agent."""
     snapshot = state.get("snapshot_id")
@@ -30,7 +31,13 @@ def validate_requested_payment_policy(
         raise ValueError("policy_not_found") from None
     require_canonical_policy(state, canonical, content_hash, metadata)
     negotiation = terms_for_payment_type(metadata.get("negotiation"), payment_type)
-    configured_discount = resolve_offer_discount(negotiation, state["fixture"])
+    if discount_percentage is not None and "max_discount_tiers" not in negotiation:
+        raise ValueError("policy_terms_exceeded")
+    configured_discount = (
+        resolve_offer_discount(negotiation, state["fixture"])
+        if discount_percentage is None
+        else money(discount_percentage)
+    )
     count = 1 if payment_type == "cash" else installments
     evidence = validate_policy(
         state, canonical, payment_type, count, configured_discount, down_payment_amount
