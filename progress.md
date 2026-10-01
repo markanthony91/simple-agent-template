@@ -523,3 +523,12 @@ Coordinate PR integration before another main autodeploy.
 - [x] Manter o dia da primeira parcela nos meses seguintes.
 - [x] Limitar ao último dia apenas quando o mês não possuir o dia original.
 - [x] Preservar o cronograma somente para boleto; PIX continua sem próximas parcelas.
+# PostgreSQL e Redis isolados para futura virada — 30/09/2026
+
+- [x] Criar PostgreSQL novo e separado do canário e do Behavior Store.
+- [x] Completar as oito tabelas operacionais equivalentes ao SQLite atual.
+- [x] Criar Redis privado e testar operações básicas sem conectar aplicações.
+- [x] Validar PostgreSQL com dados sintéticos revertidos; zero linhas finais.
+- [ ] Migrar dados, adaptar Runtime e checkpoints, testar canário e definir rollback.
+
+Detalhes: [infraestrutura isolada](docs/RUNTIME_STATE_INFRA_2026-09-30.md).
