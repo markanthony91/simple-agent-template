@@ -71,10 +71,30 @@ O Runtime manteve o deployment
 serviço variáveis `SESSION_BACKEND`, `SESSION_DATABASE_URL`, `REDIS_URI`,
 `REDIS_URL` ou `DATABASE_URL` apontando para os bancos novos.
 
+### Adaptador PostgreSQL local
+
+O adaptador `PostgresSessionStore` agora grava empresa, carteira, cliente,
+dívida e vínculo da sessão na mesma transação da criação da Demo. O cadastro
+é reconstruído dessas tabelas ao ler a sessão; o JSON da sessão deixa de
+duplicar nome, CPF e telefone. Playground e WhatsApp sem vínculo continuam
+sem registros normalizados. A consulta de segunda via usa o vínculo
+`session_contexts`, como no SQLite. Reset mantém o cadastro e remove somente
+o acordo/pagamento da sessão de origem.
+
+Três testes de integração passaram em PostgreSQL 18 local descartável:
+criação/leitura/reset com boleto, consulta a partir de outra sessão vinculada,
+rollback de IDs duplicados e carteira de outra empresa, e isolamento de
+Playground/WhatsApp sem vínculo. Quatro testes locais adicionais de backend e
+sanitização passaram; o adaptador teve 85% de cobertura nesses testes. O
+benchmark sintético recebeu IDs próprios e limpeza
+ordenada das novas tabelas; sua execução completa com tools/LLM ainda não foi
+repetida. Nenhuma variável ou deployment do Runtime foi alterado nesta etapa.
+
 ## Antes de qualquer virada
 
-1. Implementar o adaptador PostgreSQL que grave e leia também as cinco tabelas
-   normalizadas; o adaptador do canário atual usa apenas sessões e pagamentos.
+1. Revisar o adaptador local e executar o canário completo com tools em um
+   serviço isolado; os testes de integração cobrem o contrato de persistência,
+   mas não uma conversa inteira.
 2. Definir credenciais de aplicação com privilégios mínimos, isolamento por
    empresa/carteira e estratégia de backup para o banco novo.
 3. Planejar a cópia verificada do SQLite e, separadamente, a migração dos

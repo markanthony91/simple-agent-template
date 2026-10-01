@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 from typing import Iterator
 
+from psycopg import IntegrityError
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
@@ -60,8 +61,45 @@ class PostgresSessionStore:
         )
 
     @staticmethod
-    def _state(value: dict) -> dict:
+    def _fixture(db, key: str) -> dict | None:
+        row = db.execute(
+            """SELECT c.id,c.full_name,c.cpf,c.phone,c.birth_date,
+                      p.creditor_name,d.product,d.data,d.eligibility,d.identity_policy
+               FROM runtime.session_contexts s
+               JOIN runtime.customers c
+                 ON (c.tenant_id,c.id)=(s.tenant_id,s.customer_id)
+               JOIN runtime.portfolios p
+                 ON (p.tenant_id,p.id)=(s.tenant_id,s.portfolio_id)
+               JOIN runtime.debts d
+                 ON (d.tenant_id,d.id)=(s.tenant_id,s.debt_id)
+               WHERE s.session_id=%s""",
+            (key,),
+        ).fetchone()
+        if not row:
+            return None
+        fixture = {
+            "customer_id": row[0],
+            "full_name": row[1],
+            "cpf": row[2],
+            "phone": row[3],
+            "birth_date": row[4],
+            "institution": row[5],
+            "creditor_name": row[5],
+            "product": row[6],
+            "debt": row[7],
+            "eligibility": row[8],
+            "identity_policy": row[9],
+        }
+        if fixture["debt"].get("company"):
+            fixture["company"] = fixture["debt"]["company"]
+        return fixture
+
+    @classmethod
+    def _state(cls, db, key: str, value: dict) -> dict:
         state = copy.deepcopy(value)
+        fixture = cls._fixture(db, key)
+        if fixture:
+            state["fixture"] = fixture
         state.setdefault("payments", {})
         state.setdefault("deliveries", {})
         state.setdefault("receipts", {})
@@ -73,8 +111,8 @@ class PostgresSessionStore:
             row = db.execute(
                 "SELECT state FROM runtime.sessions WHERE id = %s", (key,)
             ).fetchone()
-        if row:
-            return self._state(row[0])
+            if row:
+                return self._state(db, key, row[0])
         with self.transaction(key) as state:
             return copy.deepcopy(state)
 
@@ -99,42 +137,119 @@ class PostgresSessionStore:
         tenant_name: str = "Will Bank Visualizer",
         portfolio_name: str = "Demonstração",
     ) -> bool:
-        del tenant_name, portfolio_name
         key = validate_thread_id(key)
-        state = self._initial_state(fixture=fixture, demo=demo)
+        state = self._initial_state(fixture=None if demo else fixture, demo=demo)
         debt = fixture.get("debt", {})
-        with self.pool.connection() as db, db.transaction():
-            created = db.execute(
-                """INSERT INTO runtime.sessions(
-                       id,tenant_id,portfolio_id,customer_id,debt_id,state
-                   ) VALUES (%s,%s,%s,%s,%s,%s)
-                   ON CONFLICT (id) DO NOTHING RETURNING id""",
-                (
-                    key,
-                    tenant_id if demo else None,
-                    portfolio_id if demo else None,
-                    str(fixture.get("customer_id") or "") or None,
-                    str(debt.get("debt_id") or "") or None,
-                    Jsonb(state),
-                ),
-            ).fetchone()
-            if created:
-                return True
-            current = self._state(
-                db.execute(
-                    "SELECT state FROM runtime.sessions WHERE id = %s FOR UPDATE",
-                    (key,),
-                ).fetchone()[0]
-            )
-            if (
-                demo
-                and current.get("demo_session") is True
-                and self._same_demo_input(current["fixture"], fixture)
-            ):
-                return False
-            if not demo and current.get("fixture") == fixture:
-                return False
-            raise ValueError("session_already_exists")
+        try:
+            with self.pool.connection() as db, db.transaction():
+                created = db.execute(
+                    """INSERT INTO runtime.sessions(
+                           id,tenant_id,portfolio_id,customer_id,debt_id,state
+                       ) VALUES (%s,%s,%s,%s,%s,%s)
+                       ON CONFLICT (id) DO NOTHING RETURNING id""",
+                    (
+                        key,
+                        tenant_id if demo else None,
+                        portfolio_id if demo else None,
+                        str(fixture["customer_id"]) if demo else None,
+                        str(debt["debt_id"]) if demo else None,
+                        Jsonb(state),
+                    ),
+                ).fetchone()
+                if not created:
+                    current = self._state(
+                        db,
+                        key,
+                        db.execute(
+                            "SELECT state FROM runtime.sessions WHERE id = %s FOR UPDATE",
+                            (key,),
+                        ).fetchone()[0],
+                    )
+                    if (
+                        demo
+                        and current.get("demo_session") is True
+                        and self._same_demo_input(current["fixture"], fixture)
+                    ):
+                        return False
+                    if not demo and current.get("fixture") == fixture:
+                        return False
+                    raise ValueError("session_already_exists")
+                if demo:
+                    now = datetime.now(timezone.utc)
+                    customer_id = str(fixture["customer_id"])
+                    debt = dict(debt)
+                    if fixture.get("company"):
+                        debt["company"] = fixture["company"]
+                    debt_id = str(debt["debt_id"])
+                    db.execute(
+                        """INSERT INTO runtime.tenants(id,name,created_at)
+                           VALUES (%s,%s,%s) ON CONFLICT(id) DO UPDATE
+                           SET name=excluded.name""",
+                        (tenant_id, tenant_name, now),
+                    )
+                    portfolio = db.execute(
+                        """INSERT INTO runtime.portfolios(
+                             id,tenant_id,name,creditor_name,created_at
+                           ) VALUES (%s,%s,%s,%s,%s)
+                           ON CONFLICT(id) DO UPDATE SET
+                             name=excluded.name,
+                             creditor_name=excluded.creditor_name
+                           WHERE runtime.portfolios.tenant_id=excluded.tenant_id
+                           RETURNING id""",
+                        (
+                            portfolio_id,
+                            tenant_id,
+                            portfolio_name,
+                            fixture["creditor_name"],
+                            now,
+                        ),
+                    ).fetchone()
+                    if not portfolio:
+                        raise ValueError("portfolio_tenant_mismatch")
+                    db.execute(
+                        """INSERT INTO runtime.customers(
+                             id,tenant_id,full_name,cpf,phone,birth_date,created_at
+                           ) VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                        (
+                            customer_id,
+                            tenant_id,
+                            fixture["full_name"],
+                            fixture["cpf"],
+                            fixture["phone"],
+                            fixture["birth_date"],
+                            now,
+                        ),
+                    )
+                    db.execute(
+                        """INSERT INTO runtime.debts(
+                             id,tenant_id,portfolio_id,customer_id,product,
+                             current_amount,days_overdue,data,eligibility,
+                             identity_policy,created_at
+                           ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)""",
+                        (
+                            debt_id,
+                            tenant_id,
+                            portfolio_id,
+                            customer_id,
+                            fixture["product"],
+                            debt["current_amount"],
+                            int(debt.get("days_overdue", 0)),
+                            Jsonb(debt),
+                            Jsonb(fixture["eligibility"]),
+                            Jsonb(fixture["identity_policy"]),
+                            now,
+                        ),
+                    )
+                    db.execute(
+                        """INSERT INTO runtime.session_contexts(
+                             session_id,tenant_id,portfolio_id,customer_id,
+                             debt_id,created_at
+                           ) VALUES (%s,%s,%s,%s,%s,%s)""",
+                        (key, tenant_id, portfolio_id, customer_id, debt_id, now),
+                    )
+        except IntegrityError as exc:
+            raise ValueError("session_already_exists") from exc
+        return True
 
     def ensure_unbound(self, key: str) -> bool:
         key = validate_thread_id(key)
@@ -163,7 +278,7 @@ class PostgresSessionStore:
             ).fetchone()
             if not row or row[0].get("demo_session") is not True:
                 return False
-            state = self._state(row[0])
+            state = self._state(db, key, row[0])
             db.execute(
                 "DELETE FROM runtime.payment_agreements WHERE origin_session_id=%s",
                 (key,),
@@ -181,6 +296,8 @@ class PostgresSessionStore:
                 "reset_count": int(state.get("reset_count", 0)) + 1,
                 "last_reset_at": datetime.now(timezone.utc).isoformat(),
             }
+            if self._fixture(db, key):
+                reset.pop("fixture")
             db.execute(
                 """UPDATE runtime.sessions
                    SET state=%s,version=version+1,updated_at=now() WHERE id=%s""",
@@ -202,7 +319,7 @@ class PostgresSessionStore:
                 ).fetchone()
             with timed_phase("session_load"):
                 if row:
-                    state = self._state(row[0])
+                    state = self._state(db, key, row[0])
                 else:
                     fixture = SimulatorStore().load()
                     fixture.pop("_runtime", None)
@@ -212,13 +329,16 @@ class PostgresSessionStore:
             with timed_phase("session_body"):
                 yield state
             with timed_phase("session_save"):
+                stored = dict(state)
+                if self._fixture(db, key):
+                    stored.pop("fixture", None)
                 db.execute(
                     """INSERT INTO runtime.sessions(id,state) VALUES (%s,%s)
                        ON CONFLICT (id) DO UPDATE SET
                          state=excluded.state,
                          version=runtime.sessions.version+1,
                          updated_at=now()""",
-                    (key, Jsonb(state)),
+                    (key, Jsonb(stored)),
                 )
                 if state["receipts"] != original_receipts:
                     db.execute("DELETE FROM okf.receipts WHERE session_id=%s", (key,))
@@ -288,17 +408,21 @@ class PostgresSessionStore:
         key = validate_thread_id(key)
         with self.pool.connection() as db, db.transaction():
             session = db.execute(
-                """SELECT state,tenant_id,portfolio_id,customer_id,debt_id
-                   FROM runtime.sessions WHERE id=%s FOR SHARE""",
+                """SELECT state FROM runtime.sessions WHERE id=%s FOR SHARE""",
                 (key,),
             ).fetchone()
             if not session or session[0].get("identity_verified") is not True:
                 return {"found": False, "reason": "identity_verification_required"}
-            context = session[1:]
-            if all(context):
+            context = db.execute(
+                """SELECT tenant_id,portfolio_id,customer_id,debt_id
+                   FROM runtime.session_contexts WHERE session_id=%s""",
+                (key,),
+            ).fetchone()
+            if context:
                 rows = db.execute(
                     """SELECT a.data FROM runtime.payment_agreements a
-                       JOIN runtime.sessions s ON s.id=a.origin_session_id
+                       JOIN runtime.session_contexts s
+                         ON s.session_id=a.origin_session_id
                        WHERE (s.tenant_id,s.portfolio_id,s.customer_id,s.debt_id)=
                              (%s,%s,%s,%s)
                          AND (%s='' OR a.agreement_id=%s)

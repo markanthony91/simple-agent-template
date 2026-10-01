@@ -114,9 +114,17 @@ def main() -> None:
             fixture = SimulatorStore().load()
             fixture.setdefault("creditor_name", fixture["institution"])
             fixture.setdefault("phone", "+5511999999999")
-            if not contract_store.create(contract_key, fixture, demo=True):
+            fixture["customer_id"] = f"{prefix}-{label}-customer"
+            fixture["debt"]["debt_id"] = f"{prefix}-{label}-debt"
+            demo_scope = {
+                "tenant_id": f"{prefix}-{label}-tenant",
+                "portfolio_id": f"{prefix}-{label}-portfolio",
+            }
+            if not contract_store.create(
+                contract_key, fixture, demo=True, **demo_scope
+            ):
                 raise RuntimeError("synthetic_demo_create_failed")
-            if contract_store.create(contract_key, fixture, demo=True):
+            if contract_store.create(contract_key, fixture, demo=True, **demo_scope):
                 raise RuntimeError("synthetic_demo_idempotency_failed")
             with contract_store.transaction(contract_key) as state:
                 state["rollback_marker"] = "preserved"
@@ -347,9 +355,18 @@ def main() -> None:
             }
         finally:
             with psycopg.connect(os.environ["SESSION_DATABASE_URL"]) as db:
-                db.execute(
-                    "DELETE FROM runtime.sessions WHERE id LIKE %s", (f"{prefix}%",)
-                )
+                for table, key in (
+                    ("session_contexts", "session_id"),
+                    ("sessions", "id"),
+                    ("debts", "id"),
+                    ("customers", "id"),
+                    ("portfolios", "id"),
+                    ("tenants", "id"),
+                ):
+                    db.execute(
+                        f"DELETE FROM runtime.{table} WHERE {key} LIKE %s",
+                        (f"{prefix}%",),
+                    )
         print(
             json.dumps(
                 {"iterations": iterations, "concurrency": workers, "results": results},

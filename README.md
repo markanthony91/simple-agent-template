@@ -252,6 +252,10 @@ instructions. The canary supports session state, identity, OKF reads, payment
 offers, payment status and boleto second-copy lookup. The benchmark uses only
 synthetic data, checks reset and cross-session ownership, and removes its rows
 after each run. No production cutover is performed by these commands.
+The PostgreSQL adapter also persists demo tenant, portfolio, customer, debt,
+and session bindings in the normalized catalog; demo fixtures are hydrated on
+read and are not duplicated in session JSON. This remains a local canary path,
+with no production Runtime configuration change.
 
 The benchmark compares SQLite `DELETE/FULL`, `WAL/FULL`, `WAL/NORMAL` and
 PostgreSQL, including four concurrent writers by default. `BENCHMARK_ROOT=/data`
