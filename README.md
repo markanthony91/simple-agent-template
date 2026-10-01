@@ -122,10 +122,11 @@ de oferta; valida identidade, evidência OKF, elegibilidade, limites e meios.
 Erros recuperáveis de consulta permitem uma nova tentativa por mensagem.
 Sucesso continua sendo apresentado sem uma chamada adicional ao modelo.
 
-O desconto da proposta agora pertence exclusivamente à política publicada do
-credor (`offer_discount_percentage`). O cliente escolhe modalidade, parcelas e
-PIX/boleto, inclusive em mensagens separadas; não informa nem substitui o
-percentual. Política sem desconto fixado falha fechada.
+O desconto da proposta segue a política publicada do credor. Contratos legados
+usam `offer_discount_percentage`; contratos com `max_discount_tiers` partem de
+0% e só aceitam `discount_percentage` quando há pedido explícito de desconto,
+limitado pela faixa de atraso e pela elegibilidade do cliente. O backend não
+interpreta a conversa para decidir se houve esse pedido.
 
 Os meios também são definidos por modalidade: no piloto Will Bank, PIX é somente
 à vista e parcelamento é somente por boleto.

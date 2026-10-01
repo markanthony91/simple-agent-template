@@ -1,5 +1,23 @@
 # Contrato canônico por modalidade — runtime 0.14.2
 
+## Extensão para políticas com limites por atraso
+
+O documento canônico pode declarar `max_discount_tiers` em cada ramo de
+`by_payment_type` e `installment_tiers` em `negotiation`. O backend seleciona a
+faixa pelo atraso da dívida na sessão, limita o desconto solicitado e a
+quantidade de pagamentos, e exige `down_payment.min_amount` quando há
+parcelamento. A entrada conta como primeiro pagamento. Omissão de
+`discount_percentage` gera proposta sem desconto nesse contrato; as políticas
+legadas continuam com o percentual fixado no documento. Lacunas ou sobreposições
+na faixa aplicável falham fechadas. A elegibilidade individual pode impor um
+teto adicional. A política v7 deixa o dia 181 sem faixa; esse dia exige correção
+da fonte comercial antes de qualquer proposta.
+
+Desconto positivo exige `discount_basis: current_amount` na modalidade. A v7
+descreve descontos sobre encargos ou principal, mas o simulador só entrega o
+saldo total; por isso seu frontmatter não declara essa base e uma proposta com
+desconto positivo é recusada até que a origem financeira forneça os componentes.
+
 O gerador lê `negotiation` e `payment` do frontmatter do documento canônico.
 Esses campos são uma extensão do runtime, não uma exigência geral do OKF 0.2.
 O schema antigo continua aceito. O novo `by_payment_type` separa desconto à vista

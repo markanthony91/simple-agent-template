@@ -110,6 +110,7 @@ def generate_payment_offer(
     runtime: ToolRuntime,
     installments: int | None = None,
     down_payment_amount: str = "0",
+    discount_percentage: str | None = None,
 ) -> str:
     """Generate and persist an offer, agreement and dummy PIX/boleto atomically.
 
@@ -118,8 +119,14 @@ def generate_payment_offer(
 
     policy_path must be the exact published OKF policy previously read by the
     agent. The backend validates its receipt, scope, lifecycle and terms and
-    applies its creditor-defined discount. No customer-supplied discount,
-    internal human approval or second confirmation is required.
+    applies its creditor-defined discount. For policies with overdue discount
+    ceilings, omit discount_percentage unless the customer explicitly requests
+    a discount; then use only a percentage found in the policy. The backend
+    checks it against the customer's eligibility, the current overdue tier and
+    an explicit current_amount discount basis. Policies without that basis
+    cannot generate a positive discount.
+    A customer-proposed percentage alone is not authorization; do not invent
+    policy terms. No internal human approval or second confirmation is required.
     Interpret the customer's current choice from the whole conversation, including
     short confirmations and terms supplied in earlier turns. The latest change or
     refusal supersedes earlier choices. Never call for a refusal, an informational
@@ -173,6 +180,7 @@ def generate_payment_offer(
                         installments,
                         method,
                         down_payment_amount,
+                        discount_percentage,
                     )
                 )
             except DownPaymentRequired as exc:
