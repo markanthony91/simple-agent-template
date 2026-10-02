@@ -36,13 +36,23 @@ DEFAULT_FIXTURE: dict[str, Any] = {
 class SimulatorStore:
     """Persistent fixture used only by the debt-collection simulator tools."""
 
-    def __init__(self, root: Path | None = None):
+    def __init__(self, root: Path | None = None, *, create_default: bool = True):
         configured = os.getenv("SIMULATOR_ROOT", "/data/simulator")
         self.root = (root or Path(configured)).resolve()
         self.file = self.root / "customer.json"
         self.root.mkdir(parents=True, exist_ok=True)
-        if not self.file.exists():
+        if create_default and not self.file.exists():
             self.save(DEFAULT_FIXTURE)
+
+    @classmethod
+    def for_portfolio(cls, scope_id: int) -> "SimulatorStore":
+        if type(scope_id) is not int or scope_id <= 0:
+            raise ValueError("invalid_portfolio_scope")
+        configured = Path(os.getenv("SIMULATOR_ROOT", "/data/simulator"))
+        return cls(configured / "portfolios" / str(scope_id), create_default=False)
+
+    def exists(self) -> bool:
+        return self.file.is_file()
 
     def _write_atomic(self, payload: dict[str, Any]) -> None:
         fd, tmp_name = tempfile.mkstemp(prefix="customer", suffix=".tmp", dir=self.root)

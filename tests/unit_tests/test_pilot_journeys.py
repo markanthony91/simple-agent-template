@@ -383,7 +383,19 @@ def test_negative_draft_identity_and_excess_terms(isolated):
     )
     assert creditor_offer["created"]
     assert creditor_offer["offer"]["discount_percentage"] == "0"
-    assert "discount_percentage" not in payment_tools.generate_payment_offer.args
+    assert (
+        payment_tools.generate_payment_offer.args["discount_percentage"]["default"]
+        is None
+    )
+    assert (
+        call(
+            payment_tools.generate_payment_offer,
+            conversation_runtime(key, "Quero 10% de desconto"),
+            **args,
+            discount_percentage="10",
+        )["reason"]
+        == "policy_terms_exceeded"
+    )
     assert "policy_path" in payment_tools.generate_payment_offer.args
     assert (
         call(

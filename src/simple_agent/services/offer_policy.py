@@ -146,6 +146,8 @@ def terms_for_payment_type(policy: dict, payment_type: str) -> dict:
         "offer_discount_percentage",
         "initial_offer_discount_percentage",
         "discount_tiers",
+        "max_discount_tiers",
+        "discount_basis",
     }
     if not set(branch) <= allowed or "max_discount_percentage" not in branch:
         raise ValueError("policy_terms_invalid")
@@ -171,6 +173,17 @@ def debt_days_overdue(fixture: dict) -> int:
 
 def resolve_offer_discount(policy: dict, fixture: dict) -> Decimal:
     """Resolve creditor-owned terms from trusted debt context, never model input."""
+    if "max_discount_tiers" in policy:
+        if any(
+            key in policy
+            for key in (
+                "discount_tiers",
+                "offer_discount_percentage",
+                "initial_offer_discount_percentage",
+            )
+        ):
+            raise ValueError("policy_terms_invalid")
+        return Decimal("0")
     if "discount_tiers" not in policy:
         if "initial_offer_discount_percentage" in policy:
             raise ValueError("policy_terms_invalid")
@@ -217,6 +230,30 @@ def resolve_offer_discount(policy: dict, fixture: dict) -> Decimal:
             raise ValueError("policy_terms_invalid")
         return initial
     return selected
+
+
+def overdue_tier(tiers: list, days: int) -> dict:
+    """Select one declared overdue interval; gaps and overlaps cannot authorize terms."""
+    if not isinstance(tiers, list) or not tiers:
+        raise ValueError("policy_terms_invalid")
+    found = []
+    for tier in tiers:
+        if not isinstance(tier, dict):
+            raise ValueError("policy_terms_invalid")
+        lower, upper = tier.get("min_days_overdue"), tier.get("max_days_overdue")
+        if (
+            type(lower) is not int
+            or lower < 0
+            or (upper is not None and (type(upper) is not int or upper < lower))
+        ):
+            raise ValueError("policy_terms_invalid")
+        if lower <= days and (upper is None or days <= upper):
+            found.append(tier)
+    if len(found) != 1:
+        raise ValueError(
+            "policy_terms_undefined" if not found else "policy_terms_invalid"
+        )
+    return found[0]
 
 
 def validate_policy(
@@ -275,10 +312,26 @@ def validate_policy(
     if maximum > 100 or offered > maximum:
         raise ValueError("policy_terms_invalid")
     max_installments = policy["max_installments"]
+    if "max_discount_tiers" in policy:
+        tier = overdue_tier(policy["max_discount_tiers"], debt_days_overdue(fixture))
+        if set(tier) != {
+            "min_days_overdue",
+            "max_days_overdue",
+            "max_discount_percentage",
+        }:
+            raise ValueError("policy_terms_invalid")
+        tier_maximum = money(tier["max_discount_percentage"])
+        if tier_maximum > maximum:
+            raise ValueError("policy_terms_invalid")
+        if discount > tier_maximum:
+            raise ValueError("policy_terms_exceeded")
+        if discount and policy.get("discount_basis") != "current_amount":
+            raise ValueError("policy_terms_undefined")
     entry_rule = policy.get("down_payment", {})
     if not isinstance(entry_rule, dict) or set(entry_rule) - {
         "allowed",
         "min_percentage",
+        "min_amount",
     }:
         raise ValueError("policy_terms_invalid")
     allowed_entry = entry_rule.get("allowed", False)
@@ -288,6 +341,17 @@ def validate_policy(
     if minimum_percentage > 100:
         raise ValueError("policy_terms_invalid")
     entry_required = False
+    if payment_type == "installment" and "installment_tiers" in policy:
+        tier = overdue_tier(policy["installment_tiers"], debt_days_overdue(fixture))
+        if (
+            set(tier) != {"min_days_overdue", "max_days_overdue", "max_installments"}
+            or type(tier["max_installments"]) is not int
+            or not 2 <= tier["max_installments"] <= max_installments
+        ):
+            raise ValueError("policy_terms_invalid")
+        max_installments = tier["max_installments"]
+        entry_required = True
+        allowed_entry = True
     if payment_type == "installment" and "installment_overdue_rule" in policy:
         rule = policy["installment_overdue_rule"]
         if (
@@ -314,6 +378,7 @@ def validate_policy(
         or discount > maximum
         or (
             ("discount_tiers" in policy or "by_payment_type" in policy)
+            and "max_discount_tiers" not in policy
             and discount > offered
         )
     ):
@@ -332,6 +397,7 @@ def validate_policy(
     minimum_entry = (total * minimum_percentage / 100).quantize(
         Decimal("0.01"), rounding=ROUND_CEILING
     )
+    minimum_entry = max(minimum_entry, money(entry_rule.get("min_amount", "0")))
     if (entry_required or entry > 0) and entry < minimum_entry:
         raise DownPaymentRequired(minimum_entry)
     if "min_negotiated_amount" in policy and total < money(
@@ -346,5 +412,7 @@ def validate_policy(
         "path": canonical,
         "content_hash": receipt["hash"],
         "snapshot_id": snapshot,
-        "offer_discount_percentage": format(offered.normalize(), "f"),
+        "offer_discount_percentage": format(
+            (discount if "max_discount_tiers" in policy else offered).normalize(), "f"
+        ),
     }
