@@ -29,6 +29,7 @@ reconciliar alterações posteriores ao snapshot e repetir a comparação. O
 schema `langgraph` está apenas reservado: os checkpoints e mensagens do
 `langgraph dev` permanecem nos arquivos de `/data/langgraph`, sem migração
 nem teste de retomada de conversa antiga no PostgreSQL. Redis também não foi
-ativado no runtime principal. A mudança para Agent Server de produção exige
-um plano separado de compatibilidade/migração desses checkpoints, teste de
-retomada e rollback. Não usar este backfill como autorização de cutover.
+ativado no runtime principal. A migração de checkpoints para LangGraph OSS com
+PostgreSQL exige um plano separado de compatibilidade, teste de retomada e
+rollback. O projeto não adotará LangSmith Agent Server nem sua licença. Não usar
+este backfill como autorização de cutover.
