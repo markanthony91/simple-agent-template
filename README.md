@@ -1,4 +1,16 @@
-# Agent Runtime — OKF simulator (0.14.10)
+# Agent Runtime — OKF simulator (0.14.13)
+
+## 0.14.13 — isolamento do Playground por carteira
+
+Assistants com `portfolio_context` fixam cada novo thread ao `scope_id` da
+carteira. O simulador passa a ter um fixture separado por carteira; na ausência
+dele, `verify_and_get_customer` retorna `customer_not_found`, as tools financeiras
+continuam bloqueadas e o Workflow ativo decide a resposta. Sessões de formulário
+e o fixture legado permanecem compatíveis.
+
+Consultas OKF dessas sessões leem `GLOBAL/**` e, quando existe um devedor
+configurado, somente a árvore exata resolvida para empresa, instituição e produto.
+Uma carteira vazia não consegue listar, buscar ou ler a árvore de outra carteira.
 
 ## 0.14.11 — compatibilidade da retomada com o provedor
 
@@ -175,11 +187,12 @@ tenant, portfolio, customer, debt and session rows. Existing tools keep reading 
 session by `thread_id`; no parallel customer tool or provider dependency was added.
 Repeating the exact form/thread is idempotent, while changing data under an existing
 thread is rejected.
-An inbound WhatsApp thread without a prior form is persisted as unbound: it has no
-customer or debt fixture, may use only institutional OKF tools, and cannot execute
-identity, offer or payment tools. Identity requests generated for an unbound thread
-are replaced with the existing form guidance. Preparing an existing form-backed
-thread is a no-op and preserves its normalized context.
+An inbound thread without a prior form is persisted as unbound: it has no customer
+or debt fixture. It may use institutional OKF tools and
+`verify_and_get_customer`, which returns `customer_not_found`; offer and payment
+tools remain blocked. The active Workflow owns the customer-facing response.
+Preparing an existing form-backed thread is a no-op and preserves its normalized
+context.
 Legacy direct threads that predate this marker fail before inference and require
 the existing `/reset-demo` rotation; their old context is never reused silently.
 For future-form sessions, the presentation uses the Canais **Cedente** as creditor
@@ -235,6 +248,35 @@ The separate `agent-chat-ui` repository provides the Next.js frontend.
 This release does not modify WhatsApp or the original FastAPI console.
 
 Published status and evidence: [Railway release 2026-09-14](docs/RELEASE_2026-09-14.md).
+
+### PostgreSQL session canary
+
+SQLite remains the default. To benchmark durable conversation state and OKF
+receipts on an isolated PostgreSQL database, set `SESSION_BACKEND=postgres` and
+`SESSION_DATABASE_URL`, then run:
+
+```bash
+python scripts/apply_postgres_migrations.py
+python scripts/benchmark_session_backends.py
+```
+
+The migrations create the `runtime`, `okf` and reserved `langgraph` schemas,
+plus indexed session context, OKF receipts, payment agreements and payment
+instructions. The canary supports session state, identity, OKF reads, payment
+offers, payment status and boleto second-copy lookup. The benchmark uses only
+synthetic data, checks reset and cross-session ownership, and removes its rows
+after each run. No production cutover is performed by these commands.
+The isolated OSS canary can also start with an empty conversation history;
+import Assistant configuration separately and follow
+[the controlled deployment guide](docs/DEPLOYMENT.md#isolated-oss-postgresql-canary).
+
+The benchmark compares SQLite `DELETE/FULL`, `WAL/FULL`, `WAL/NORMAL` and
+PostgreSQL, including four concurrent writers by default. `BENCHMARK_ROOT=/data`
+can place the temporary SQLite databases on a canary volume. Model calls emit
+only timing, character counts, tool counts and provider token usage; prompt and
+message content are never logged. Queue tuning is opt-in through
+`LANGGRAPH_QUEUE_POLL_SECONDS` and `LANGGRAPH_N_JOBS_PER_WORKER`; their defaults
+remain 0.5 seconds and one job for backward compatibility.
 Real-model results and remaining blockers: [Qwen E2E 2026-09-14](docs/QWEN_E2E_2026-09-14.md).
 
 Candidate changes, isolated tests and publication boundaries:

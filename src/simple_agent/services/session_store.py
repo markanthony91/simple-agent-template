@@ -27,7 +27,35 @@ def thread_id(runtime) -> str:
     return validate_thread_id(value)
 
 
+def portfolio_context(runtime) -> tuple[int, str] | None:
+    context = runtime.context if isinstance(runtime.context, dict) else {}
+    value = context.get("portfolio_context")
+    if not isinstance(value, dict):
+        return None
+    scope_id = value.get("scope_id")
+    tenant_id = value.get("tenant_id")
+    if isinstance(scope_id, str) and scope_id.isdigit():
+        scope_id = int(scope_id)
+    if type(scope_id) is not int or scope_id <= 0:
+        raise ValueError("invalid_portfolio_scope")
+    if not isinstance(tenant_id, str) or not tenant_id.strip() or len(tenant_id) > 200:
+        raise ValueError("invalid_portfolio_tenant")
+    return scope_id, tenant_id.strip()
+
+
 class SessionStore:
+    def __new__(cls, root: Path | None = None):
+        backend = os.getenv("SESSION_BACKEND", "sqlite").strip().lower()
+        if cls is SessionStore and root is None and backend == "postgres":
+            from simple_agent.services.postgres_session_store import (
+                PostgresSessionStore,
+            )
+
+            return PostgresSessionStore()
+        if backend != "sqlite":
+            raise ValueError("unsupported_session_backend")
+        return super().__new__(cls)
+
     def __init__(self, root: Path | None = None):
         self.root = root or Path(os.getenv("SESSION_ROOT", "/data/sessions"))
         self.root.mkdir(parents=True, exist_ok=True)
@@ -107,6 +135,16 @@ class SessionStore:
             db = sqlite3.connect(self.database, timeout=10)
         try:
             with db:
+                journal = os.getenv("SESSION_SQLITE_JOURNAL_MODE", "").upper()
+                synchronous = os.getenv("SESSION_SQLITE_SYNCHRONOUS", "").upper()
+                if journal not in {"", "DELETE", "WAL"}:
+                    raise ValueError("unsupported_sqlite_journal_mode")
+                if synchronous not in {"", "FULL", "NORMAL"}:
+                    raise ValueError("unsupported_sqlite_synchronous")
+                if journal:
+                    db.execute(f"PRAGMA journal_mode = {journal}")
+                if synchronous:
+                    db.execute(f"PRAGMA synchronous = {synchronous}")
                 db.execute("PRAGMA foreign_keys = ON")
                 yield db
                 with timed_phase("session_commit"):
@@ -337,6 +375,72 @@ class SessionStore:
         except sqlite3.IntegrityError:
             return False
         return True
+
+    def ensure_portfolio(self, key: str, scope_id: int, tenant_id: str) -> bool:
+        """Pin a Playground session to one portfolio without a global debtor fallback."""
+        key = validate_thread_id(key)
+        if type(scope_id) is not int or scope_id <= 0:
+            raise ValueError("invalid_portfolio_scope")
+        if not isinstance(tenant_id, str) or not tenant_id.strip():
+            raise ValueError("invalid_portfolio_tenant")
+        tenant_id = tenant_id.strip()
+
+        simulator = SimulatorStore.for_portfolio(scope_id)
+
+        def fresh() -> dict:
+            state = {
+                "portfolio_scope_id": scope_id,
+                "portfolio_tenant_id": tenant_id,
+                "identity_verified": False,
+                "offers": {},
+                "agreements": {},
+                "payments": {},
+                "deliveries": {},
+                "receipts": {},
+                "snapshot_id": PersistentOKFStore().active_bundle_id(),
+            }
+            if simulator.exists():
+                fixture = simulator.load()
+                fixture.pop("_runtime", None)
+                fixture.pop("identity_validated", None)
+                state["fixture"] = fixture
+            else:
+                state["unbound_session"] = True
+            return state
+
+        with self._connect() as db:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute(
+                "SELECT data FROM sessions WHERE id = ?", (key,)
+            ).fetchone()
+            if not row:
+                db.execute(
+                    "INSERT INTO sessions(id,data) VALUES(?,?)",
+                    (key, json.dumps(fresh())),
+                )
+                return True
+
+            state = self._state(db, key, row[0])
+            current_scope = state.get("portfolio_scope_id")
+            if current_scope is not None:
+                if (
+                    current_scope != scope_id
+                    or state.get("portfolio_tenant_id") != tenant_id
+                ):
+                    raise ValueError("portfolio_scope_mismatch")
+                return False
+
+            # Legacy form-backed sessions are already pinned by session_contexts.
+            if state.get("demo_session") is True:
+                return False
+
+            # Old Playground sessions were silently hydrated from the global fixture.
+            # Replace only that tool state; LangGraph keeps the visible message history.
+            db.execute(
+                "UPDATE sessions SET data = ? WHERE id = ?",
+                (json.dumps(fresh()), key),
+            )
+            return True
 
     def reset_demo(self, key: str) -> bool:
         """Reset an existing Demo session in place; never create or reset Playground."""

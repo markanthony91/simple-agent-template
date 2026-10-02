@@ -55,6 +55,27 @@ def test_admin_tools_and_fixture_contract(admin):
     assert isinstance(result["result"]["debt"]["current_amount"], str)
 
 
+def test_admin_portfolio_simulator_starts_empty_and_is_isolated(admin):
+    empty = admin.execute({"operation": "get_simulator_fixture", "scope_id": 2})[
+        "result"
+    ]
+    assert empty == {"configured": False, "fixture": None}
+
+    legacy = admin.execute({"operation": "get_simulator_fixture"})["result"]
+    saved = admin.execute(
+        {
+            "operation": "save_simulator_fixture",
+            "scope_id": 2,
+            "fixture": {**legacy, "institution": "C6", "product": "Cartao Black"},
+        }
+    )["result"]
+    assert saved["configured"] is True
+    assert saved["fixture"]["institution"] == "C6"
+    assert admin.execute({"operation": "get_simulator_fixture", "scope_id": 3})[
+        "result"
+    ] == {"configured": False, "fixture": None}
+
+
 def test_future_form_requires_approval_and_passes_exact_contract(admin, monkeypatch):
     captured = {}
 

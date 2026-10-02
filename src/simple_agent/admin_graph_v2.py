@@ -32,6 +32,7 @@ class AdminState(TypedDict, total=False):
     query: str
     settings: dict[str, Any]
     payment_id: str
+    scope_id: int
 
 
 store = PersistentOKFStore()
@@ -44,6 +45,13 @@ def required_text(state: AdminState, key: str) -> str:
     if not isinstance(value, str) or not value:
         raise ValueError(f"{key} is required")
     return value
+
+
+def scoped_simulator(state: AdminState) -> SimulatorStore | None:
+    scope_id = state.get("scope_id")
+    if scope_id is None:
+        return None
+    return SimulatorStore.for_portfolio(scope_id)
 
 
 def execute(state: AdminState) -> AdminState:
@@ -159,12 +167,22 @@ def execute(state: AdminState) -> AdminState:
         elif operation == "reset_tools":
             result = registry.reset()
         elif operation == "get_simulator_fixture":
-            result = simulator.load()
+            scoped = scoped_simulator(state)
+            result = (
+                {
+                    "configured": scoped.exists(),
+                    "fixture": scoped.load() if scoped.exists() else None,
+                }
+                if scoped
+                else simulator.load()
+            )
         elif operation == "save_simulator_fixture":
             fixture = state.get("fixture")
             if not isinstance(fixture, dict):
                 raise ValueError("fixture must be an object")
-            result = simulator.save(fixture)
+            scoped = scoped_simulator(state)
+            saved = (scoped or simulator).save(fixture)
+            result = {"configured": True, "fixture": saved} if scoped else saved
         elif operation == "create_future_demo_session":
             form = state.get("demo_form")
             if not isinstance(form, dict):

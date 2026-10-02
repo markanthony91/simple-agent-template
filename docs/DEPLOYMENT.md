@@ -43,3 +43,33 @@ Do not run simultaneous replicas against this local persistence architecture.
 No live deployment, variable change, migration or gateway load test is implied
 by the local test suite. Existing assistant prompt/workflow overrides are preserved:
 review and update them explicitly; changing config/*.md cannot replace overrides.
+
+## Isolated OSS PostgreSQL canary
+
+The Dockerfile starts `simple_agent.oss_runtime:app` only when
+`OSS_RUNTIME_ENABLED=true`. Set that variable on the isolated canary alongside
+`SESSION_BACKEND=postgres`, `LANGGRAPH_STRICT_MSGPACK=true`,
+`SESSION_DATABASE_URL` for its own database, and a distinct
+`OSS_RUNTIME_API_TOKEN` of at least 32 characters. Browser origins, if needed,
+must be enumerated in `OSS_RUNTIME_CORS_ORIGINS`. Do not set these on the
+current principal as an incidental effect of building the image. On an empty
+PostgreSQL database, apply the repository migrations, import the Assistant
+definitions from a verified snapshot with `scripts/import_legacy_assistants.py`,
+and then start the canary. Startup creates empty conversation/archive tables and the OSS
+checkpoint schema; importing old threads is optional. The `legacy_assistants`
+table holds active Assistant configuration despite its historical name. Do not
+point this fresh start at the populated migration database or the current
+principal database. Keep the existing volume and database unchanged. The prior
+import and its evidence are documented in
+[OSS_CHECKPOINT_CANARY_2026-10-02.md](OSS_CHECKPOINT_CANARY_2026-10-02.md).
+
+Before any future route change, export the **live API state**, reconcile
+sessions, agreements, payment instructions, OKF data and Assistant versions.
+If old conversations are intentionally discarded, start new thread IDs and
+expect customers to repeat identity verification; do not discard operational
+records with the chat history. Test HTTP/SSE and the real clients, and record
+the current main deployment as the return target. Keep the old volume and its
+Railway backup. There is no automatic dual-write or rejoin API in the canary,
+so a failed post-cutover run cannot be assumed to exist on the old SQLite
+service. A rollback decision must
+account for work created after the switch.
