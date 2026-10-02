@@ -266,6 +266,9 @@ instructions. The canary supports session state, identity, OKF reads, payment
 offers, payment status and boleto second-copy lookup. The benchmark uses only
 synthetic data, checks reset and cross-session ownership, and removes its rows
 after each run. No production cutover is performed by these commands.
+The isolated OSS canary can also start with an empty conversation history;
+import Assistant configuration separately and follow
+[the controlled deployment guide](docs/DEPLOYMENT.md#isolated-oss-postgresql-canary).
 
 The benchmark compares SQLite `DELETE/FULL`, `WAL/FULL`, `WAL/NORMAL` and
 PostgreSQL, including four concurrent writers by default. `BENCHMARK_ROOT=/data`

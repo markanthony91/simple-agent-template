@@ -131,6 +131,30 @@ def _setup():
     with _db() as db:
         db.execute("CREATE SCHEMA IF NOT EXISTS langgraph")
         db.execute(
+            """CREATE TABLE IF NOT EXISTS langgraph.legacy_assistants (
+                assistant_id uuid PRIMARY KEY,
+                graph_id text NOT NULL,
+                record jsonb NOT NULL,
+                source_sha256 text NOT NULL,
+                imported_at timestamptz NOT NULL DEFAULT now(),
+                hostname text NOT NULL
+            )"""
+        )
+        db.execute(
+            """CREATE TABLE IF NOT EXISTS langgraph.legacy_thread_state (
+                thread_id text PRIMARY KEY,
+                status text NOT NULL,
+                metadata jsonb NOT NULL,
+                state jsonb NOT NULL,
+                created_at timestamptz,
+                updated_at timestamptz,
+                state_updated_at timestamptz,
+                source_sha256 text NOT NULL,
+                imported_at timestamptz NOT NULL DEFAULT now(),
+                hostname text NOT NULL
+            )"""
+        )
+        db.execute(
             """CREATE TABLE IF NOT EXISTS langgraph.oss_threads (
                 thread_id uuid PRIMARY KEY,
                 metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
@@ -139,9 +163,7 @@ def _setup():
                 updated_at timestamptz NOT NULL DEFAULT now()
             )"""
         )
-        for name in ("legacy_assistants", "legacy_thread_state", "checkpoints"):
-            if not db.execute("SELECT to_regclass(%s)", ("langgraph." + name,)).fetchone()["to_regclass"]:
-                raise RuntimeError("migration_missing:" + name)
+        PostgresSaver(db).setup()
 
 
 async def info(_request):
