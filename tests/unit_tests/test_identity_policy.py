@@ -238,14 +238,14 @@ def test_unbound_whatsapp_hides_financial_tools_and_identity_prompt(
     )
     filtered = tool_middleware.filter_enabled_tools._filtered_request(request)
     names = {tool.name for tool in filtered.tools}
-    assert names.isdisjoint(tool_middleware.FINANCIAL_TOOLS)
+    assert names.isdisjoint(tool_middleware.UNBOUND_BLOCKED_TOOLS)
+    assert "verify_and_get_customer" in names
     assert "okf_index" in names
     assert "Sessão sem dívida vinculada" in filtered.system_message.content
     assert "CPF completo" not in filtered.system_message.content
-    with pytest.raises(PermissionError, match="demo_session_required"):
-        tool_middleware.filter_enabled_tools._assert_tool_allowed(
-            "verify_and_get_customer", "whatsapp-unbound"
-        )
+    tool_middleware.filter_enabled_tools._assert_tool_allowed(
+        "verify_and_get_customer", "whatsapp-unbound"
+    )
 
 
 @pytest.mark.anyio

@@ -172,6 +172,15 @@ def verify_and_get_customer(
     Without a resolved directory, use normal OKF discovery; never guess a company.
     """
     with SessionStore().transaction(thread_id(runtime)) as state:
+        if state.get("unbound_session") is True or "fixture" not in state:
+            return _json(
+                {
+                    "verified": False,
+                    "found": False,
+                    "financial_data_available": False,
+                    "reason": "customer_not_found",
+                }
+            )
         result = _verify_identity(state, runtime, cpf, full_name, birth_date)
         if result["verified"]:
             result["customer"] = _customer_payload(state)

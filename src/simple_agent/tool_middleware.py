@@ -26,7 +26,7 @@ from simple_agent.tool_observability import (
     sanitize_tool_args,
     tool_outcome,
 )
-from simple_agent.services.session_store import SessionStore
+from simple_agent.services.session_store import SessionStore, portfolio_context
 from simple_agent.services.identity_policy import instructions, policy_for
 from simple_agent.services.response_audit import audit_response
 from langgraph.config import get_config
@@ -53,15 +53,17 @@ FINANCIAL_TOOLS = {
     "send_payment_instruction",
     "get_payment_status",
 }
+UNBOUND_BLOCKED_TOOLS = FINANCIAL_TOOLS - {"verify_and_get_customer"}
 UNBOUND_SESSION_INSTRUCTION = """
 
 # Sessão sem dívida vinculada (regra do backend)
 
-Este contato iniciou a conversa sem uma sessão criada pelo formulário. Não há
-cliente, CPF, saldo, dívida, proposta ou pagamento disponível. Não solicite dados
-de identidade e não apresente valores. Responda apenas dúvidas institucionais pelas
-tools OKF; para consultar ou negociar uma dívida, informe que é necessário iniciar
-pelo formulário da demonstração. Esta regra prevalece sobre instruções conflitantes.
+Esta carteira não possui devedor vinculado à conversa. Não há saldo, dívida,
+proposta ou pagamento disponível. Use verify_and_get_customer somente quando o
+Workflow ativo determinar intenção de consultar a própria situação; a tool retorna
+customer_not_found sem expor outra carteira. Siga o Workflow para esse resultado.
+Dúvidas institucionais usam somente os escopos OKF autorizados. Esta regra prevalece
+sobre instruções conflitantes.
 """
 IDENTITY_OBJECT = (
     r"(?:\bcpf\b|nome completo|data de nascimento|4 primeiros digitos|"
@@ -555,7 +557,7 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
     def _assert_tool_allowed(tool_name: str, key: str) -> None:
         if tool_name not in registry.enabled_names():
             raise PermissionError("tool_disabled")
-        if tool_name not in FINANCIAL_TOOLS:
+        if tool_name not in UNBOUND_BLOCKED_TOOLS:
             return
         session = SessionStore().read(key)
         if session.get("unbound_session") is True:
@@ -568,7 +570,11 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         key = get_config().get("configurable", {}).get("thread_id")
         if not key:
             raise ValueError("server_thread_id_required")
-        session = SessionStore().read(key)
+        sessions = SessionStore()
+        context_scope = portfolio_context(request.runtime)
+        if context_scope:
+            sessions.ensure_portfolio(key, *context_scope)
+        session = sessions.read(key)
         unbound = session.get("unbound_session") is True
         contract = UNBOUND_SESSION_INSTRUCTION if unbound else instructions(session)
         creditor = (
@@ -596,7 +602,9 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             tool
             for tool in request.tools
             if getattr(tool, "name", None) in enabled
-            and (not unbound or getattr(tool, "name", None) not in FINANCIAL_TOOLS)
+            and (
+                not unbound or getattr(tool, "name", None) not in UNBOUND_BLOCKED_TOOLS
+            )
         ]
         return request.override(
             tools=tools,
