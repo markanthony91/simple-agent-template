@@ -16,4 +16,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 2024
 
 ENTRYPOINT ["python", "-m", "simple_agent.startup"]
-CMD ["sh", "-c", "langgraph dev --host 0.0.0.0 --port ${PORT:-2024} --no-browser --n-jobs-per-worker ${LANGGRAPH_N_JOBS_PER_WORKER:-1}"]
+CMD ["sh", "-c", "if [ \"${OSS_RUNTIME_ENABLED:-false}\" = true ]; then exec uvicorn simple_agent.oss_runtime:app --host 0.0.0.0 --port ${PORT:-2024}; else exec langgraph dev --host 0.0.0.0 --port ${PORT:-2024} --no-browser --n-jobs-per-worker ${LANGGRAPH_N_JOBS_PER_WORKER:-1}; fi"]
