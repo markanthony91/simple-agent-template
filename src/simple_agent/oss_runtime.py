@@ -24,7 +24,7 @@ from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse, StreamingResponse
+from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from simple_agent.admin_graph_v2 import graph as admin_graph
@@ -225,6 +225,25 @@ async def thread_get(request):
     return _response(row) if row else _response({"detail": "not_found"}, 404)
 
 
+async def thread_delete(request):
+    thread_id = request.path_params["thread_id"]
+
+    def remove():
+        with _db() as db:
+            row = db.execute(
+                "SELECT 1 FROM langgraph.oss_threads WHERE thread_id=%s", (thread_id,)
+            ).fetchone()
+            if not row:
+                return False
+            PostgresSaver(db).delete_thread(thread_id)
+            db.execute("DELETE FROM langgraph.oss_threads WHERE thread_id=%s", (thread_id,))
+            return True
+
+    return Response(status_code=204) if await run_in_threadpool(remove) else _response(
+        {"detail": "not_found_or_legacy"}, 404
+    )
+
+
 async def thread_search(request):
     body = await request.json()
     metadata = body.get("metadata") or {}
@@ -409,6 +428,7 @@ app = Starlette(
         Route("/threads", thread_create, methods=["POST"]),
         Route("/threads/search", thread_search, methods=["POST"]),
         Route("/threads/{thread_id}", thread_get),
+        Route("/threads/{thread_id}", thread_delete, methods=["DELETE"]),
         Route("/threads/{thread_id}/state", thread_state),
         Route("/threads/{thread_id}/history", thread_history, methods=["POST"]),
         Route("/runs/wait", run_wait, methods=["POST"]),

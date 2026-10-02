@@ -43,3 +43,23 @@ Do not run simultaneous replicas against this local persistence architecture.
 No live deployment, variable change, migration or gateway load test is implied
 by the local test suite. Existing assistant prompt/workflow overrides are preserved:
 review and update them explicitly; changing config/*.md cannot replace overrides.
+
+## Isolated OSS PostgreSQL canary
+
+The Dockerfile starts `simple_agent.oss_runtime:app` only when
+`OSS_RUNTIME_ENABLED=true`. Set that variable on the isolated canary alongside
+`SESSION_BACKEND=postgres`, `LANGGRAPH_STRICT_MSGPACK=true`,
+`SESSION_DATABASE_URL` for its own database, and a distinct
+`OSS_RUNTIME_API_TOKEN` of at least 32 characters. Browser origins, if needed,
+must be enumerated in `OSS_RUNTIME_CORS_ORIGINS`. Do not set these on the
+current principal as an incidental effect of building the image. The canary
+requires the imported Assistant and thread archive tables documented in
+[OSS_CHECKPOINT_CANARY_2026-10-02.md](OSS_CHECKPOINT_CANARY_2026-10-02.md).
+
+Before any future route change, export the **live API state**, reconcile
+sessions and Assistant versions, verify all resumable message IDs and contents,
+test HTTP/SSE and the real clients, and record the current main deployment as
+the return target. Keep the old volume and its Railway backup. There is no
+automatic dual-write or rejoin API in the canary, so a failed post-cutover run
+cannot be assumed to exist on the old SQLite service. A rollback decision must
+account for work created after the switch.

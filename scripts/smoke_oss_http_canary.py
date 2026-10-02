@@ -9,7 +9,9 @@ from urllib.request import Request, urlopen
 from uuid import uuid4
 
 CANARY_SERVICE_ID = "accedeb1-4a8d-455e-a7ed-f4d2d7d92dec"
-AGENT_ID = "05fd1686-9a81-4975-bd3b-0b288391d109"
+AGENT_ID = os.getenv(
+    "CANARY_TEST_ASSISTANT_ID", "05fd1686-9a81-4975-bd3b-0b288391d109"
+)
 
 
 def main() -> None:
@@ -37,16 +39,19 @@ def main() -> None:
     assert admin["result"]["thread_id"] == thread_id, "admin"
     created = post("/threads", {"thread_id": thread_id, "metadata": {"channel": "canary"}})
     assert created["thread_id"] == thread_id, "thread"
+    first_message_id = str(uuid4())
     first = post(f"/threads/{thread_id}/runs/wait", {
         "assistant_id": AGENT_ID, "input": {
-            "messages": [{"id": str(uuid4()), "type": "human", "content": "Olá"}]
+            "messages": [{"id": first_message_id, "type": "human", "content": "Olá"}]
         },
     })
     assert len(first["messages"]) >= 2 and first["messages"][-1]["type"] == "ai", "run"
+    assert first["messages"][-1].get("response_metadata", {}).get("finish_reason") == "stop", "finish"
+    second_message_id = str(uuid4())
     request = Request(
         base + f"/threads/{thread_id}/runs/stream",
         data=json.dumps({"assistant_id": AGENT_ID, "stream_mode": ["values"], "input": {
-            "messages": [{"id": str(uuid4()), "type": "human", "content": "Obrigado"}]
+            "messages": [{"id": second_message_id, "type": "human", "content": "Obrigado"}]
         }}).encode(),
         headers={"Content-Type": "application/json", "X-Api-Key": token},
     )
@@ -54,6 +59,8 @@ def main() -> None:
         events = [json.loads(line[6:]) for line in response if line.startswith(b"data: ")]
     assert events and "__error__" not in events[-1], "stream"
     assert len(events[-1]["messages"]) > len(first["messages"]), "resume"
+    assert any(message.get("id") == second_message_id for message in events[-1]["messages"]), "stream_input"
+    assert events[-1]["messages"][-1].get("response_metadata", {}).get("finish_reason") == "stop", "stream_finish"
     print({"http": "ok", "assistants": len(assistants), "admin": "ok",
            "wait": "ok", "stream": "ok", "resume": "ok"})
 

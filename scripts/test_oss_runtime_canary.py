@@ -11,10 +11,12 @@ import sys
 from uuid import uuid4
 
 import psycopg
+from psycopg.types.json import Jsonb
 from starlette.testclient import TestClient
 
 CANARY_SERVICE_ID = "accedeb1-4a8d-455e-a7ed-f4d2d7d92dec"
 DEFAULT_AGENT_ID = "05fd1686-9a81-4975-bd3b-0b288391d109"
+ADMIN_ID = "5e8312e7-6e09-5ce6-80a8-040e86b35af1"
 
 
 def main() -> None:
@@ -32,6 +34,49 @@ def main() -> None:
     headers = {"X-Api-Key": token}
     thread_id = str(uuid4())
     with TestClient(module.app) as client:
+        assistant_id = str(uuid4())
+        record = {
+            "assistant_id": assistant_id, "graph_id": "agent", "version": 1,
+            "config": {}, "context": {"system_prompt": "before"},
+            "metadata": {"created_by": "canary-test"}, "name": "canary-test",
+            "description": "", "created_at": "2026-10-02T00:00:00Z",
+            "updated_at": "2026-10-02T00:00:00Z",
+        }
+        with psycopg.connect(os.environ["SESSION_DATABASE_URL"], autocommit=True) as db:
+            db.execute(
+                """INSERT INTO langgraph.legacy_assistants
+                   (assistant_id,graph_id,record,source_sha256,hostname)
+                   VALUES (%s,%s,%s,%s,%s)""",
+                (assistant_id, "agent", Jsonb(record), "synthetic", "canary-test"),
+            )
+            try:
+                changed = client.patch(
+                    f"/assistants/{assistant_id}",
+                    json={"context": {"system_prompt": "after"}}, headers=headers,
+                )
+                assert changed.status_code == 200 and changed.json()["version"] == 2, "assistant_update"
+                assert client.get(f"/assistants/{assistant_id}", headers=headers).json()["context"]["system_prompt"] == "after", "assistant_readback"
+            finally:
+                db.execute("DELETE FROM langgraph.legacy_assistants WHERE assistant_id=%s", (assistant_id,))
+        disposable = str(uuid4())
+        blank = client.post("/threads", json={"thread_id": disposable}, headers=headers)
+        assert blank.status_code == 200, "create_disposable"
+        deleted = client.delete(f"/threads/{disposable}", headers=headers)
+        assert deleted.status_code == 204, "delete_disposable"
+        admin_thread = str(uuid4())
+        assert client.post("/threads", json={"thread_id": admin_thread}, headers=headers).status_code == 200, "admin_thread"
+        admin_events = []
+        with client.stream(
+            "POST", f"/threads/{admin_thread}/runs/stream",
+            json={"assistant_id": ADMIN_ID, "input": {"operation": "status"}, "stream_mode": ["values"]},
+            headers=headers,
+        ) as admin_stream:
+            assert admin_stream.status_code == 200, "admin_stream_status"
+            for line in admin_stream.iter_lines():
+                if line.startswith("data: "):
+                    admin_events.append(json.loads(line[6:]))
+        assert admin_events and admin_events[-1].get("error") == "", "admin_stream"
+        assert client.delete(f"/threads/{admin_thread}", headers=headers).status_code == 204, "admin_delete"
         with psycopg.connect(os.environ["SESSION_DATABASE_URL"]) as db:
             archived = db.execute(
                 "SELECT thread_id,jsonb_array_length(state->'messages') FROM langgraph.legacy_thread_state WHERE status='error' AND jsonb_array_length(state->'messages')>0 LIMIT 1"
@@ -97,7 +142,7 @@ def main() -> None:
         assert len(final_messages) > len(messages) and final_messages[-1]["type"] == "ai", "stream_reply"
         resumed = client.get(f"/threads/{thread_id}/state", headers=headers)
         assert len(resumed.json()["values"]["messages"]) == len(final_messages), "stream_state"
-    print({"archive": "ok", "search": "ok", "admin": "ok", "new_thread": "ok",
+    print({"archive": "ok", "search": "ok", "assistant_update": "ok", "delete": "ok", "admin": "ok", "admin_stream": "ok", "new_thread": "ok",
            "agent_run": "ok", "state": "ok", "stream": "ok", "resume": "ok"})
 
 

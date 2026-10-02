@@ -26,11 +26,18 @@ troca de tráfego, variáveis, serviço de chat ou Redis.
 
 Este backfill é um ponto no tempo. Antes de uma virada real, será preciso
 reconciliar alterações posteriores ao snapshot e repetir a comparação. O
-schema `langgraph` está apenas reservado: os checkpoints e mensagens do
-`langgraph dev` permanecem nos arquivos de `/data/langgraph`, sem migração
-completa. Um teste isolado de hidratação de estado final está em
-`OSS_CHECKPOINT_CANARY_2026-10-02.md`. Redis também não foi
-ativado no runtime principal. A migração de checkpoints para LangGraph OSS com
-PostgreSQL exige um plano separado de compatibilidade, teste de retomada e
-rollback. O projeto não adotará LangSmith Agent Server nem sua licença. Não usar
-este backfill como autorização de cutover.
+estado mais recente está registrado em `OSS_CHECKPOINT_CANARY_2026-10-02.md`.
+Redis não foi ativado no runtime principal. O projeto não adotará LangSmith
+Agent Server nem sua licença. Não usar este backfill como autorização de
+cutover.
+
+## Reconciliação posterior
+
+Um segundo backup consistente do SQLite, SHA-256
+`4ab773fbdb81918c2a186c854c43031c266216467d1806c4977b4b46b6825100`,
+foi importado com `scripts/reconcile_sqlite_snapshot.py`. O canário passou
+para 581 sessões, 316 recibos, 40 acordos e 40 instruções. A comparação
+transacional dos quatro conjuntos passou e a repetição do comando não mudou
+nenhuma linha. As dez sessões sintéticas de testes posteriores foram
+removidas do canário; ele voltou a 581 sessões. O principal ainda tinha 581
+sessões às 02:47 UTC. Revalidar antes de qualquer virada.
