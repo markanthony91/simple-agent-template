@@ -28,7 +28,8 @@ Este backfill é um ponto no tempo. Antes de uma virada real, será preciso
 reconciliar alterações posteriores ao snapshot e repetir a comparação. O
 schema `langgraph` está apenas reservado: os checkpoints e mensagens do
 `langgraph dev` permanecem nos arquivos de `/data/langgraph`, sem migração
-nem teste de retomada de conversa antiga no PostgreSQL. Redis também não foi
+completa. Um teste isolado de hidratação de estado final está em
+`OSS_CHECKPOINT_CANARY_2026-10-02.md`. Redis também não foi
 ativado no runtime principal. A migração de checkpoints para LangGraph OSS com
 PostgreSQL exige um plano separado de compatibilidade, teste de retomada e
 rollback. O projeto não adotará LangSmith Agent Server nem sua licença. Não usar
