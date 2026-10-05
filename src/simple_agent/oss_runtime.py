@@ -10,11 +10,15 @@ import copy
 import hmac
 import json
 import os
+import threading
+import time
 from contextlib import asynccontextmanager, closing
 from datetime import UTC, datetime
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import UUID, uuid4
 
 import psycopg
+import redis
 from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
@@ -32,6 +36,28 @@ from simple_agent.managed_graph import graph as agent_graph
 from simple_agent.raw_compiler_graph import graph as raw_graph
 
 GRAPHS = {"agent": agent_graph, "okf_admin": admin_graph, "raw_compiler": raw_graph}
+_RUN_KEY = "oss-runtime:v1"
+_run_worker_stop = threading.Event()
+_run_worker = None
+
+
+def _redis_enabled():
+    return os.getenv("OSS_RUNTIME_REDIS_ENABLED") == "true"
+
+
+def _redis():
+    url = os.environ["OSS_RUNTIME_REDIS_URL"]
+    parsed = urlsplit(url)
+    if parsed.scheme not in {"redis", "rediss"} or not parsed.hostname:
+        raise ValueError("invalid_redis_url")
+    database = int(os.getenv("OSS_RUNTIME_REDIS_DB", "1"))
+    if not 0 <= database <= 15:
+        raise ValueError("invalid_redis_database")
+    query = urlencode([(key, value) for key, value in parse_qsl(parsed.query) if key != "db"])
+    isolated_url = urlunsplit(parsed._replace(path=f"/{database}", query=query))
+    return redis.Redis.from_url(
+        isolated_url, decode_responses=True, socket_connect_timeout=2, socket_timeout=2
+    )
 
 
 def _db():
@@ -163,10 +189,30 @@ def _setup():
                 updated_at timestamptz NOT NULL DEFAULT now()
             )"""
         )
+        db.execute(
+            """CREATE TABLE IF NOT EXISTS langgraph.oss_runs (
+                run_id uuid PRIMARY KEY,
+                thread_id uuid,
+                assistant_id text NOT NULL,
+                input jsonb NOT NULL,
+                status text NOT NULL DEFAULT 'queued'
+                  CHECK (status IN ('queued','running','succeeded','failed','cancelled')),
+                result jsonb,
+                cancel_requested boolean NOT NULL DEFAULT false,
+                created_at timestamptz NOT NULL DEFAULT now(),
+                updated_at timestamptz NOT NULL DEFAULT now()
+            )"""
+        )
+        db.execute(
+            """CREATE INDEX IF NOT EXISTS oss_runs_queued_idx
+               ON langgraph.oss_runs(created_at) WHERE status='queued'"""
+        )
         PostgresSaver(db).setup()
 
 
 async def info(_request):
+    if _redis_enabled() and (_run_worker is None or not _run_worker.is_alive()):
+        return _response({"detail": "worker_unavailable"}, 503)
     return _response({"graphs": list(GRAPHS), "version": "oss-canary"})
 
 
@@ -257,13 +303,20 @@ async def thread_delete(request):
             ).fetchone()
             if not row:
                 return False
+            if _redis_enabled() and db.execute(
+                """SELECT 1 FROM langgraph.oss_runs
+                   WHERE thread_id=%s AND status IN ('queued','running') LIMIT 1""",
+                (thread_id,),
+            ).fetchone():
+                return "busy"
             PostgresSaver(db).delete_thread(thread_id)
             db.execute("DELETE FROM langgraph.oss_threads WHERE thread_id=%s", (thread_id,))
             return True
 
-    return Response(status_code=204) if await run_in_threadpool(remove) else _response(
-        {"detail": "not_found_or_legacy"}, 404
-    )
+    result = await run_in_threadpool(remove)
+    if result == "busy":
+        return _response({"detail": "thread_busy"}, 409)
+    return Response(status_code=204) if result else _response({"detail": "not_found_or_legacy"}, 404)
 
 
 async def thread_search(request):
@@ -374,7 +427,9 @@ def _run(assistant_id, input_value, thread_id=None, stream=False):
                 )
             kwargs = {"context": assistant.get("context") or {}}
             if stream:
-                yield from graph.stream(input_value, config, stream_mode="values", **kwargs)
+                yield from graph.stream(
+                    input_value, config, stream_mode="values", **kwargs
+                )
             else:
                 yield graph.invoke(input_value, config, **kwargs)
         finally:
@@ -382,12 +437,173 @@ def _run(assistant_id, input_value, thread_id=None, stream=False):
                 db.execute("SELECT pg_advisory_unlock(hashtext(%s))", (thread_id,))
 
 
+def _run_channel(run_id):
+    return f"{_RUN_KEY}:events:{run_id}"
+
+
+def _enqueue_run(run_id, assistant_id, input_value, thread_id, client):
+    with _db() as db:
+        db.execute(
+            """INSERT INTO langgraph.oss_runs(run_id,thread_id,assistant_id,input)
+               VALUES (%s,%s,%s,%s)""",
+            (run_id, thread_id, assistant_id, Jsonb(input_value)),
+        )
+    # The queue contains only wake-up signals. PostgreSQL owns the run input.
+    try:
+        client.lpush(f"{_RUN_KEY}:wake", "1")
+    except redis.RedisError:
+        pass  # The worker also polls PostgreSQL after a bounded timeout.
+    return run_id
+
+
+def _run_row(run_id):
+    with _db() as db:
+        return db.execute(
+            """SELECT run_id::text,status,result,cancel_requested
+               FROM langgraph.oss_runs WHERE run_id=%s""",
+            (run_id,),
+        ).fetchone()
+
+
+def _claim_run():
+    with _db() as db, db.transaction():
+        row = db.execute(
+            """SELECT run_id::text,thread_id::text,assistant_id,input
+               FROM langgraph.oss_runs WHERE status='queued'
+               ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1"""
+        ).fetchone()
+        if row:
+            db.execute(
+                """UPDATE langgraph.oss_runs SET status='running',updated_at=now()
+                   WHERE run_id=%s""",
+                (row["run_id"],),
+            )
+        return row
+
+
+def _publish(client, run_id, kind, value=None):
+    try:
+        client.publish(
+            _run_channel(run_id),
+            json.dumps({"kind": kind, "value": value}, default=_json),
+        )
+    except redis.RedisError:
+        pass  # Final state remains queryable in PostgreSQL.
+
+
+def _execute_queued_run(row, client):
+    run_id = row["run_id"]
+    result = None
+    stored_result = None
+    status = "succeeded"
+    try:
+        if _run_row(run_id)["cancel_requested"]:
+            status = "cancelled"
+        else:
+            with closing(
+                _run(row["assistant_id"], row["input"], row["thread_id"], stream=True)
+            ) as execution:
+                for result in execution:
+                    _publish(client, run_id, "values", result)
+                    with _db() as db:
+                        cancelled = db.execute(
+                            "SELECT cancel_requested FROM langgraph.oss_runs WHERE run_id=%s",
+                            (run_id,),
+                        ).fetchone()["cancel_requested"]
+                    if cancelled:
+                        status = "cancelled"
+                        break
+            if status == "succeeded":
+                stored_result = json.loads(json.dumps(result, default=_json))
+    except Exception:  # noqa: BLE001 - provider and conversation data stay out of logs
+        status = "failed"
+    finally:
+        with _db() as db, db.transaction():
+            final = db.execute(
+                "SELECT cancel_requested FROM langgraph.oss_runs WHERE run_id=%s FOR UPDATE",
+                (run_id,),
+            ).fetchone()
+            if final["cancel_requested"] and status == "succeeded":
+                status = "cancelled"
+            db.execute(
+                """UPDATE langgraph.oss_runs
+                   SET status=%s,result=%s,updated_at=now() WHERE run_id=%s""",
+                (
+                    status,
+                    Jsonb(stored_result) if status == "succeeded" else None,
+                    run_id,
+                ),
+            )
+    _publish(client, run_id, status)
+
+
+def _worker_loop(stop, client):
+    try:
+        while not stop.is_set():
+            try:
+                client.brpop(f"{_RUN_KEY}:wake", timeout=1)
+            except redis.RedisError:
+                stop.wait(1)
+            try:
+                while row := _claim_run():
+                    _execute_queued_run(row, client)
+            except psycopg.Error:
+                stop.wait(1)
+    finally:
+        client.close()
+
+
+def _cancel_run(run_id, client):
+    with _db() as db:
+        row = db.execute(
+            """UPDATE langgraph.oss_runs SET cancel_requested=true,
+                      status=CASE WHEN status='queued' THEN 'cancelled' ELSE status END,
+                      updated_at=now()
+               WHERE run_id=%s AND status IN ('queued','running')
+               RETURNING status""",
+            (run_id,),
+        ).fetchone()
+    if row:
+        _publish(client, run_id, "cancel_requested")
+    return row
+
+
 async def run_wait(request):
     body = await request.json()
     thread_id = request.path_params.get("thread_id")
 
+    if _redis_enabled():
+        if not body.get("assistant_id") or not isinstance(body.get("input"), dict):
+            return _response({"detail": "invalid_request"}, 400)
+
+        def wait_for_run():
+            client = _redis()
+            try:
+                run_id = str(uuid4())
+                _enqueue_run(
+                    run_id, body["assistant_id"], body["input"], thread_id, client
+                )
+                deadline = time.monotonic() + 180
+                while time.monotonic() < deadline:
+                    row = _run_row(run_id)
+                    if row["status"] in {"succeeded", "failed", "cancelled"}:
+                        return run_id, row
+                    time.sleep(0.25)
+                return run_id, None
+            finally:
+                client.close()
+
+        run_id, row = await run_in_threadpool(wait_for_run)
+        if row is None:
+            return _response({"detail": "run_timeout", "run_id": run_id}, 504)
+        if row["status"] != "succeeded":
+            return _response({"detail": "run_" + row["status"], "run_id": run_id}, 409)
+        return _response(row["result"])
+
     def invoke():
-        with closing(_run(body["assistant_id"], body.get("input") or {}, thread_id)) as run:
+        with closing(
+            _run(body["assistant_id"], body.get("input") or {}, thread_id)
+        ) as run:
             return next(run)
 
     try:
@@ -396,10 +612,18 @@ async def run_wait(request):
         return _response({"detail": "invalid_request"}, 400)
     except ValueError as exc:
         reason = str(exc)
-        known = {"assistant_not_found", "thread_not_found", "archived_error_thread",
-                 "assistant_mismatch", "graph_mismatch", "thread_busy"}
-        return _response({"detail": reason if reason in known else "run_failed"},
-                         409 if reason in known else 500)
+        known = {
+            "assistant_not_found",
+            "thread_not_found",
+            "archived_error_thread",
+            "assistant_mismatch",
+            "graph_mismatch",
+            "thread_busy",
+        }
+        return _response(
+            {"detail": reason if reason in known else "run_failed"},
+            409 if reason in known else 500,
+        )
     return _response(result)
 
 
@@ -409,14 +633,119 @@ async def run_stream(request):
     if not body.get("assistant_id") or not isinstance(body.get("input"), dict):
         return _response({"detail": "invalid_request"}, 400)
 
+    if _redis_enabled():
+        client = _redis()
+        run_id = str(uuid4())
+        pubsub = client.pubsub()
+        try:
+            await run_in_threadpool(pubsub.subscribe, _run_channel(run_id))
+            await run_in_threadpool(
+                pubsub.get_message, ignore_subscribe_messages=True, timeout=1
+            )
+            await run_in_threadpool(
+                _enqueue_run,
+                run_id,
+                body["assistant_id"],
+                body["input"],
+                thread_id,
+                client,
+            )
+        except Exception:
+            pubsub.close()
+            client.close()
+            return _response({"detail": "run_unavailable"}, 503)
+
+        def events_from_redis():
+            last_value = None
+            finished = False
+            pubsub_healthy = True
+            try:
+                deadline = time.monotonic() + 300
+                while time.monotonic() < deadline:
+                    message = None
+                    if pubsub_healthy:
+                        try:
+                            message = pubsub.get_message(
+                                ignore_subscribe_messages=True, timeout=0.5
+                            )
+                        except redis.RedisError:
+                            pubsub_healthy = False
+                    if message and message["type"] == "message":
+                        event = json.loads(message["data"])
+                        if event["kind"] == "values":
+                            last_value = event["value"]
+                            yield (
+                                "event: values\ndata: "
+                                + json.dumps(last_value)
+                                + "\n\n"
+                            )
+                    row = _run_row(run_id)
+                    if row["status"] in {"succeeded", "failed", "cancelled"}:
+                        finished = True
+                        if row["status"] == "succeeded" and row["result"] != last_value:
+                            yield (
+                                "event: values\ndata: "
+                                + json.dumps(row["result"])
+                                + "\n\n"
+                            )
+                        elif row["status"] != "succeeded":
+                            yield 'event: error\ndata: {"error":"run_failed"}\n\n'
+                        return
+                    if not pubsub_healthy:
+                        time.sleep(0.5)
+                yield 'event: error\ndata: {"error":"run_timeout"}\n\n'
+            finally:
+                pubsub.close()
+                if body.get("on_disconnect") == "cancel" and not finished:
+                    _cancel_run(run_id, client)
+                client.close()
+
+        return StreamingResponse(
+            events_from_redis(),
+            media_type="text/event-stream",
+            headers={"X-Run-Id": run_id},
+        )
+
     def events():
         try:
-            for value in _run(body["assistant_id"], body["input"], thread_id, stream=True):
-                yield "event: values\ndata: " + json.dumps(value, default=_json) + "\n\n"
+            for value in _run(
+                body["assistant_id"], body["input"], thread_id, stream=True
+            ):
+                yield (
+                    "event: values\ndata: " + json.dumps(value, default=_json) + "\n\n"
+                )
         except Exception:  # noqa: BLE001 - never leak conversation or provider details
             yield 'event: error\ndata: {"error":"run_failed"}\n\n'
 
     return StreamingResponse(events(), media_type="text/event-stream")
+
+
+async def run_status(request):
+    try:
+        run_id = str(UUID(request.path_params["run_id"]))
+    except ValueError:
+        return _response({"detail": "invalid_run_id"}, 400)
+    row = await run_in_threadpool(_run_row, run_id)
+    return _response(row) if row else _response({"detail": "not_found"}, 404)
+
+
+async def run_cancel(request):
+    if not _redis_enabled():
+        return _response({"detail": "not_available"}, 404)
+    try:
+        run_id = str(UUID(request.path_params["run_id"]))
+    except ValueError:
+        return _response({"detail": "invalid_run_id"}, 400)
+    client = _redis()
+    try:
+        row = await run_in_threadpool(_cancel_run, run_id, client)
+    finally:
+        client.close()
+    return (
+        _response({"run_id": run_id, "status": row["status"]})
+        if row
+        else _response({"detail": "not_found_or_finished"}, 404)
+    )
 
 
 async def auth(request, call_next):
@@ -427,8 +756,27 @@ async def auth(request, call_next):
 
 @asynccontextmanager
 async def lifespan(_app):
+    global _run_worker
     _setup()
-    yield
+    if _redis_enabled():
+        client = _redis()
+        client.ping()
+        client.close()
+        _run_worker_stop.clear()
+        _run_worker = threading.Thread(
+            target=_worker_loop,
+            args=(_run_worker_stop, _redis()),
+            daemon=True,
+            name="oss-run-worker",
+        )
+        _run_worker.start()
+    try:
+        yield
+    finally:
+        if _run_worker is not None:
+            _run_worker_stop.set()
+            _run_worker.join(timeout=3)
+            _run_worker = None
 
 
 app = Starlette(
@@ -436,9 +784,14 @@ app = Starlette(
     middleware=[
         Middleware(
             CORSMiddleware,
-            allow_origins=[origin for origin in os.getenv("OSS_RUNTIME_CORS_ORIGINS", "").split(",") if origin],
+            allow_origins=[
+                origin
+                for origin in os.getenv("OSS_RUNTIME_CORS_ORIGINS", "").split(",")
+                if origin
+            ],
             allow_methods=["GET", "POST", "PATCH", "OPTIONS"],
             allow_headers=["X-Api-Key", "Content-Type"],
+            expose_headers=["X-Run-Id"],
         ),
         Middleware(BaseHTTPMiddleware, dispatch=auth),
     ],
@@ -456,5 +809,10 @@ app = Starlette(
         Route("/runs/wait", run_wait, methods=["POST"]),
         Route("/threads/{thread_id}/runs/wait", run_wait, methods=["POST"]),
         Route("/threads/{thread_id}/runs/stream", run_stream, methods=["POST"]),
+        Route("/runs/{run_id}", run_status),
+        Route("/runs/{run_id}/cancel", run_cancel, methods=["POST"]),
+        Route(
+            "/threads/{thread_id}/runs/{run_id}/cancel", run_cancel, methods=["POST"]
+        ),
     ],
 )

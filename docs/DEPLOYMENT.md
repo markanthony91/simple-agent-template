@@ -73,3 +73,12 @@ Railway backup. There is no automatic dual-write or rejoin API in the canary,
 so a failed post-cutover run cannot be assumed to exist on the old SQLite
 service. A rollback decision must
 account for work created after the switch.
+
+For Redis-backed execution, set `OSS_RUNTIME_REDIS_ENABLED=true` and
+`OSS_RUNTIME_REDIS_URL` only on the isolated Runtime. `OSS_RUNTIME_REDIS_DB=1`
+keeps its transient keys separate from Playground and Canais, which currently
+use database 0. Run input, status and final result stay in PostgreSQL. A
+disconnected client can query `/runs/{run_id}`; live streaming does not replay
+every intermediate event. Cancellation is checked between graph events, not
+during a blocked model or tool call. Worker restart behavior and real client
+compatibility still need failure tests before any traffic cutover.

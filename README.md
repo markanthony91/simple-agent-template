@@ -269,6 +269,9 @@ after each run. No production cutover is performed by these commands.
 The isolated OSS canary can also start with an empty conversation history;
 import Assistant configuration separately and follow
 [the controlled deployment guide](docs/DEPLOYMENT.md#isolated-oss-postgresql-canary).
+With `OSS_RUNTIME_REDIS_ENABLED=true`, the isolated Runtime stores run input and
+results in PostgreSQL and uses Redis database 1 for worker wake-ups and live
+streaming. The principal `langgraph dev` service remains unchanged.
 
 The benchmark compares SQLite `DELETE/FULL`, `WAL/FULL`, `WAL/NORMAL` and
 PostgreSQL, including four concurrent writers by default. `BENCHMARK_ROOT=/data`
