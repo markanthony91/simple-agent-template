@@ -83,9 +83,10 @@ every intermediate event. Cancellation is checked between graph events, not
 during a blocked model or tool call. Worker restart behavior and real client
 compatibility still need failure tests before any traffic cutover.
 
-On 2026-10-05, the isolated Railway services were renamed **Agente de Testes**
-(`accedeb1-4a8d-455e-a7ed-f4d2d7d92dec`) and **Dados de Testes**
-(`4fe1fa72-c700-44fe-9132-6c8240d9e556`). Their IDs and the database's
+On 2026-10-05, the isolated Railway services were renamed **Agente de Homologação**
+(`accedeb1-4a8d-455e-a7ed-f4d2d7d92dec`, previously **Agente de Testes**)
+and **Dados de Homologação** (`4fe1fa72-c700-44fe-9132-6c8240d9e556`,
+previously **Dados de Testes**). Their IDs and the database's
 private hostname did not change. The Redis-enabled test deployment is
 `8362ba5d-9f25-4ff7-bf5e-1da8b6615c91`; no client route was changed. The
 principal Railway service's GitHub auto-deploy is disabled so `main` can hold
