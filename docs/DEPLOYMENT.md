@@ -92,3 +92,6 @@ private hostname did not change. The Redis-enabled test deployment is
 principal Railway service's GitHub auto-deploy is disabled so `main` can hold
 the tested code without publishing it to customer traffic. Check this setting
 explicitly before the later production cutover.
+
+For the current operator-facing Railway labels and stable service IDs, see
+[Railway service labels](RAILWAY_SERVICES.md).
