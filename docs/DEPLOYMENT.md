@@ -87,6 +87,12 @@ prior tool may already have sent an external instruction. Reconcile the
 business outcome before manually retrying. Real client compatibility still
 needs integrated testing before any traffic cutover.
 
+Since 0.17.4, `/info` returns 503 if PostgreSQL or Redis is unavailable. The
+Redis SSE reader yields control between polls, so `on_disconnect=cancel` marks
+the run for cancellation when the HTTP client leaves. Cancellation still waits
+for the current model/tool step to yield; a normal disconnect leaves the run
+queryable through `/runs/{run_id}`. Do not automatically replay a failed run.
+
 Os testes da versão 0.17.3, inclusive worker, Canais e Playground, estão em
 [Recuperação do worker e testes de clientes](WORKER_RECOVERY_VALIDATION_2026-10-06.md).
 

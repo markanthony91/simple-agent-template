@@ -274,6 +274,10 @@ results in PostgreSQL and uses Redis database 1 for worker wake-ups and live
 streaming. The principal `langgraph dev` service remains unchanged.
 Interrupted worker runs expire after a renewed PostgreSQL lease and end as
 `worker_lost` without automatic replay of possible external actions.
+The OSS `/info` readiness check now requires PostgreSQL and, when enabled, Redis
+to answer.
+An SSE client using `on_disconnect=cancel` requests cancellation promptly;
+without that option, it can query the final result by run ID after reconnecting.
 
 The benchmark compares SQLite `DELETE/FULL`, `WAL/FULL`, `WAL/NORMAL` and
 PostgreSQL, including four concurrent writers by default. `BENCHMARK_ROOT=/data`
