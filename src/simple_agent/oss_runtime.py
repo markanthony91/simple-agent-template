@@ -6,6 +6,7 @@ does not import it, and no production traffic is routed here by default.
 
 from __future__ import annotations
 
+import asyncio
 import copy
 import hmac
 import json
@@ -23,6 +24,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from starlette.applications import Starlette
+from starlette.background import BackgroundTask
 from starlette.concurrency import run_in_threadpool
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -63,13 +65,13 @@ def _redis():
     )
 
 
-def _db():
+def _db(connect_timeout=10):
     return psycopg.connect(
         os.environ["SESSION_DATABASE_URL"],
         autocommit=True,
         row_factory=dict_row,
         options="-c search_path=langgraph",
-        connect_timeout=10,
+        connect_timeout=connect_timeout,
     )
 
 
@@ -234,6 +236,21 @@ def _setup():
 async def info(_request):
     if _redis_enabled() and (_run_worker is None or not _run_worker.is_alive()):
         return _response({"detail": "worker_unavailable"}, 503)
+
+    def ready():
+        with _db(connect_timeout=2) as db:
+            db.execute("SELECT 1")
+        if _redis_enabled():
+            client = _redis()
+            try:
+                client.ping()
+            finally:
+                client.close()
+
+    try:
+        await run_in_threadpool(ready)
+    except (psycopg.Error, redis.RedisError, OSError):
+        return _response({"detail": "dependency_unavailable"}, 503)
     return _response({"graphs": list(GRAPHS), "version": "oss-canary"})
 
 
@@ -763,55 +780,56 @@ async def run_stream(request):
             client.close()
             return _response({"detail": "run_unavailable"}, 503)
 
-        def events_from_redis():
+        finished = False
+
+        async def events_from_redis():
+            nonlocal finished
             last_value = None
-            finished = False
             pubsub_healthy = True
+            deadline = time.monotonic() + 300
+            while time.monotonic() < deadline:
+                message = None
+                if pubsub_healthy:
+                    try:
+                        message = await run_in_threadpool(
+                            pubsub.get_message,
+                            ignore_subscribe_messages=True,
+                            timeout=0.5,
+                        )
+                    except redis.RedisError:
+                        pubsub_healthy = False
+                if message and message["type"] == "message":
+                    event = json.loads(message["data"])
+                    if event["kind"] == "values":
+                        last_value = event["value"]
+                        yield "event: values\ndata: " + json.dumps(last_value) + "\n\n"
+                row = await run_in_threadpool(_run_row, run_id)
+                if row["status"] in {"succeeded", "failed", "cancelled"}:
+                    finished = True
+                    if row["status"] == "succeeded" and row["result"] != last_value:
+                        yield (
+                            "event: values\ndata: " + json.dumps(row["result"]) + "\n\n"
+                        )
+                    elif row["status"] != "succeeded":
+                        yield 'event: error\ndata: {"error":"run_failed"}\n\n'
+                    return
+                if not pubsub_healthy:
+                    await asyncio.sleep(0.5)
+            yield 'event: error\ndata: {"error":"run_timeout"}\n\n'
+
+        def after_stream():
             try:
-                deadline = time.monotonic() + 300
-                while time.monotonic() < deadline:
-                    message = None
-                    if pubsub_healthy:
-                        try:
-                            message = pubsub.get_message(
-                                ignore_subscribe_messages=True, timeout=0.5
-                            )
-                        except redis.RedisError:
-                            pubsub_healthy = False
-                    if message and message["type"] == "message":
-                        event = json.loads(message["data"])
-                        if event["kind"] == "values":
-                            last_value = event["value"]
-                            yield (
-                                "event: values\ndata: "
-                                + json.dumps(last_value)
-                                + "\n\n"
-                            )
-                    row = _run_row(run_id)
-                    if row["status"] in {"succeeded", "failed", "cancelled"}:
-                        finished = True
-                        if row["status"] == "succeeded" and row["result"] != last_value:
-                            yield (
-                                "event: values\ndata: "
-                                + json.dumps(row["result"])
-                                + "\n\n"
-                            )
-                        elif row["status"] != "succeeded":
-                            yield 'event: error\ndata: {"error":"run_failed"}\n\n'
-                        return
-                    if not pubsub_healthy:
-                        time.sleep(0.5)
-                yield 'event: error\ndata: {"error":"run_timeout"}\n\n'
-            finally:
-                pubsub.close()
                 if body.get("on_disconnect") == "cancel" and not finished:
                     _cancel_run(run_id, client)
+            finally:
+                pubsub.close()
                 client.close()
 
         return StreamingResponse(
             events_from_redis(),
             media_type="text/event-stream",
             headers={"X-Run-Id": run_id},
+            background=BackgroundTask(after_stream),
         )
 
     def events():
