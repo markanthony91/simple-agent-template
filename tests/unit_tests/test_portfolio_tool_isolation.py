@@ -1,4 +1,7 @@
 import json
+from types import SimpleNamespace
+
+import pytest
 
 from langchain.tools import ToolRuntime
 from langchain_core.messages import HumanMessage
@@ -131,3 +134,79 @@ def test_model_request_pins_portfolio_before_exposing_tools(isolated, monkeypatc
     assert "fixture" not in state
     assert "verify_and_get_customer" in names
     assert names.isdisjoint(tool_middleware.UNBOUND_BLOCKED_TOOLS)
+
+
+def test_assistant_tool_allowlists_filter_and_guard_each_portfolio(
+    isolated, monkeypatch
+):
+    from langchain.agents.middleware import ModelRequest
+    from langgraph.runtime import Runtime
+    from simple_agent import managed_graph, tool_middleware
+
+    isolated.import_bundle("global-only", "1", {"index.md": "# Root"})
+    for scope_id, allowed_name, denied_name in (
+        (2, "okf_index", "verify_and_get_customer"),
+        (3, "verify_and_get_customer", "okf_index"),
+    ):
+        key = f"allowlist-{scope_id}"
+        monkeypatch.setattr(
+            tool_middleware,
+            "get_config",
+            lambda key=key: {"configurable": {"thread_id": key}},
+        )
+        runtime = Runtime(
+            context={
+                "portfolio_context": {
+                    "scope_id": scope_id,
+                    "tenant_id": "tenant-test",
+                },
+                "allowed_tools": [allowed_name],
+            }
+        )
+        request = ModelRequest(
+            model=managed_graph.create_llm(),
+            messages=[],
+            tools=managed_graph.ALL_TOOLS,
+            runtime=runtime,
+            state={"messages": []},
+        )
+        filtered = tool_middleware.filter_enabled_tools._filtered_request(request)
+        assert {tool.name for tool in filtered.tools} == {allowed_name}
+        with pytest.raises(PermissionError, match="tool_not_allowed_for_assistant"):
+            tool_middleware.filter_enabled_tools._assert_tool_allowed(
+                denied_name, key, runtime
+            )
+
+        call = SimpleNamespace(
+            tool_call={"name": denied_name, "id": "call-1", "args": {}},
+            runtime=runtime,
+        )
+        result = tool_middleware.filter_enabled_tools.wrap_tool_call(
+            call, lambda _: pytest.fail("disallowed tool executed")
+        )
+        assert json.loads(result.content)["message"] == "tool_not_allowed_for_assistant"
+
+
+def test_explicit_empty_or_invalid_tool_allowlist(isolated, monkeypatch):
+    from langchain.agents.middleware import ModelRequest
+    from langgraph.runtime import Runtime
+    from simple_agent import managed_graph, tool_middleware
+
+    isolated.import_bundle("global-only", "1", {"index.md": "# Root"})
+    monkeypatch.setattr(
+        tool_middleware,
+        "get_config",
+        lambda: {"configurable": {"thread_id": "empty-allowlist"}},
+    )
+    request = ModelRequest(
+        model=managed_graph.create_llm(),
+        messages=[],
+        tools=managed_graph.ALL_TOOLS,
+        runtime=Runtime(context={"allowed_tools": []}),
+        state={"messages": []},
+    )
+    assert not tool_middleware.filter_enabled_tools._filtered_request(request).tools
+    with pytest.raises(ValueError, match="invalid_allowed_tools"):
+        tool_middleware.filter_enabled_tools._filtered_request(
+            request.override(runtime=Runtime(context={"allowed_tools": "okf_index"}))
+        )
