@@ -87,6 +87,9 @@ prior tool may already have sent an external instruction. Reconcile the
 business outcome before manually retrying. Real client compatibility still
 needs integrated testing before any traffic cutover.
 
+Os testes da versão 0.17.3, inclusive worker, Canais e Playground, estão em
+[Recuperação do worker e testes de clientes](WORKER_RECOVERY_VALIDATION_2026-10-06.md).
+
 On 2026-10-05, the isolated Railway services were renamed **Agente de Homologação**
 (`accedeb1-4a8d-455e-a7ed-f4d2d7d92dec`, previously **Agente de Testes**)
 and **Dados de Homologação** (`4fe1fa72-c700-44fe-9132-6c8240d9e556`,

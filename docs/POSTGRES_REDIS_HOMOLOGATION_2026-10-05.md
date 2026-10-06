@@ -69,3 +69,5 @@ OKF para PostgreSQL nem mudou o serviço separado de OKF.
 Atualização de 06/10: a versão 0.17.3 implementa lease e falha terminal
 `worker_lost` sem repetir a execução. Esta seção registra o bloqueio observado
 em 05/10; os testes e o deployment da correção devem ser avaliados à parte.
+Os resultados de 06/10 estão em
+[Recuperação do worker e testes de clientes](WORKER_RECOVERY_VALIDATION_2026-10-06.md).
