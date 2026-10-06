@@ -37,6 +37,7 @@ from simple_agent.raw_compiler_graph import graph as raw_graph
 
 GRAPHS = {"agent": agent_graph, "okf_admin": admin_graph, "raw_compiler": raw_graph}
 _RUN_KEY = "oss-runtime:v1"
+_RUN_LEASE_SECONDS = 30
 _run_worker_stop = threading.Event()
 _run_worker = None
 
@@ -53,7 +54,9 @@ def _redis():
     database = int(os.getenv("OSS_RUNTIME_REDIS_DB", "1"))
     if not 0 <= database <= 15:
         raise ValueError("invalid_redis_database")
-    query = urlencode([(key, value) for key, value in parse_qsl(parsed.query) if key != "db"])
+    query = urlencode(
+        [(key, value) for key, value in parse_qsl(parsed.query) if key != "db"]
+    )
     isolated_url = urlunsplit(parsed._replace(path=f"/{database}", query=query))
     return redis.Redis.from_url(
         isolated_url, decode_responses=True, socket_connect_timeout=2, socket_timeout=2
@@ -79,7 +82,9 @@ def _json(value):
 
 
 def _response(value, status=200):
-    return JSONResponse(json.loads(json.dumps(value, default=_json)), status_code=status)
+    return JSONResponse(
+        json.loads(json.dumps(value, default=_json)), status_code=status
+    )
 
 
 def _authorized(request: Request) -> bool:
@@ -129,9 +134,13 @@ def _state(db, thread_id):
     ).fetchone()
     if archived_error:
         return {
-            "values": archived_error["state"], "next": [], "tasks": [],
-            "metadata": {"legacy_status": "error"}, "created_at": None,
-            "checkpoint": {"thread_id": thread_id}, "parent_checkpoint": None,
+            "values": archived_error["state"],
+            "next": [],
+            "tasks": [],
+            "metadata": {"legacy_status": "error"},
+            "created_at": None,
+            "checkpoint": {"thread_id": thread_id},
+            "parent_checkpoint": None,
         }
     graph = copy.copy(agent_graph)
     graph.checkpointer = PostgresSaver(db)
@@ -199,13 +208,25 @@ def _setup():
                   CHECK (status IN ('queued','running','succeeded','failed','cancelled')),
                 result jsonb,
                 cancel_requested boolean NOT NULL DEFAULT false,
+                lease_expires_at timestamptz,
+                error_code text,
                 created_at timestamptz NOT NULL DEFAULT now(),
                 updated_at timestamptz NOT NULL DEFAULT now()
             )"""
         )
         db.execute(
+            "ALTER TABLE langgraph.oss_runs ADD COLUMN IF NOT EXISTS lease_expires_at timestamptz"
+        )
+        db.execute(
+            "ALTER TABLE langgraph.oss_runs ADD COLUMN IF NOT EXISTS error_code text"
+        )
+        db.execute(
             """CREATE INDEX IF NOT EXISTS oss_runs_queued_idx
                ON langgraph.oss_runs(created_at) WHERE status='queued'"""
+        )
+        db.execute(
+            """CREATE INDEX IF NOT EXISTS oss_runs_running_lease_idx
+               ON langgraph.oss_runs(lease_expires_at) WHERE status='running'"""
         )
         PostgresSaver(db).setup()
 
@@ -227,9 +248,15 @@ async def assistant_update(request):
     allowed = {"context", "config", "metadata", "name", "description"}
     if not isinstance(body, dict) or any(key not in allowed for key in body):
         return _response({"detail": "invalid_request"}, 400)
-    if any(key in body and not isinstance(body[key], dict) for key in ("context", "config", "metadata")):
+    if any(
+        key in body and not isinstance(body[key], dict)
+        for key in ("context", "config", "metadata")
+    ):
         return _response({"detail": "invalid_request"}, 400)
-    if any(key in body and not isinstance(body[key], str) for key in ("name", "description")):
+    if any(
+        key in body and not isinstance(body[key], str)
+        for key in ("name", "description")
+    ):
         return _response({"detail": "invalid_request"}, 400)
     assistant_id = request.path_params["assistant_id"]
     with _db() as db, db.transaction():
@@ -303,20 +330,29 @@ async def thread_delete(request):
             ).fetchone()
             if not row:
                 return False
-            if _redis_enabled() and db.execute(
-                """SELECT 1 FROM langgraph.oss_runs
+            if (
+                _redis_enabled()
+                and db.execute(
+                    """SELECT 1 FROM langgraph.oss_runs
                    WHERE thread_id=%s AND status IN ('queued','running') LIMIT 1""",
-                (thread_id,),
-            ).fetchone():
+                    (thread_id,),
+                ).fetchone()
+            ):
                 return "busy"
             PostgresSaver(db).delete_thread(thread_id)
-            db.execute("DELETE FROM langgraph.oss_threads WHERE thread_id=%s", (thread_id,))
+            db.execute(
+                "DELETE FROM langgraph.oss_threads WHERE thread_id=%s", (thread_id,)
+            )
             return True
 
     result = await run_in_threadpool(remove)
     if result == "busy":
         return _response({"detail": "thread_busy"}, 409)
-    return Response(status_code=204) if result else _response({"detail": "not_found_or_legacy"}, 404)
+    return (
+        Response(status_code=204)
+        if result
+        else _response({"detail": "not_found_or_legacy"}, 404)
+    )
 
 
 async def thread_search(request):
@@ -351,7 +387,11 @@ async def thread_state(request):
             return _state(db, request.path_params["thread_id"])
 
     value = await run_in_threadpool(read)
-    return _response(value) if value is not None else _response({"detail": "not_found"}, 404)
+    return (
+        _response(value)
+        if value is not None
+        else _response({"detail": "not_found"}, 404)
+    )
 
 
 async def thread_history(request):
@@ -387,7 +427,11 @@ async def thread_history(request):
             ]
 
     value = await run_in_threadpool(read)
-    return _response(value) if value is not None else _response({"detail": "not_found"}, 404)
+    return (
+        _response(value)
+        if value is not None
+        else _response({"detail": "not_found"}, 404)
+    )
 
 
 def _run(assistant_id, input_value, thread_id=None, stream=False):
@@ -416,14 +460,26 @@ def _run(assistant_id, input_value, thread_id=None, stream=False):
             config = assistant.get("config") or {}
             if thread_id:
                 graph.checkpointer = PostgresSaver(db)
-                config = {**config, "configurable": {
-                    **config.get("configurable", {}), "thread_id": thread_id
-                }}
+                config = {
+                    **config,
+                    "configurable": {
+                        **config.get("configurable", {}),
+                        "thread_id": thread_id,
+                    },
+                }
                 db.execute(
                     """UPDATE langgraph.oss_threads SET
                        metadata=metadata || %s,updated_at=now()
                        WHERE thread_id=%s""",
-                    (Jsonb({"assistant_id": assistant["assistant_id"], "graph_id": graph_id}), thread_id),
+                    (
+                        Jsonb(
+                            {
+                                "assistant_id": assistant["assistant_id"],
+                                "graph_id": graph_id,
+                            }
+                        ),
+                        thread_id,
+                    ),
                 )
             kwargs = {"context": assistant.get("context") or {}}
             if stream:
@@ -459,10 +515,22 @@ def _enqueue_run(run_id, assistant_id, input_value, thread_id, client):
 def _run_row(run_id):
     with _db() as db:
         return db.execute(
-            """SELECT run_id::text,status,result,cancel_requested
+            """SELECT run_id::text,status,result,cancel_requested,error_code
                FROM langgraph.oss_runs WHERE run_id=%s""",
             (run_id,),
         ).fetchone()
+
+
+def _expire_runs():
+    # A lost worker may have completed an external action. Fail the run; never replay it.
+    with _db() as db:
+        return db.execute(
+            """UPDATE langgraph.oss_runs
+               SET status='failed',error_code='worker_lost',updated_at=now()
+               WHERE status='running'
+                 AND (lease_expires_at IS NULL OR lease_expires_at <= now())
+               RETURNING run_id::text"""
+        ).fetchall()
 
 
 def _claim_run():
@@ -474,11 +542,31 @@ def _claim_run():
         ).fetchone()
         if row:
             db.execute(
-                """UPDATE langgraph.oss_runs SET status='running',updated_at=now()
+                """UPDATE langgraph.oss_runs
+                   SET status='running',lease_expires_at=now() + %s * interval '1 second',
+                       updated_at=now()
                    WHERE run_id=%s""",
-                (row["run_id"],),
+                (_RUN_LEASE_SECONDS, row["run_id"]),
             )
         return row
+
+
+def _lease_heartbeat(stop, run_id):
+    while not stop.wait(5):
+        try:
+            with _db() as db:
+                renewed = db.execute(
+                    """UPDATE langgraph.oss_runs
+                       SET lease_expires_at=now() + %s * interval '1 second'
+                       WHERE run_id=%s AND status='running'
+                         AND lease_expires_at > now()
+                       RETURNING 1""",
+                    (_RUN_LEASE_SECONDS, run_id),
+                ).fetchone()
+            if not renewed:
+                return
+        except psycopg.Error:
+            pass  # A transient database error can recover before the lease expires.
 
 
 def _publish(client, run_id, kind, value=None):
@@ -496,6 +584,11 @@ def _execute_queued_run(row, client):
     result = None
     stored_result = None
     status = "succeeded"
+    heartbeat_stop = threading.Event()
+    heartbeat = threading.Thread(
+        target=_lease_heartbeat, args=(heartbeat_stop, run_id), daemon=True
+    )
+    heartbeat.start()
     try:
         if _run_row(run_id)["cancel_requested"]:
             status = "cancelled"
@@ -506,34 +599,47 @@ def _execute_queued_run(row, client):
                 for result in execution:
                     _publish(client, run_id, "values", result)
                     with _db() as db:
-                        cancelled = db.execute(
-                            "SELECT cancel_requested FROM langgraph.oss_runs WHERE run_id=%s",
+                        current = db.execute(
+                            """SELECT cancel_requested,status,lease_expires_at > now() AS lease_valid
+                               FROM langgraph.oss_runs WHERE run_id=%s""",
                             (run_id,),
-                        ).fetchone()["cancel_requested"]
-                    if cancelled:
-                        status = "cancelled"
+                        ).fetchone()
+                    if (
+                        current["cancel_requested"]
+                        or current["status"] != "running"
+                        or not current["lease_valid"]
+                    ):
+                        status = (
+                            "cancelled" if current["cancel_requested"] else "failed"
+                        )
                         break
             if status == "succeeded":
                 stored_result = json.loads(json.dumps(result, default=_json))
     except Exception:  # noqa: BLE001 - provider and conversation data stay out of logs
         status = "failed"
     finally:
+        heartbeat_stop.set()
+        heartbeat.join(timeout=2)
         with _db() as db, db.transaction():
             final = db.execute(
-                "SELECT cancel_requested FROM langgraph.oss_runs WHERE run_id=%s FOR UPDATE",
+                "SELECT status,cancel_requested FROM langgraph.oss_runs WHERE run_id=%s FOR UPDATE",
                 (run_id,),
             ).fetchone()
-            if final["cancel_requested"] and status == "succeeded":
-                status = "cancelled"
-            db.execute(
-                """UPDATE langgraph.oss_runs
-                   SET status=%s,result=%s,updated_at=now() WHERE run_id=%s""",
-                (
-                    status,
-                    Jsonb(stored_result) if status == "succeeded" else None,
-                    run_id,
-                ),
-            )
+            if final["status"] == "running":
+                if final["cancel_requested"] and status == "succeeded":
+                    status = "cancelled"
+                db.execute(
+                    """UPDATE langgraph.oss_runs
+                       SET status=%s,result=%s,lease_expires_at=NULL,updated_at=now()
+                       WHERE run_id=%s""",
+                    (
+                        status,
+                        Jsonb(stored_result) if status == "succeeded" else None,
+                        run_id,
+                    ),
+                )
+            else:
+                status = final["status"]
     _publish(client, run_id, status)
 
 
@@ -545,6 +651,8 @@ def _worker_loop(stop, client):
             except redis.RedisError:
                 stop.wait(1)
             try:
+                for expired in _expire_runs():
+                    _publish(client, expired["run_id"], "failed")
                 while row := _claim_run():
                     _execute_queued_run(row, client)
             except psycopg.Error:

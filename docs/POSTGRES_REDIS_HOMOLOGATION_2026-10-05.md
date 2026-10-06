@@ -65,3 +65,7 @@ um fluxo único de publicação.
 Redis é coordenação efêmera; PostgreSQL guarda runs e checkpoints. O OKF
 continua sendo um bundle de documentos em `/data/okf`. Esta etapa não moveu o
 OKF para PostgreSQL nem mudou o serviço separado de OKF.
+
+Atualização de 06/10: a versão 0.17.3 implementa lease e falha terminal
+`worker_lost` sem repetir a execução. Esta seção registra o bloqueio observado
+em 05/10; os testes e o deployment da correção devem ser avaliados à parte.

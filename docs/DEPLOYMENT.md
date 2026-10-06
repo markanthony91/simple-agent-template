@@ -80,8 +80,12 @@ keeps its transient keys separate from Playground and Canais, which currently
 use database 0. Run input, status and final result stay in PostgreSQL. A
 disconnected client can query `/runs/{run_id}`; live streaming does not replay
 every intermediate event. Cancellation is checked between graph events, not
-during a blocked model or tool call. Worker restart behavior and real client
-compatibility still need failure tests before any traffic cutover.
+during a blocked model or tool call. Since 0.17.3, a run has a 30-second
+PostgreSQL lease renewed every 5 seconds. A new worker marks an expired run
+`failed` with `error_code=worker_lost`; it never replays the input because a
+prior tool may already have sent an external instruction. Reconcile the
+business outcome before manually retrying. Real client compatibility still
+needs integrated testing before any traffic cutover.
 
 On 2026-10-05, the isolated Railway services were renamed **Agente de Homologação**
 (`accedeb1-4a8d-455e-a7ed-f4d2d7d92dec`, previously **Agente de Testes**)
