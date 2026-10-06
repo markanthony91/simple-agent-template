@@ -95,3 +95,9 @@ explicitly before the later production cutover.
 
 For the current operator-facing Railway labels and stable service IDs, see
 [Railway service labels](RAILWAY_SERVICES.md).
+
+O teste de 05/10 com PostgreSQL, Redis, o mesmo bundle OKF do principal e uma
+conversa sintética está em
+[Homologação PostgreSQL, Redis e OKF](POSTGRES_REDIS_HOMOLOGATION_2026-10-05.md).
+Ainda há bloqueios de recuperação de runs e integração real dos clientes antes
+de qualquer virada de tráfego.
