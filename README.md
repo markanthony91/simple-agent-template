@@ -1,5 +1,18 @@
 # Agent Runtime — OKF simulator (0.14.13)
 
+## 0.17.5 — tools por Assistant na homologação
+
+O contexto **servidor** do Assistant pode incluir `"allowed_tools":
+["okf_index", "okf_read", "verify_and_get_customer"]`. Quando presente, essa
+lista limita tanto as tools apresentadas ao modelo quanto a execução de chamadas;
+ela só pode restringir as tools já habilitadas no registro global. Uma lista
+vazia desabilita todas. Sem o campo, o comportamento anterior permanece.
+Não aceite `allowed_tools` de mensagens ou parâmetros enviados pelo cliente.
+Para ativar por carteira, o serviço que prepara o Assistant precisa persistir e
+entregar a lista no contexto confiável dele; o cadastro do Canais sozinho ainda
+não faz isso. A configuração deve ser validada com fixtures e OKF da carteira
+antes de habilitar tools de negociação e envio.
+
 ## 0.14.13 — isolamento do Playground por carteira
 
 Assistants com `portfolio_context` fixam cada novo thread ao `scope_id` da

@@ -435,7 +435,11 @@ def _content_chars(value: Any) -> int:
     if isinstance(value, str):
         return len(value)
     if isinstance(value, list):
-        return sum(_content_chars(item.get("text", "")) for item in value if isinstance(item, dict))
+        return sum(
+            _content_chars(item.get("text", ""))
+            for item in value
+            if isinstance(item, dict)
+        )
     return 0
 
 
@@ -463,7 +467,9 @@ def _log_model_call(
         "system_prompt_chars": _content_chars(
             request.system_message.content if request.system_message else ""
         ),
-        "conversation_chars": sum(_content_chars(message.content) for message in messages),
+        "conversation_chars": sum(
+            _content_chars(message.content) for message in messages
+        ),
         "message_count": len(messages),
         "tool_count": len(request.tools),
         **extract_trace_ids(request),
@@ -583,6 +589,18 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
     """Filter runtime tools, observe calls, and recover from expected failures."""
 
     @staticmethod
+    def _allowed_tools(runtime) -> set[str] | None:
+        context = getattr(runtime, "context", None)
+        if not isinstance(context, dict) or "allowed_tools" not in context:
+            return None
+        value = context["allowed_tools"]
+        if not isinstance(value, list) or any(
+            not isinstance(name, str) for name in value
+        ):
+            raise ValueError("invalid_allowed_tools")
+        return set(value)
+
+    @staticmethod
     def _completed(response: ModelResponse) -> ModelResponse:
         for message in response.result:
             reason = message.response_metadata.get("finish_reason")
@@ -599,9 +617,12 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         return response
 
     @staticmethod
-    def _assert_tool_allowed(tool_name: str, key: str) -> None:
+    def _assert_tool_allowed(tool_name: str, key: str, runtime=None) -> None:
         if tool_name not in registry.enabled_names():
             raise PermissionError("tool_disabled")
+        allowed = FilterEnabledToolsMiddleware._allowed_tools(runtime)
+        if allowed is not None and tool_name not in allowed:
+            raise PermissionError("tool_not_allowed_for_assistant")
         if tool_name not in UNBOUND_BLOCKED_TOOLS:
             return
         session = SessionStore().read(key)
@@ -643,6 +664,9 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             else [*content, {"type": "text", "text": contract}]
         )
         enabled = registry.enabled_names()
+        allowed = self._allowed_tools(request.runtime)
+        if allowed is not None:
+            enabled &= allowed
         tools = [
             tool
             for tool in request.tools
@@ -718,7 +742,9 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
                     else ""
                 )
                 with timed_phase("tool_guard"):
-                    self._assert_tool_allowed(tool_name, key)
+                    self._assert_tool_allowed(
+                        tool_name, key, getattr(request, "runtime", None)
+                    )
                 with timed_phase("tool_handler"):
                     result = handler(request)
             except RECOVERABLE_TOOL_ERRORS as error:
@@ -751,7 +777,12 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
                     else ""
                 )
                 with timed_phase("tool_guard"):
-                    await asyncio.to_thread(self._assert_tool_allowed, tool_name, key)
+                    await asyncio.to_thread(
+                        self._assert_tool_allowed,
+                        tool_name,
+                        key,
+                        getattr(request, "runtime", None),
+                    )
                 with timed_phase("tool_handler"):
                     result = await handler(request)
             except RECOVERABLE_TOOL_ERRORS as error:
