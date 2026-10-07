@@ -318,8 +318,13 @@ def _email_context(state: dict, payment: dict, agreement: dict) -> dict[str, str
     }
 
 
-def _email_plan(context: dict[str, str]) -> tuple[dict, dict[str, str]]:
-    catalog = request_json("/api/engine/v1/channels", timeout=5)
+def _email_plan(
+    context: dict[str, str], scope_id: int = 1
+) -> tuple[dict, dict[str, str]]:
+    catalog = request_json(
+        "/api/engine/v1/channels", timeout=5,
+        **({"scope_id": scope_id} if scope_id > 1 else {}),
+    )
     channels = catalog.get("channels")
     if (
         not isinstance(channels, list)
@@ -327,6 +332,8 @@ def _email_plan(context: dict[str, str]) -> tuple[dict, dict[str, str]]:
         or type(catalog.get("scope_revision")) is not int
     ):
         raise ChannelConsoleError("email_catalog_invalid")
+    if catalog["scope_id"] != scope_id:
+        raise ChannelConsoleError("email_catalog_scope_mismatch")
     channel = next(
         (
             item
@@ -357,6 +364,7 @@ def _dispatch_email(
     address: str,
     request_id: str,
     decision_id: str,
+    scope_id: int = 1,
 ) -> dict:
     channel = next(item for item in catalog["channels"] if item["channel"] == "email")
     try:
@@ -374,6 +382,7 @@ def _dispatch_email(
                 "to": address,
                 "values": values,
             },
+            **({"scope_id": scope_id} if scope_id > 1 else {}),
         )
         return {
             "sent": result.get("status") == "accepted",
@@ -535,8 +544,12 @@ def send_payment_instruction_for_session(
         if previous:
             return _public(previous)
         context = _email_context(state, payment, agreement)
+        scope_id = state.get("portfolio_scope_id", 1)
     try:
-        catalog, values = _email_plan(context)
+        catalog, values = (
+            _email_plan(context, scope_id)
+            if scope_id > 1 else _email_plan(context)
+        )
     except ChannelConsoleError as exc:
         return {"sent": False, "reason": exc.code}
     delivery_id = f"OUT-{uuid4().hex}"
@@ -566,7 +579,11 @@ def send_payment_instruction_for_session(
         if previous:
             return _public(previous)
         state["deliveries"][delivery_id] = delivery
-    update = _dispatch_email(catalog, values, address, request_id, decision_id)
+    update = (
+        _dispatch_email(catalog, values, address, request_id, decision_id, scope_id)
+        if scope_id > 1
+        else _dispatch_email(catalog, values, address, request_id, decision_id)
+    )
     with SessionStore().transaction(session_id) as state:
         stored = state["deliveries"].get(delivery_id)
         if stored is None:

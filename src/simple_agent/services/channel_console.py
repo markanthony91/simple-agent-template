@@ -15,7 +15,9 @@ class ChannelConsoleError(ValueError):
         self.outcome_unknown = outcome_unknown
 
 
-def request_json(path: str, payload: dict | None = None, timeout: int = 15) -> dict:
+def request_json(
+    path: str, payload: dict | None = None, timeout: int = 15, scope_id: int = 1
+) -> dict:
     base = (
         (
             os.getenv("CHANNEL_CONSOLE_URL")
@@ -26,7 +28,9 @@ def request_json(path: str, payload: dict | None = None, timeout: int = 15) -> d
         .rstrip("/")
     )
     token = (
-        os.getenv("CHANNEL_CONSOLE_AGENT_RUNTIME_TOKEN")
+        os.getenv(f"CHANNEL_CONSOLE_RUNTIME_TOKEN_SCOPE_{scope_id}", "")
+        if type(scope_id) is int and scope_id > 1
+        else os.getenv("CHANNEL_CONSOLE_AGENT_RUNTIME_TOKEN")
         or os.getenv("CHANNEL_CONSOLE_ENGINE_TOKEN")
         or ""
     ).strip()

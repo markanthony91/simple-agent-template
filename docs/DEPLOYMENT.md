@@ -13,6 +13,10 @@
    into `CHANNEL_CONSOLE_ENGINE_TOKEN` and set `CHANNEL_CONSOLE_URL` while the
    legacy fallback is still needed. Never print or expose tokens. Catalog failure
    must prevent session creation.
+   For portfolio email, configure one Canais Runtime token per portfolio as
+   `CHANNEL_CONSOLE_RUNTIME_TOKEN_SCOPE_<id>` and set the Canais URL. Each token
+   must be bound to that tenant and scope. A missing scoped token fails closed;
+   the scope 1 template must never be used for another portfolio.
 4. Build the Dockerfile. Railway's custom start command can bypass ENTRYPOINT.
    Explicitly configure `sh -c 'exec python -m simple_agent.startup langgraph dev --host
    0.0.0.0 --port ${PORT:-2024} --no-browser --no-reload'` and healthcheck `/info`.
