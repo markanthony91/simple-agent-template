@@ -155,6 +155,81 @@ class PostgresSessionStore:
                 return False
             raise ValueError("whatsapp_session_requires_reset")
 
+    def ensure_portfolio(self, key: str, scope_id: int, tenant_id: str) -> bool:
+        """Pin a Playground session without falling back to the global fixture."""
+        key = validate_thread_id(key)
+        if type(scope_id) is not int or scope_id <= 0:
+            raise ValueError("invalid_portfolio_scope")
+        if not isinstance(tenant_id, str) or not tenant_id.strip():
+            raise ValueError("invalid_portfolio_tenant")
+        tenant_id = tenant_id.strip()
+
+        def fresh() -> dict:
+            state = self._initial_state()
+            state["portfolio_scope_id"] = scope_id
+            state["portfolio_tenant_id"] = tenant_id
+            simulator = SimulatorStore.for_portfolio(scope_id)
+            if simulator.exists():
+                fixture = simulator.load()
+                fixture.pop("_runtime", None)
+                fixture.pop("identity_validated", None)
+                state["fixture"] = fixture
+            else:
+                state["unbound_session"] = True
+            return state
+
+        with self.pool.connection() as db, db.transaction():
+            row = db.execute(
+                "SELECT state FROM runtime.sessions WHERE id=%s FOR UPDATE", (key,)
+            ).fetchone()
+            if not row:
+                state = fresh()
+                created = db.execute(
+                    """INSERT INTO runtime.sessions(
+                           id,tenant_id,portfolio_id,customer_id,debt_id,state
+                       ) VALUES (%s,%s,%s,%s,%s,%s)
+                       ON CONFLICT(id) DO NOTHING RETURNING id""",
+                    (
+                        key,
+                        tenant_id,
+                        str(scope_id),
+                        state.get("fixture", {}).get("customer_id"),
+                        state.get("fixture", {}).get("debt", {}).get("debt_id"),
+                        Jsonb(state),
+                    ),
+                ).fetchone()
+                if created:
+                    return True
+                row = db.execute(
+                    "SELECT state FROM runtime.sessions WHERE id=%s FOR UPDATE", (key,)
+                ).fetchone()
+            current = self._state(row[0])
+            if current.get("portfolio_scope_id") is not None:
+                if (
+                    current["portfolio_scope_id"] != scope_id
+                    or current.get("portfolio_tenant_id") != tenant_id
+                ):
+                    raise ValueError("portfolio_scope_mismatch")
+                return False
+            if current.get("demo_session") is True:
+                return False
+            state = fresh()
+            db.execute(
+                """UPDATE runtime.sessions SET
+                       tenant_id=%s,portfolio_id=%s,customer_id=%s,debt_id=%s,
+                       state=%s,version=version+1,updated_at=now()
+                   WHERE id=%s""",
+                (
+                    tenant_id,
+                    str(scope_id),
+                    state.get("fixture", {}).get("customer_id"),
+                    state.get("fixture", {}).get("debt", {}).get("debt_id"),
+                    Jsonb(state),
+                    key,
+                ),
+            )
+            return True
+
     def reset_demo(self, key: str) -> bool:
         key = validate_thread_id(key)
         with self.pool.connection() as db, db.transaction():
