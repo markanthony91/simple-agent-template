@@ -34,38 +34,55 @@ def retryable(error, guard):
     )
 
 
-def routed_request(request, connection, guard, fallback=False):
-    model = create_llm() if connection == "default" else create_llm(connection)
+def model_routes(request):
+    context = request.runtime.context
+    configured = context if isinstance(context, dict) else {}
+    if "_runtime_llm_routes" in configured:
+        routes = configured["_runtime_llm_routes"]
+        return routes["primary"], routes["fallback"]
+    settings = LLMIntegration.model_validate(configured.get("llm_integration", {}))
+
+    def route(connection):
+        if not connection:
+            return None
+        return {
+            "connection": connection,
+            "model": create_llm() if connection == "default" else create_llm(connection),
+        }
+
+    return route(settings.primary), route(settings.fallback)
+
+
+def routed_request(request, route, guard, fallback=False):
+    model = route["model"]
     return request.override(
         model=model.model_copy(
             update={
                 "callbacks": [guard],
-                "metadata": {"llm_connection": connection, "fallback_used": fallback},
+                "metadata": {"llm_connection": route["connection"], "fallback_used": fallback},
             }
         )
     )
 
 
-def annotate(response, connection, fallback):
+def annotate(response, route, fallback):
     for message in response.result:
         message.additional_kwargs["llm_route"] = {
-            "connection": connection,
-            "model": (
-                create_llm() if connection == "default" else create_llm(connection)
-            ).model_name,
+            "connection": route["connection"],
+            "model": route["model"].model_name,
             "fallback_used": fallback,
         }
     return response
 
 
-def log_fallback(settings, error):
+def log_fallback(primary, fallback, error):
     logger.warning(
         json.dumps(
             {
                 "event": "LLM_FALLBACK",
                 "hostname": socket.gethostname(),
-                "primary": settings.primary,
-                "fallback": settings.fallback,
+                "primary": primary["connection"],
+                "fallback": fallback["connection"],
                 "error_type": type(error).__name__,
                 "status_code": getattr(error, "status_code", None),
             }
@@ -75,37 +92,31 @@ def log_fallback(settings, error):
 
 class LLMFallbackMiddleware(AgentMiddleware):
     def wrap_model_call(self, request, handler):
-        context = request.runtime.context
-        settings = LLMIntegration.model_validate(
-            (context if isinstance(context, dict) else {}).get("llm_integration", {})
-        )
+        primary, fallback = model_routes(request)
         guard = StreamStarted()
         try:
-            response = handler(routed_request(request, settings.primary, guard))
+            response = handler(routed_request(request, primary, guard))
         except Exception as error:
-            if not settings.fallback or not retryable(error, guard):
+            if not fallback or not retryable(error, guard):
                 raise
-            log_fallback(settings, error)
+            log_fallback(primary, fallback, error)
             response = handler(
-                routed_request(request, settings.fallback, StreamStarted(), True)
+                routed_request(request, fallback, StreamStarted(), True)
             )
-            return annotate(response, settings.fallback, True)
-        return annotate(response, settings.primary, False)
+            return annotate(response, fallback, True)
+        return annotate(response, primary, False)
 
     async def awrap_model_call(self, request, handler):
-        context = request.runtime.context
-        settings = LLMIntegration.model_validate(
-            (context if isinstance(context, dict) else {}).get("llm_integration", {})
-        )
+        primary, fallback = model_routes(request)
         guard = StreamStarted()
         try:
-            response = await handler(routed_request(request, settings.primary, guard))
+            response = await handler(routed_request(request, primary, guard))
         except Exception as error:
-            if not settings.fallback or not retryable(error, guard):
+            if not fallback or not retryable(error, guard):
                 raise
-            log_fallback(settings, error)
+            log_fallback(primary, fallback, error)
             response = await handler(
-                routed_request(request, settings.fallback, StreamStarted(), True)
+                routed_request(request, fallback, StreamStarted(), True)
             )
-            return annotate(response, settings.fallback, True)
-        return annotate(response, settings.primary, False)
+            return annotate(response, fallback, True)
+        return annotate(response, primary, False)

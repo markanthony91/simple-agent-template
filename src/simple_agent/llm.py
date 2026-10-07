@@ -66,15 +66,42 @@ def create_llm(connection: str = "default") -> ChatOpenAI:
         raise ValueError(
             f"Configure endpoint, modelo e credencial da conexão {connection} no servidor"
         )
-    timeout = httpx.Timeout(config["timeout"], connect=10)
+    return _build_llm(
+        config["base_url"],
+        config["model"],
+        config["api_key"],
+        config["proxy_url"],
+        config["timeout"],
+    )
+
+
+@lru_cache(maxsize=12)
+def create_configured_llm(
+    base_url: str,
+    model: str,
+    api_key: str,
+    proxy_url: str = "",
+    timeout_seconds: float = 120,
+) -> ChatOpenAI:
+    """Bounded model clients for server-only, resolved portfolio connections."""
+    url = urlsplit(base_url)
+    if url.scheme != "https" or not url.hostname or not model or not api_key:
+        raise ValueError("invalid_resolved_llm")
+    if proxy_url:
+        proxy = urlsplit(proxy_url)
+        if proxy.scheme not in {"http", "https"} or not proxy.hostname:
+            raise ValueError("invalid_resolved_llm_proxy")
+    return _build_llm(base_url, model, api_key, proxy_url, timeout_seconds)
+
+
+def _build_llm(base_url, model, api_key, proxy_url, timeout_seconds):
+    timeout = httpx.Timeout(timeout_seconds, connect=10)
     return ChatOpenAI(
-        model=config["model"],
-        base_url=config["base_url"],
-        api_key=config["api_key"],
-        http_client=httpx.Client(proxy=config["proxy_url"] or None, timeout=timeout),
-        http_async_client=httpx.AsyncClient(
-            proxy=config["proxy_url"] or None, timeout=timeout
-        ),
+        model=model,
+        base_url=base_url,
+        api_key=api_key,
+        http_client=httpx.Client(proxy=proxy_url or None, timeout=timeout),
+        http_async_client=httpx.AsyncClient(proxy=proxy_url or None, timeout=timeout),
         streaming=True,
         max_retries=0,
         timeout=timeout,
