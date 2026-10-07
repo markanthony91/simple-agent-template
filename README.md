@@ -1,5 +1,13 @@
 # Agent Runtime — OKF simulator (0.14.13)
 
+## 0.17.7 — sessão de carteira no PostgreSQL
+
+O adaptador PostgreSQL agora fixa cada thread de Playground ao tenant e à
+carteira antes da chamada do modelo. Sem fixture própria, a sessão permanece
+sem devedor; ela nunca recebe o fixture global. Um vínculo existente de outra
+carteira é recusado. Este ajuste é necessário para que os Assistants de
+homologação consigam iniciar uma conversa.
+
 ## 0.17.6 — LLM por carteira na homologação
 
 O Runtime OSS pode consultar as conexões LLM criptografadas em Canais para
