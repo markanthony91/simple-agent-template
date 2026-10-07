@@ -1,5 +1,13 @@
 # Agent Runtime — OKF simulator (0.14.13)
 
+## 0.17.6 — LLM por carteira na homologação
+
+O Runtime OSS pode consultar as conexões LLM criptografadas em Canais para
+cada Assistant de carteira. O recurso é ativado apenas no serviço de
+Homologação por `CHANNELS_LLM_CONTROL_ENABLED=true`; o Principal continua com
+as variáveis LLM atuais. Consulte
+[docs/HOMOLOGATION_LLM_CONTROL.md](docs/HOMOLOGATION_LLM_CONTROL.md).
+
 ## 0.17.5 — tools por Assistant na homologação
 
 O contexto **servidor** do Assistant pode incluir `"allowed_tools":

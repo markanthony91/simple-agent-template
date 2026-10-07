@@ -35,6 +35,7 @@ from starlette.routing import Route
 
 from simple_agent.admin_graph_v2 import graph as admin_graph
 from simple_agent.managed_graph import graph as agent_graph
+from simple_agent.llm_control_plane import resolve_routes
 from simple_agent.raw_compiler_graph import graph as raw_graph
 
 GRAPHS = {"agent": agent_graph, "okf_admin": admin_graph, "raw_compiler": raw_graph}
@@ -498,7 +499,12 @@ def _run(assistant_id, input_value, thread_id=None, stream=False):
                         thread_id,
                     ),
                 )
-            kwargs = {"context": assistant.get("context") or {}}
+            context = assistant.get("context") or {}
+            if graph_id == "agent" and os.getenv("CHANNELS_LLM_CONTROL_ENABLED") == "true":
+                context = {**context, "_runtime_llm_routes": resolve_routes(
+                    context, assistant["assistant_id"]
+                )}
+            kwargs = {"context": context}
             if stream:
                 yield from graph.stream(
                     input_value, config, stream_mode="values", **kwargs
