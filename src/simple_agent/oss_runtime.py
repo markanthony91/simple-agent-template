@@ -179,6 +179,16 @@ def _setup():
             )"""
         )
         db.execute(
+            """CREATE TABLE IF NOT EXISTS langgraph.oss_assistant_versions (
+                assistant_id uuid NOT NULL,
+                version integer NOT NULL,
+                record jsonb NOT NULL,
+                created_at timestamptz NOT NULL DEFAULT now(),
+                hostname text NOT NULL,
+                PRIMARY KEY (assistant_id, version)
+            )"""
+        )
+        db.execute(
             """CREATE TABLE IF NOT EXISTS langgraph.legacy_thread_state (
                 thread_id text PRIMARY KEY,
                 status text NOT NULL,
@@ -263,7 +273,14 @@ async def assistant_get(request):
 
 async def assistant_update(request):
     body = await request.json()
-    allowed = {"context", "config", "metadata", "name", "description"}
+    allowed = {
+        "context",
+        "config",
+        "metadata",
+        "name",
+        "description",
+        "expected_version",
+    }
     if not isinstance(body, dict) or any(key not in allowed for key in body):
         return _response({"detail": "invalid_request"}, 400)
     if any(
@@ -276,6 +293,10 @@ async def assistant_update(request):
         for key in ("name", "description")
     ):
         return _response({"detail": "invalid_request"}, 400)
+    if "expected_version" in body and (
+        type(body["expected_version"]) is not int or body["expected_version"] < 1
+    ):
+        return _response({"detail": "invalid_request"}, 400)
     assistant_id = request.path_params["assistant_id"]
     with _db() as db, db.transaction():
         row = db.execute(
@@ -284,15 +305,81 @@ async def assistant_update(request):
         ).fetchone()
         if not row:
             return _response({"detail": "not_found"}, 404)
-        record = row["record"]
-        record.update(body)
-        record["version"] += 1
+        previous = row["record"]
+        if (
+            "expected_version" in body
+            and previous["version"] != body["expected_version"]
+        ):
+            return _response({"detail": "version_conflict"}, 409)
+        record = {
+            **previous,
+            **{key: value for key, value in body.items() if key != "expected_version"},
+        }
+        record["version"] = previous["version"] + 1
         record["updated_at"] = datetime.now(UTC).isoformat()
+        db.execute(
+            """INSERT INTO langgraph.oss_assistant_versions
+               (assistant_id,version,record,created_at,hostname)
+               VALUES (%s,%s,%s,%s,%s) ON CONFLICT DO NOTHING""",
+            (
+                assistant_id,
+                previous["version"],
+                Jsonb(previous),
+                previous.get("updated_at")
+                or previous.get("created_at")
+                or datetime.now(UTC),
+                os.uname().nodename,
+            ),
+        )
         db.execute(
             "UPDATE langgraph.legacy_assistants SET record=%s WHERE assistant_id=%s",
             (Jsonb(record), assistant_id),
         )
+        db.execute(
+            """INSERT INTO langgraph.oss_assistant_versions
+               (assistant_id,version,record,hostname) VALUES (%s,%s,%s,%s)""",
+            (assistant_id, record["version"], Jsonb(record), os.uname().nodename),
+        )
     return _response(record)
+
+
+async def assistant_versions(request):
+    body = await request.json()
+    if not isinstance(body, dict):
+        return _response({"detail": "invalid_request"}, 400)
+    limit, offset = body.get("limit", 20), body.get("offset", 0)
+    if (
+        type(limit) is not int
+        or not 1 <= limit <= 50
+        or type(offset) is not int
+        or offset < 0
+    ):
+        return _response({"detail": "invalid_request"}, 400)
+    assistant_id = request.path_params["assistant_id"]
+    try:
+        UUID(assistant_id)
+    except ValueError:
+        return _response({"detail": "not_found"}, 404)
+    with _db() as db:
+        rows = db.execute(
+            """WITH versions AS (
+                 SELECT record,created_at FROM langgraph.oss_assistant_versions
+                 WHERE assistant_id=%s
+                 UNION ALL
+                 SELECT a.record,COALESCE((a.record->>'updated_at')::timestamptz,a.imported_at)
+                 FROM langgraph.legacy_assistants a WHERE a.assistant_id=%s
+                   AND NOT EXISTS (
+                     SELECT 1 FROM langgraph.oss_assistant_versions v
+                     WHERE v.assistant_id=a.assistant_id
+                       AND v.version=(a.record->>'version')::integer
+                   )
+               ) SELECT record,created_at FROM versions
+               ORDER BY (record->>'version')::integer DESC LIMIT %s OFFSET %s""",
+            (assistant_id, assistant_id, limit, offset),
+        ).fetchall()
+    return _response(
+        [{**row["record"], "created_at": row["created_at"]} for row in rows]
+    )
 
 
 async def assistant_search(request):
@@ -500,10 +587,16 @@ def _run(assistant_id, input_value, thread_id=None, stream=False):
                     ),
                 )
             context = assistant.get("context") or {}
-            if graph_id == "agent" and os.getenv("CHANNELS_LLM_CONTROL_ENABLED") == "true":
-                context = {**context, "_runtime_llm_routes": resolve_routes(
-                    context, assistant["assistant_id"]
-                )}
+            if (
+                graph_id == "agent"
+                and os.getenv("CHANNELS_LLM_CONTROL_ENABLED") == "true"
+            ):
+                context = {
+                    **context,
+                    "_runtime_llm_routes": resolve_routes(
+                        context, assistant["assistant_id"]
+                    ),
+                }
             kwargs = {"context": context}
             if stream:
                 yield from graph.stream(
@@ -932,6 +1025,9 @@ app = Starlette(
         Route("/assistants/search", assistant_search, methods=["POST"]),
         Route("/assistants/{assistant_id}", assistant_get),
         Route("/assistants/{assistant_id}", assistant_update, methods=["PATCH"]),
+        Route(
+            "/assistants/{assistant_id}/versions", assistant_versions, methods=["POST"]
+        ),
         Route("/threads", thread_create, methods=["POST"]),
         Route("/threads/search", thread_search, methods=["POST"]),
         Route("/threads/{thread_id}", thread_get),
