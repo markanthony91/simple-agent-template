@@ -123,8 +123,8 @@ def generate_payment_offer(
     applies its creditor-defined discount. For policies with overdue discount
     ceilings, omit discount_percentage unless the customer explicitly requests
     a discount; then use only a percentage found in the policy. The backend
-    checks it against the customer's eligibility, the current overdue tier and
-    an explicit current_amount discount basis. Policies without that basis
+    checks it against the current overdue tier and an explicit current_amount
+    discount basis. Policies without that basis
     cannot generate a positive discount.
     A customer-proposed percentage alone is not authorization; do not invent
     policy terms. No internal human approval or second confirmation is required.

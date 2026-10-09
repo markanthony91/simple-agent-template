@@ -236,7 +236,6 @@ def _generate_offer(
         discount = money(discount_percentage)
         if (
             not 1 <= count <= int(eligibility.get("max_installments", 1))
-            or discount > money(eligibility.get("max_discount_percentage", 0))
             or discount > 100
         ):
             raise ValueError("customer_eligibility_exceeded")

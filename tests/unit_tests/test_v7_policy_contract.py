@@ -2,7 +2,6 @@
 
 import yaml
 
-from simple_agent.services.session_store import SessionStore
 from simple_agent.tools.payment_tools import generate_payment_offer
 
 from .test_collection_identity_gates import call
@@ -81,8 +80,6 @@ def v7_offer(store, key, days, basis=None, **terms):
     if basis:
         meta["negotiation"]["by_payment_type"]["cash"]["discount_basis"] = basis
     path.write_text("---\n" + yaml.safe_dump(meta) + "---" + body)
-    with SessionStore().transaction(key) as state:
-        state["fixture"]["eligibility"].update(max_discount_percentage=80)
     read_policy(rt)
     return call(generate_payment_offer, rt, policy_path=PATH, **terms)
 
