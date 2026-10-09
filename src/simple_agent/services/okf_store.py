@@ -6,6 +6,7 @@ import re
 import uuid
 import hashlib
 import fcntl
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -111,6 +112,30 @@ class PersistentOKFStore(AtomicFiles):
             return self.bundle_root(bundle_id)
         except FileNotFoundError:
             return None
+
+    @staticmethod
+    def portfolio_snapshot_id(scope_id: int, tenant_id: str, bundle_id: str) -> str:
+        digest = hashlib.sha256(
+            f"{tenant_id}/{scope_id}/{bundle_id}".encode()
+        ).hexdigest()
+        return f"portfolio-{scope_id}-{digest[:32]}"
+
+    def cache_portfolio_bundle(self, snapshot_id: str, files: dict[str, str]) -> str:
+        normalized = self._normalize_files(files)
+        if not validate_okf_files(normalized)["valid"]:
+            raise ValueError("portfolio_okf_bundle_validation_failed")
+        with (self.root / ".publish.lock").open("a") as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            destination = self.bundles_root / snapshot_id
+            if destination.is_dir():
+                return snapshot_id
+            staging = self.bundles_root / f".{snapshot_id}-{uuid.uuid4().hex[:8]}"
+            try:
+                self._write_files_atomic(staging, normalized)
+                os.replace(staging, destination)
+            finally:
+                shutil.rmtree(staging, ignore_errors=True)
+        return snapshot_id
 
     def _bundle_metadata(self, bundle_id: str) -> dict:
         root = self.bundle_root(bundle_id)

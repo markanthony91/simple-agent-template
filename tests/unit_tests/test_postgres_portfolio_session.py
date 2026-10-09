@@ -85,6 +85,20 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
     assert "fixture" not in db.row["state"]
     assert db.row["portfolio_id"] == "2"
     assert store.ensure_portfolio("thread-1", 2, "tenant-2") is False
+
+    original = db.row
+    db.row = None
+    assert (
+        store.ensure_portfolio(
+            "thread-2", 2, "tenant-2", snapshot_id="portfolio-release"
+        )
+        is True
+    )
+    assert db.row["state"]["snapshot_id"] == "portfolio-release"
+    db.row = None
+    assert store.ensure_portfolio("thread-3", 2, "tenant-2", snapshot_id=None) is True
+    assert db.row["state"]["snapshot_id"] is None
+    db.row = original
     with pytest.raises(ValueError, match="portfolio_scope_mismatch"):
         store.ensure_portfolio("thread-1", 3, "tenant-2")
 

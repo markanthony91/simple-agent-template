@@ -376,7 +376,9 @@ class SessionStore:
             return False
         return True
 
-    def ensure_portfolio(self, key: str, scope_id: int, tenant_id: str) -> bool:
+    def ensure_portfolio(
+        self, key: str, scope_id: int, tenant_id: str, snapshot_id: str | None = ""
+    ) -> bool:
         """Pin a Playground session to one portfolio without a global debtor fallback."""
         key = validate_thread_id(key)
         if type(scope_id) is not int or scope_id <= 0:
@@ -397,7 +399,9 @@ class SessionStore:
                 "payments": {},
                 "deliveries": {},
                 "receipts": {},
-                "snapshot_id": PersistentOKFStore().active_bundle_id(),
+                "snapshot_id": PersistentOKFStore().active_bundle_id()
+                if snapshot_id == ""
+                else snapshot_id,
             }
             if simulator.exists():
                 fixture = simulator.load()

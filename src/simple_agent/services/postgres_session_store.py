@@ -155,7 +155,9 @@ class PostgresSessionStore:
                 return False
             raise ValueError("whatsapp_session_requires_reset")
 
-    def ensure_portfolio(self, key: str, scope_id: int, tenant_id: str) -> bool:
+    def ensure_portfolio(
+        self, key: str, scope_id: int, tenant_id: str, snapshot_id: str | None = ""
+    ) -> bool:
         """Pin a Playground session without falling back to the global fixture."""
         key = validate_thread_id(key)
         if type(scope_id) is not int or scope_id <= 0:
@@ -166,6 +168,8 @@ class PostgresSessionStore:
 
         def fresh() -> dict:
             state = self._initial_state()
+            if snapshot_id != "":
+                state["snapshot_id"] = snapshot_id
             state["portfolio_scope_id"] = scope_id
             state["portfolio_tenant_id"] = tenant_id
             simulator = SimulatorStore.for_portfolio(scope_id)

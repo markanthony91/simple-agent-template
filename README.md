@@ -1,4 +1,20 @@
-# Agent Runtime — OKF simulator (0.14.13)
+# Agent Runtime — OKF simulator (0.17.9)
+
+## 0.17.9 — OKF ativado por carteira na homologação
+
+Configure `PORTFOLIO_OKF_SERVICE_URL` e `PORTFOLIO_OKF_SERVICE_TOKEN` somente
+no Runtime de homologação, apontando para o mesmo serviço OKF usado por Canais.
+O serviço OKF deve oferecer o download versionado `/bundles/{id}/archive`.
+Em uma conversa nova com `portfolio_context`, o Runtime consulta a versão ativa
+do tenant e da carteira, guarda o ZIP validado no volume OKF local e fixa esse
+snapshot na sessão. Uma carteira sem versão ativa não herda o OKF global.
+Conversas já abertas preservam seu snapshot; o Agente Principal e sessões sem
+`portfolio_context` continuam no fluxo anterior. Sem as duas variáveis, o
+Runtime mantém o comportamento legado para permitir o rollout controlado.
+Publique primeiro o OKF Service 0.2.1, depois o Runtime de homologação 0.17.9
+com as duas variáveis e, por último, Canais 0.65.5. Antes de anunciar a entrega,
+valide uma release sintética em uma carteira, uma conversa nova com o snapshot
+correto, a conversa antiga preservada e o Agente Principal inalterado.
 
 ## 0.17.7 — sessão de carteira no PostgreSQL
 
