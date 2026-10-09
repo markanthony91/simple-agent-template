@@ -43,7 +43,7 @@ class Fixture(BaseModel):
     creditor_name: str | None = None
     product: str
     debt: Debt
-    eligibility: Eligibility
+    eligibility: Eligibility = Field(default_factory=Eligibility)
     identity_policy: IdentityPolicy = Field(default_factory=IdentityPolicy)
 
 

@@ -212,9 +212,9 @@ a failed call returns no financial data. The identity result returns to the mode
 so the active Workflow controls the next message. Payment creation and delivery
 remain backend-rendered return-direct operations.
 
-Customer balance and eligibility come from the session fixture pinned by the
-backend. Commercial limits, validity, payment methods and delivery channels come
-from the published OKF policy that the model finds and reads for that session's
+Customer balance comes from the session fixture pinned by the backend.
+Commercial eligibility, limits, validity, payment methods and delivery channels
+come from the published OKF policy that the model finds and reads for that session's
 institution and product. The model passes the canonical policy path with the
 customer's choices; the backend validates the read receipt, scope, lifecycle and
 terms before applying the creditor-owned discount.

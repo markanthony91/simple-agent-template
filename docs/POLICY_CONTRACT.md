@@ -29,8 +29,8 @@ Unspecified executable terms block proposals, without blocking knowledge reads.
 Existing prose-only bundles remain readable but cannot authorize financial offers.
 
 The tool checks published/current metadata, institution/product, a read receipt
-and snapshot/hash. Transactional eligibility can block offers or narrow
-installments, never enlarge policy; only published policy limits discounts.
+and snapshot/hash. The published policy controls whether offers are available
+and limits installments and discounts; legacy fixture eligibility fields are ignored.
 Account amounts stay outside OKF. Money and percentages travel as decimal strings.
 `offer_discount_percentage` is the exact creditor-owned discount used by the
 transactional tool and must not exceed `max_discount_percentage`. The customer
