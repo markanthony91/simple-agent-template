@@ -75,6 +75,32 @@ def test_oss_boots_without_legacy_history(monkeypatch):
             client.get(f"/assistants/{assistant_id}", headers=headers).json()["name"]
             == "synthetic"
         )
+        versions_url = f"/assistants/{assistant_id}/versions"
+        assert [
+            row["version"]
+            for row in client.post(versions_url, json={}, headers=headers).json()
+        ] == [1]
+        saved = client.patch(
+            f"/assistants/{assistant_id}",
+            json={"expected_version": 1, "context": {"system_prompt": "second"}},
+            headers=headers,
+        )
+        assert saved.status_code == 200
+        assert saved.json()["version"] == 2
+        assert (
+            client.patch(
+                f"/assistants/{assistant_id}",
+                json={"expected_version": 1, "context": {"system_prompt": "stale"}},
+                headers=headers,
+            ).status_code
+            == 409
+        )
+        versions = client.post(
+            versions_url, json={"limit": 2, "offset": 0}, headers=headers
+        ).json()
+        assert [row["version"] for row in versions] == [2, 1]
+        assert versions[0]["context"]["system_prompt"] == "second"
+        assert versions[1]["context"] == {}
         assert client.post("/threads/search", json={}, headers=headers).json() == []
         thread = client.post("/threads", json={}, headers=headers)
         assert thread.status_code == 200

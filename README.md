@@ -1,4 +1,16 @@
-# Agent Runtime — OKF simulator (0.17.9)
+# Agent Runtime — OKF simulator (0.17.10)
+
+## 0.17.10 — histórico de instruções dos Assistants na homologação
+
+O Runtime OSS guarda snapshots imutáveis dos Assistants a cada `PATCH` e oferece
+`POST /assistants/{id}/versions` para consultar as últimas 50 versões. O
+`expected_version` opcional em `PATCH` evita que uma restauração sobrescreva uma
+edição concorrente. A tabela `langgraph.oss_assistant_versions` é criada no
+startup do serviço OSS. A versão corrente já existente aparece como baseline;
+versões anteriores à implantação não podem ser recuperadas retroativamente.
+Publique este Runtime de homologação antes de liberar o histórico no Canais.
+Nesta entrega, publicar somente o serviço de homologação; não alterar o Agente
+Principal nem o Runtime legado.
 
 ## 0.17.9 — OKF ativado por carteira na homologação
 
