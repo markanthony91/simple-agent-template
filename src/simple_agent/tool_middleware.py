@@ -28,6 +28,10 @@ from simple_agent.tool_observability import (
     tool_outcome,
 )
 from simple_agent.services.session_store import SessionStore, portfolio_context
+from simple_agent.services.portfolio_okf import (
+    active_snapshot,
+    configured as portfolio_okf_configured,
+)
 from simple_agent.services.identity_policy import instructions, policy_for
 from simple_agent.services.response_audit import audit_response
 from langgraph.config import get_config
@@ -639,7 +643,12 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
         sessions = SessionStore()
         context_scope = portfolio_context(request.runtime)
         if context_scope:
-            sessions.ensure_portfolio(key, *context_scope)
+            if portfolio_okf_configured() and not sessions.exists(key):
+                sessions.ensure_portfolio(
+                    key, *context_scope, snapshot_id=active_snapshot(*context_scope)
+                )
+            else:
+                sessions.ensure_portfolio(key, *context_scope)
         session = sessions.read(key)
         unbound = session.get("unbound_session") is True
         contract = UNBOUND_SESSION_INSTRUCTION if unbound else instructions(session)
