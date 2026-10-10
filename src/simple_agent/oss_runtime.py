@@ -15,12 +15,14 @@ import threading
 import time
 from contextlib import asynccontextmanager, closing
 from datetime import UTC, datetime
+from decimal import Decimal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import UUID, uuid4
 
 import psycopg
 import redis
 from langgraph.checkpoint.postgres import PostgresSaver
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from starlette.applications import Starlette
@@ -37,6 +39,7 @@ from simple_agent.admin_graph_v2 import graph as admin_graph
 from simple_agent.managed_graph import graph as agent_graph
 from simple_agent.llm_control_plane import resolve_routes
 from simple_agent.raw_compiler_graph import graph as raw_graph
+from simple_agent.tools.payment_tools import send_voice_demo_email
 
 GRAPHS = {"agent": agent_graph, "okf_admin": admin_graph, "raw_compiler": raw_graph}
 _RUN_KEY = "oss-runtime:v1"
@@ -94,6 +97,51 @@ def _authorized(request: Request) -> bool:
     token = os.getenv("OSS_RUNTIME_API_TOKEN", "")
     supplied = request.headers.get("x-api-key", "")
     return len(token) >= 32 and hmac.compare_digest(token, supplied)
+
+
+class PortfolioVoiceEmailRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope_id: int = Field(gt=1)
+    session_id: UUID
+    contact_name: str = Field(min_length=1, max_length=100)
+    credor: str = Field(min_length=1, max_length=100)
+    produto: str = Field(min_length=1, max_length=100)
+    valor_divida: str = Field(min_length=1, max_length=64)
+    email: str = Field(min_length=3, max_length=254)
+    latest_user_message: str = Field(min_length=3, max_length=2000)
+    forma_pagamento: str = Field(pattern="^(PIX|BOLETO)$")
+    parcelas: int = Field(ge=1, le=10)
+    valor_total: Decimal = Field(gt=0, le=1_000_000_000)
+    valor_parcela: Decimal | None = Field(default=None, gt=0, le=1_000_000_000)
+
+
+async def portfolio_voice_email(request: Request) -> JSONResponse:
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 16_384:
+            return _response({"success": False, "error": "payload_too_large"}, 413)
+    try:
+        payload = PortfolioVoiceEmailRequest.model_validate_json(bytes(body))
+    except (ValidationError, ValueError):
+        return _response({"success": False, "error": "invalid_request"}, 400)
+    result = await run_in_threadpool(
+        send_voice_demo_email,
+        str(payload.session_id),
+        payload.contact_name,
+        payload.credor,
+        payload.valor_divida,
+        payload.email,
+        payload.latest_user_message,
+        payload.forma_pagamento,
+        payload.parcelas,
+        payload.valor_total,
+        payload.valor_parcela,
+        scope_id=payload.scope_id,
+        product=payload.produto,
+    )
+    return _response({"success": result.get("sent") is True, **result})
 
 
 def _assistant(db, assistant_id):
@@ -1084,6 +1132,11 @@ app = Starlette(
     ],
     routes=[
         Route("/info", info),
+        Route(
+            "/integrations/elevenlabs/send-demo-email",
+            portfolio_voice_email,
+            methods=["POST"],
+        ),
         Route("/assistants/search", assistant_search, methods=["POST"]),
         Route("/assistants/{assistant_id}", assistant_get),
         Route("/assistants/{assistant_id}", assistant_update, methods=["PATCH"]),
