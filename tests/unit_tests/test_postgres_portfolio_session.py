@@ -88,6 +88,12 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
 
     original = db.row
     db.row = None
+    with pytest.raises(ValueError, match="demo_simulator_fixture_unavailable"):
+        store.ensure_portfolio(
+            "thread-public", 2, "tenant-2", demo_profile={"full_name": "Mariane"}
+        )
+
+    db.row = None
     assert (
         store.ensure_portfolio(
             "thread-2", 2, "tenant-2", snapshot_id="portfolio-release"
@@ -103,6 +109,41 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
         store.ensure_portfolio("thread-1", 3, "tenant-2")
 
     simulator.present = True
+    monkeypatch.setattr(
+        simulator,
+        "load",
+        lambda: {
+            "customer_id": "customer-2",
+            "full_name": "Rogério",
+            "cpf": "52998224725",
+            "birth_date": "1990-01-01",
+            "institution": "Usedigi",
+            "product": "Consignado",
+            "debt": {
+                "debt_id": "debt-2",
+                "current_amount": "850.00",
+                "due_date": "2026-08-17",
+            },
+        },
+    )
+    db.row = None
+    assert store.ensure_portfolio(
+        "thread-public",
+        2,
+        "tenant-2",
+        demo_profile={
+            "full_name": "Mariane",
+            "current_amount": "456.00",
+            "days_overdue": 60,
+        },
+    )
+    assert db.row["state"]["fixture"]["full_name"] == "Mariane"
+    assert db.row["state"]["fixture"]["debt"]["current_amount"] == "456.00"
+    assert db.row["state"]["fixture"]["debt"]["original_amount"] == "456.00"
+    assert db.row["state"]["fixture"]["debt"]["days_overdue"] == 60
+    assert db.row["state"]["portfolio_scope_id"] == 2
+    assert store.ensure_portfolio("thread-public", 2, "tenant-2") is False
+    db.row = original
     db.row["state"] = {"fixture": {"customer_id": "global"}, "identity_verified": True}
     assert store.ensure_portfolio("thread-1", 2, "tenant-2") is True
     assert db.row["state"]["fixture"]["customer_id"] == "customer-2"

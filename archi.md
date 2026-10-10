@@ -24,6 +24,10 @@ Snapshot and fixture are pinned at the first inference; publication does not
 silently change an ongoing conversation. SQLite transactions serialize short
 state operations only; no transaction holds a network LLM call.
 
+The isolated OSS PostgreSQL runtime can pin a public demo profile while creating
+a new thread. The profile overrides only name, current amount and overdue days
+in that thread's scoped fixture; the wallet simulator remains unchanged.
+
 Identity verification and customer lookup share one SQLite transaction. Only a
 successful verification marks the debt as read and returns the pinned customer.
 The model no longer receives the legacy two-tool path.
