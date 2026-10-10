@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 import redis
+from langchain_core.messages import AIMessageChunk
 from starlette.testclient import TestClient
 
 
@@ -32,7 +33,12 @@ def test_redis_worker_and_stream(monkeypatch, tmp_path):
 
     def fake_run(_assistant_id, input_value, _thread_id, stream=False):
         assert stream
-        yield {"messages": [{"type": "ai", "content": input_value["message"]}]}
+        yield "messages", (AIMessageChunk(content="stre"), {})
+        yield "messages", (AIMessageChunk(content="am"), {})
+        yield (
+            "values",
+            {"messages": [{"type": "ai", "content": input_value["message"]}]},
+        )
 
     monkeypatch.setattr(oss_runtime, "_run", fake_run)
     headers = {"X-Api-Key": os.environ["OSS_RUNTIME_API_TOKEN"]}
@@ -49,15 +55,26 @@ def test_redis_worker_and_stream(monkeypatch, tmp_path):
         with client.stream(
             "POST",
             "/threads/" + str(uuid4()) + "/runs/stream",
-            json={"assistant_id": "synthetic", "input": {"message": "stream"}},
+            json={
+                "assistant_id": "synthetic",
+                "input": {"message": "stream"},
+                "stream_mode": ["messages-tuple", "values"],
+            },
             headers=headers,
         ) as response:
             assert response.status_code == 200
             run_id = response.headers["x-run-id"]
-            events = [
-                line for line in response.iter_lines() if line.startswith("data: ")
-            ]
+            events = list(response.iter_lines())
+        assert events.count("event: messages") == 2
         assert any("stream" in event for event in events)
+        default_stream = client.post(
+            "/threads/" + str(uuid4()) + "/runs/stream",
+            json={"assistant_id": "synthetic", "input": {"message": "default"}},
+            headers=headers,
+        )
+        assert default_stream.status_code == 200
+        assert "event: messages" not in default_stream.text
+        assert "event: values" in default_stream.text
         status = client.get(f"/runs/{run_id}", headers=headers)
         assert status.status_code == 200
         assert status.json()["status"] == "succeeded"
@@ -69,7 +86,7 @@ def test_redis_worker_and_stream(monkeypatch, tmp_path):
             assert stream
             started.set()
             assert release.wait(10)
-            yield {"messages": [{"type": "ai", "content": "cancelar"}]}
+            yield "values", {"messages": [{"type": "ai", "content": "cancelar"}]}
 
         monkeypatch.setattr(oss_runtime, "_run", slow_run)
         cancelled_result = {}
