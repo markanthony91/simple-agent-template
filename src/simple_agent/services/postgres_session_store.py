@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import os
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Iterator
 
@@ -16,6 +16,7 @@ from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.boleto_store import second_copy_result
 from simple_agent.services.session_store import validate_thread_id
 from simple_agent.services.simulator_store import SimulatorStore
+from simple_agent.services.simulator_schema import normalize_fixture
 from simple_agent.tool_timing import timed_phase
 
 
@@ -156,7 +157,12 @@ class PostgresSessionStore:
             raise ValueError("whatsapp_session_requires_reset")
 
     def ensure_portfolio(
-        self, key: str, scope_id: int, tenant_id: str, snapshot_id: str | None = ""
+        self,
+        key: str,
+        scope_id: int,
+        tenant_id: str,
+        snapshot_id: str | None = "",
+        demo_profile: dict | None = None,
     ) -> bool:
         """Pin a Playground session without falling back to the global fixture."""
         key = validate_thread_id(key)
@@ -177,8 +183,20 @@ class PostgresSessionStore:
                 fixture = simulator.load()
                 fixture.pop("_runtime", None)
                 fixture.pop("identity_validated", None)
+                if demo_profile is not None:
+                    fixture["full_name"] = demo_profile["full_name"]
+                    fixture["debt"]["current_amount"] = demo_profile["current_amount"]
+                    fixture["debt"]["original_amount"] = demo_profile["current_amount"]
+                    fixture["debt"]["days_overdue"] = demo_profile["days_overdue"]
+                    fixture["debt"]["due_date"] = (
+                        datetime.now(timezone.utc).date()
+                        - timedelta(days=demo_profile["days_overdue"])
+                    ).isoformat()
+                    fixture = normalize_fixture(fixture)
                 state["fixture"] = fixture
             else:
+                if demo_profile is not None:
+                    raise ValueError("demo_simulator_fixture_unavailable")
                 state["unbound_session"] = True
             return state
 

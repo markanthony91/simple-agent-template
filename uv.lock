@@ -1712,7 +1712,7 @@ wheels = [
 
 [[package]]
 name = "simple-agent-template"
-version = "0.18.0"
+version = "0.18.1"
 source = { editable = "." }
 dependencies = [
     { name = "langchain" },

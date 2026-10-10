@@ -1,4 +1,4 @@
-# Agent Runtime — OKF simulator (0.17.11)
+# Agent Runtime — OKF simulator (0.18.1)
 
 ## 0.17.11 — fragmentos de texto no streaming OSS
 
@@ -66,6 +66,15 @@ Para ativar por carteira, o serviço que prepara o Assistant precisa persistir e
 entregar a lista no contexto confiável dele; o cadastro do Canais sozinho ainda
 não faz isso. A configuração deve ser validada com fixtures e OKF da carteira
 antes de habilitar tools de negociação e envio.
+
+## 0.18.1 — perfil isolado da demo pública
+
+No Agente de Homologação OSS, `POST /threads` aceita `demo_profile` somente
+quando a thread traz Assistant, escopo e sessão de demo válidos. O Runtime
+confere o escopo com o contexto persistido do Assistant e fixa nome, valor e
+dias de atraso na nova sessão; a ficha do simulador da carteira não é alterada.
+O gateway do Playground não expõe esses campos ao navegador. A release OKF da
+carteira continua fixada na criação da sessão.
 
 ## 0.14.13 — isolamento do Playground por carteira
 
