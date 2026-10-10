@@ -123,8 +123,8 @@ def generate_payment_offer(
     applies its creditor-defined discount. For policies with overdue discount
     ceilings, omit discount_percentage unless the customer explicitly requests
     a discount; then use only a percentage found in the policy. The backend
-    checks it against the customer's eligibility, the current overdue tier and
-    an explicit current_amount discount basis. Policies without that basis
+    checks it against the current overdue tier and an explicit current_amount
+    discount basis. Policies without that basis
     cannot generate a positive discount.
     A customer-proposed percentage alone is not authorization; do not invent
     policy terms. No internal human approval or second confirmation is required.
@@ -427,6 +427,9 @@ def send_voice_demo_email(
     installments: int,
     total_amount: Decimal | None = None,
     installment_amount: Decimal | None = None,
+    *,
+    scope_id: int = 1,
+    product: str = "cartao_de_credito",
 ) -> dict:
     """Send the voice DEMO values directly, without identity or session lookup."""
     if not contact_name.strip() or not creditor.strip():
@@ -461,7 +464,7 @@ def send_voice_demo_email(
         "nome": contact_name.strip(),
         "upcoming_installments": "none",
         "credor": creditor.strip(),
-        "produto": "cartao_de_credito",
+        "produto": product,
         "forma_pagamento": method.upper(),
         "valor": f"R$ {str(instruction).replace('.', ',')}",
         "payment_date": datetime.now(ZoneInfo("America/Sao_Paulo")).strftime(
@@ -476,7 +479,7 @@ def send_voice_demo_email(
         "is_simulation": "true",
     }
     try:
-        catalog, values = _email_plan(context)
+        catalog, values = _email_plan(context, scope_id)
     except ChannelConsoleError as exc:
         return {"sent": False, "reason": exc.code}
     result = _dispatch_email(
@@ -485,6 +488,7 @@ def send_voice_demo_email(
         address,
         str(uuid5(NAMESPACE_URL, f"voice-demo:{fingerprint}")),
         str(uuid5(NAMESPACE_URL, f"voice-demo-decision:{fingerprint}")),
+        scope_id,
     )
     return {
         **result,

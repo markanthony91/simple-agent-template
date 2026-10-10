@@ -69,3 +69,21 @@ Variáveis locais:
 
 O agente legado permanece com sua configuração atual. A nova tool Fastpay usa a
 rota DEMO e só deve ser vinculada ao novo agente depois da publicação do Runtime.
+
+## Usedigi no Runtime OSS
+
+O agente de voz Usedigi usa um webhook separado no Playground. Esse webhook
+exige `DEMO_VOICE_TOOL_TOKEN`, uma sessão de voz emitida para a carteira e
+destinatário em `DEMO_VOICE_ALLOWED_EMAILS` (inicialmente apenas Marcelo). O
+Playground encaminha pela rede privada para o Runtime OSS com `X-Api-Key`:
+
+```text
+POST /integrations/elevenlabs/send-demo-email
+X-Api-Key: <OSS_RUNTIME_API_TOKEN>
+```
+
+O corpo inclui o `scope_id` e o produto daquela carteira, além dos termos da
+simulação. O Runtime OSS usa `CHANNEL_CONSOLE_RUNTIME_TOKEN_SCOPE_<id>` para
+consultar o template e solicitar o disparo no Canais; não usa o vínculo de
+Resend nem o token da carteira principal. A tool global antiga do ElevenLabs
+não deve ser editada nem vinculada ao agente Usedigi.

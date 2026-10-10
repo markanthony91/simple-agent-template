@@ -228,18 +228,9 @@ def _generate_offer(
     if not state["identity_verified"]:
         return {"available": False, "reason": "identity_verification_required"}
     fixture = state["fixture"]
-    eligibility = fixture.get("eligibility", {})
-    if eligibility.get("can_negotiate") is not True:
-        return {"available": False, "reason": "customer_not_eligible"}
     count = 1 if payment_type == "cash" else installments
     try:
         discount = money(discount_percentage)
-        if (
-            not 1 <= count <= int(eligibility.get("max_installments", 1))
-            or discount > money(eligibility.get("max_discount_percentage", 0))
-            or discount > 100
-        ):
-            raise ValueError("customer_eligibility_exceeded")
         evidence = validate_policy(
             state, policy_path, payment_type, count, discount, down_payment_amount
         )

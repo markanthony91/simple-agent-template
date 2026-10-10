@@ -11,16 +11,19 @@ import copy
 import hmac
 import json
 import os
+import re
 import threading
 import time
 from contextlib import asynccontextmanager, closing
 from datetime import UTC, datetime
+from decimal import Decimal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from uuid import UUID, uuid4
 
 import psycopg
 import redis
 from langgraph.checkpoint.postgres import PostgresSaver
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from starlette.applications import Starlette
@@ -37,6 +40,9 @@ from simple_agent.admin_graph_v2 import graph as admin_graph
 from simple_agent.managed_graph import graph as agent_graph
 from simple_agent.llm_control_plane import resolve_routes
 from simple_agent.raw_compiler_graph import graph as raw_graph
+from simple_agent.tools.payment_tools import send_voice_demo_email
+from simple_agent.services.postgres_session_store import PostgresSessionStore
+from simple_agent.services.portfolio_okf import active_snapshot, configured as portfolio_okf_configured
 
 GRAPHS = {"agent": agent_graph, "okf_admin": admin_graph, "raw_compiler": raw_graph}
 _RUN_KEY = "oss-runtime:v1"
@@ -94,6 +100,59 @@ def _authorized(request: Request) -> bool:
     token = os.getenv("OSS_RUNTIME_API_TOKEN", "")
     supplied = request.headers.get("x-api-key", "")
     return len(token) >= 32 and hmac.compare_digest(token, supplied)
+
+
+class PortfolioVoiceEmailRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    scope_id: int = Field(gt=1)
+    session_id: UUID
+    contact_name: str = Field(min_length=1, max_length=100)
+    credor: str = Field(min_length=1, max_length=100)
+    produto: str = Field(min_length=1, max_length=100)
+    valor_divida: str = Field(min_length=1, max_length=64)
+    email: str = Field(min_length=3, max_length=254)
+    latest_user_message: str = Field(min_length=3, max_length=2000)
+    forma_pagamento: str = Field(pattern="^(PIX|BOLETO)$")
+    parcelas: int = Field(ge=1, le=10)
+    valor_total: Decimal = Field(gt=0, le=1_000_000_000)
+    valor_parcela: Decimal | None = Field(default=None, gt=0, le=1_000_000_000)
+
+
+class DemoProfile(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    full_name: str = Field(min_length=3, max_length=120)
+    current_amount: Decimal = Field(gt=0, le=10_000_000)
+    days_overdue: StrictInt = Field(ge=0, le=3650)
+
+
+async def portfolio_voice_email(request: Request) -> JSONResponse:
+    body = bytearray()
+    async for chunk in request.stream():
+        body.extend(chunk)
+        if len(body) > 16_384:
+            return _response({"success": False, "error": "payload_too_large"}, 413)
+    try:
+        payload = PortfolioVoiceEmailRequest.model_validate_json(bytes(body))
+    except (ValidationError, ValueError):
+        return _response({"success": False, "error": "invalid_request"}, 400)
+    result = await run_in_threadpool(
+        send_voice_demo_email,
+        str(payload.session_id),
+        payload.contact_name,
+        payload.credor,
+        payload.valor_divida,
+        payload.email,
+        payload.latest_user_message,
+        payload.forma_pagamento,
+        payload.parcelas,
+        payload.valor_total,
+        payload.valor_parcela,
+        scope_id=payload.scope_id,
+        product=payload.produto,
+    )
+    return _response({"success": result.get("sent") is True, **result})
 
 
 def _assistant(db, assistant_id):
@@ -405,6 +464,37 @@ async def thread_create(request):
     metadata = body.get("metadata") or {}
     if not isinstance(metadata, dict):
         return _response({"detail": "invalid_metadata"}, 400)
+    profile = None
+    scope = None
+    snapshot_id = ""
+    if "demo_profile" in body:
+        try:
+            profile = DemoProfile.model_validate(body["demo_profile"])
+        except ValidationError:
+            return _response({"detail": "invalid_demo_profile"}, 400)
+        if (
+            not re.fullmatch(r"[a-f0-9]{32}", str(metadata.get("demo_session_id", "")))
+            or not isinstance(metadata.get("assistant_id"), str)
+        ):
+            return _response({"detail": "invalid_demo_metadata"}, 400)
+        with _db() as db:
+            assistant = _assistant(db, metadata["assistant_id"])
+        context = assistant.get("context", {}) if assistant else {}
+        scope = context.get("portfolio_context") if isinstance(context, dict) else None
+        if (
+            not isinstance(scope, dict)
+            or not str(scope.get("scope_id", "")).isdigit()
+            or int(scope["scope_id"]) <= 1
+            or str(scope.get("scope_id")) != metadata.get("zerai_scope_id")
+            or not isinstance(scope.get("tenant_id"), str)
+            or not scope["tenant_id"].strip()
+        ):
+            return _response({"detail": "invalid_demo_scope"}, 400)
+        if portfolio_okf_configured():
+            try:
+                snapshot_id = active_snapshot(int(scope["scope_id"]), scope["tenant_id"])
+            except (ValueError, OSError, KeyError):
+                return _response({"detail": "demo_okf_unavailable"}, 503)
     with _db() as db:
         existing = _thread(db, thread_id)
         if existing:
@@ -416,6 +506,17 @@ async def thread_create(request):
                VALUES (%s,%s) RETURNING thread_id,metadata,status,created_at,updated_at""",
             (thread_id, Jsonb(metadata)),
         ).fetchone()
+    if profile is not None:
+        try:
+            PostgresSessionStore().ensure_portfolio(
+                thread_id,
+                int(scope["scope_id"]),
+                scope["tenant_id"],
+                snapshot_id=snapshot_id,
+                demo_profile=profile.model_dump(mode="json"),
+            )
+        except (ValueError, OSError, KeyError):
+            return _response({"detail": "demo_fixture_unavailable"}, 503)
     return _response(row)
 
 
@@ -1084,6 +1185,11 @@ app = Starlette(
     ],
     routes=[
         Route("/info", info),
+        Route(
+            "/integrations/elevenlabs/send-demo-email",
+            portfolio_voice_email,
+            methods=["POST"],
+        ),
         Route("/assistants/search", assistant_search, methods=["POST"]),
         Route("/assistants/{assistant_id}", assistant_get),
         Route("/assistants/{assistant_id}", assistant_update, methods=["PATCH"]),
