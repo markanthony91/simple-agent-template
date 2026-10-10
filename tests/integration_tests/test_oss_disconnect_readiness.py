@@ -11,6 +11,7 @@ import psycopg
 import pytest
 import redis
 import uvicorn
+from langchain_core.messages import AIMessageChunk
 
 
 def test_disconnect_cancel_and_readiness(monkeypatch, tmp_path):
@@ -45,9 +46,9 @@ def test_disconnect_cancel_and_readiness(monkeypatch, tmp_path):
     def slow_run(_assistant_id, _input_value, _thread_id, stream=False):
         assert stream
         started.set()
-        yield {"messages": [{"type": "ai", "content": "FIRST"}]}
+        yield "values", {"messages": [{"type": "ai", "content": "FIRST"}]}
         assert release.wait(10)
-        yield {"messages": [{"type": "ai", "content": "FINAL"}]}
+        yield "values", {"messages": [{"type": "ai", "content": "FINAL"}]}
 
     monkeypatch.setattr(oss_runtime, "_run", slow_run)
     with socket.socket() as listener:
@@ -133,6 +134,41 @@ def test_disconnect_cancel_and_readiness(monkeypatch, tmp_path):
                 time.sleep(0.1)
             assert row["status"] == "succeeded"
             assert row["result"]["messages"][0]["content"] == "FINAL"
+
+            message_released = threading.Event()
+
+            def staged_run(_assistant_id, _input_value, _thread_id, stream=False):
+                assert stream
+                yield "messages", (AIMessageChunk(content="early"), {})
+                assert message_released.wait(10)
+                yield "values", {"messages": [{"type": "ai", "content": "early final"}]}
+
+            monkeypatch.setattr(oss_runtime, "_run", staged_run)
+            try:
+                with httpx.Client(**client_options) as stream_client:
+                    with stream_client.stream(
+                        "POST",
+                        f"/threads/{uuid4()}/runs/stream",
+                        json={
+                            "assistant_id": "synthetic",
+                            "input": {},
+                            "stream_mode": ["messages-tuple", "values"],
+                        },
+                    ) as response:
+                        assert response.status_code == 200
+                        lines = response.iter_lines()
+                        assert (
+                            next(line for line in lines if line.startswith("event: "))
+                            == "event: messages"
+                        )
+                        assert (
+                            next(line for line in lines if line.startswith("data: "))
+                            == 'data: [{"type": "ai", "content": "early"}, {}]'
+                        )
+                        message_released.set()
+                        assert "event: values" in list(lines)
+            finally:
+                message_released.set()
 
             original_db = oss_runtime._db
 

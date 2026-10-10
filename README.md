@@ -1,4 +1,14 @@
-# Agent Runtime — OKF simulator (0.17.10)
+# Agent Runtime — OKF simulator (0.17.11)
+
+## 0.17.11 — fragmentos de texto no streaming OSS
+
+O endpoint OSS `/threads/{thread_id}/runs/stream` emite eventos `messages`
+quando o cliente pede `stream_mode: ["messages-tuple", "values"]`. Cada evento
+contém somente texto do Assistant; metadados e chamadas de tools não são
+repassados nesse canal. Clientes que não pedem mensagens continuam recebendo
+apenas `values`. O resultado final, checkpoint e cancelamento permanecem iguais.
+Publique somente no Agente de Homologação e valide um chat sintético antes de
+considerar o streaming da demo pronto; não altere o Runtime Principal/legado.
 
 ## 0.17.10 — histórico de instruções dos Assistants na homologação
 

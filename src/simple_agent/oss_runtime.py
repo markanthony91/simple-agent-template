@@ -600,7 +600,7 @@ def _run(assistant_id, input_value, thread_id=None, stream=False):
             kwargs = {"context": context}
             if stream:
                 yield from graph.stream(
-                    input_value, config, stream_mode="values", **kwargs
+                    input_value, config, stream_mode=["messages", "values"], **kwargs
                 )
             else:
                 yield graph.invoke(input_value, config, **kwargs)
@@ -695,6 +695,26 @@ def _publish(client, run_id, kind, value=None):
         pass  # Final state remains queryable in PostgreSQL.
 
 
+def _assistant_text_event(value):
+    message, _metadata = value
+    if message.type not in {"ai", "AIMessageChunk"}:
+        return None
+    content = message.content
+    if isinstance(content, list):
+        content = "".join(
+            part["text"]
+            for part in content
+            if isinstance(part, dict)
+            and part.get("type") == "text"
+            and isinstance(part.get("text"), str)
+        )
+    return (
+        [{"type": "ai", "content": content}, {}]
+        if isinstance(content, str) and content
+        else None
+    )
+
+
 def _execute_queued_run(row, client):
     run_id = row["run_id"]
     result = None
@@ -712,7 +732,12 @@ def _execute_queued_run(row, client):
             with closing(
                 _run(row["assistant_id"], row["input"], row["thread_id"], stream=True)
             ) as execution:
-                for result in execution:
+                for kind, value in execution:
+                    if kind == "messages":
+                        if text_event := _assistant_text_event(value):
+                            _publish(client, run_id, "messages", text_event)
+                        continue
+                    result = value
                     _publish(client, run_id, "values", result)
                     with _db() as db:
                         current = db.execute(
@@ -856,6 +881,12 @@ async def run_stream(request):
     thread_id = request.path_params.get("thread_id")
     if not body.get("assistant_id") or not isinstance(body.get("input"), dict):
         return _response({"detail": "invalid_request"}, 400)
+    modes = body.get("stream_mode") or ["values"]
+    wants_messages = any(
+        mode in {"messages", "messages-tuple"}
+        for mode in (modes if isinstance(modes, list) else [modes])
+        if isinstance(mode, str)
+    )
 
     if _redis_enabled():
         client = _redis()
@@ -884,6 +915,7 @@ async def run_stream(request):
         async def events_from_redis():
             nonlocal finished
             last_value = None
+            last_check = 0.0
             pubsub_healthy = True
             deadline = time.monotonic() + 300
             while time.monotonic() < deadline:
@@ -897,12 +929,34 @@ async def run_stream(request):
                         )
                     except redis.RedisError:
                         pubsub_healthy = False
-                if message and message["type"] == "message":
-                    event = json.loads(message["data"])
-                    if event["kind"] == "values":
+                now = time.monotonic()
+                if message is None or now - last_check >= 0.25:
+                    row = await run_in_threadpool(_run_row, run_id)
+                    last_check = now
+                else:
+                    row = {"status": "running"}
+                messages = [message] if message else []
+                if (
+                    row["status"] in {"succeeded", "failed", "cancelled"}
+                    and pubsub_healthy
+                ):
+                    while extra := await run_in_threadpool(
+                        pubsub.get_message, ignore_subscribe_messages=True, timeout=0.05
+                    ):
+                        messages.append(extra)
+                for item in messages:
+                    if item["type"] != "message":
+                        continue
+                    event = json.loads(item["data"])
+                    if event["kind"] == "messages" and wants_messages:
+                        yield (
+                            "event: messages\ndata: "
+                            + json.dumps(event["value"])
+                            + "\n\n"
+                        )
+                    elif event["kind"] == "values":
                         last_value = event["value"]
                         yield "event: values\ndata: " + json.dumps(last_value) + "\n\n"
-                row = await run_in_threadpool(_run_row, run_id)
                 if row["status"] in {"succeeded", "failed", "cancelled"}:
                     finished = True
                     if row["status"] == "succeeded" and row["result"] != last_value:
@@ -933,11 +987,19 @@ async def run_stream(request):
 
     def events():
         try:
-            for value in _run(
+            for kind, value in _run(
                 body["assistant_id"], body["input"], thread_id, stream=True
             ):
+                if kind == "messages":
+                    value = _assistant_text_event(value) if wants_messages else None
+                    if not value:
+                        continue
                 yield (
-                    "event: values\ndata: " + json.dumps(value, default=_json) + "\n\n"
+                    "event: "
+                    + kind
+                    + "\ndata: "
+                    + json.dumps(value, default=_json)
+                    + "\n\n"
                 )
         except Exception:  # noqa: BLE001 - never leak conversation or provider details
             yield 'event: error\ndata: {"error":"run_failed"}\n\n'
