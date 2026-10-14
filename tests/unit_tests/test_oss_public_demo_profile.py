@@ -3,7 +3,23 @@ import json
 from contextlib import nullcontext
 from types import SimpleNamespace
 
+import pytest
+from pydantic import ValidationError
+
 from simple_agent import oss_runtime
+
+
+def test_demo_profile_validates_identity_fields():
+    profile = {
+        "full_name": "Pessoa Exemplo",
+        "current_amount": "850.00",
+        "days_overdue": 50,
+        "cpf": "52998224725",
+        "phone": "+5511999999999",
+    }
+    assert oss_runtime.DemoProfile.model_validate(profile).cpf == "52998224725"
+    with pytest.raises(ValidationError):
+        oss_runtime.DemoProfile.model_validate({**profile, "cpf": "11111111111"})
 
 
 def test_public_demo_profile_is_pinned_to_assistant_scope(monkeypatch):

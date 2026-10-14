@@ -135,9 +135,13 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
             "full_name": "Mariane",
             "current_amount": "456.00",
             "days_overdue": 60,
+            "cpf": "52998224725",
+            "phone": "+5511999999999",
         },
     )
     assert db.row["state"]["fixture"]["full_name"] == "Mariane"
+    assert db.row["state"]["fixture"]["cpf"] == "52998224725"
+    assert db.row["state"]["fixture"]["phone"] == "+5511999999999"
     assert db.row["state"]["fixture"]["debt"]["current_amount"] == "456.00"
     assert db.row["state"]["fixture"]["debt"]["original_amount"] == "456.00"
     assert db.row["state"]["fixture"]["debt"]["days_overdue"] == 60

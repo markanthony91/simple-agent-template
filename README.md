@@ -72,8 +72,11 @@ antes de habilitar tools de negociação e envio.
 No Agente de Homologação OSS, `POST /threads` aceita `demo_profile` somente
 quando a thread traz Assistant, escopo e sessão de demo válidos. O Runtime
 confere o escopo com o contexto persistido do Assistant e fixa nome, valor e
-dias de atraso na nova sessão; a ficha do simulador da carteira não é alterada.
-O gateway do Playground não expõe esses campos ao navegador. A release OKF da
+dias de atraso na nova sessão. O perfil pode incluir CPF valido e telefone
+brasileiro em E.164; quando presentes, tambem ficam fixados apenas na sessao.
+A ficha do simulador da carteira não é alterada. O gateway do Playground só
+aceita esses campos do backend da demo na primeira mensagem, nunca de uma
+thread existente. A release OKF da
 carteira continua fixada na criação da sessão.
 
 ## 0.14.13 — isolamento do Playground por carteira

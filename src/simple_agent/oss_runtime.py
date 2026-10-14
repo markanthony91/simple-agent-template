@@ -23,7 +23,7 @@ from uuid import UUID, uuid4
 import psycopg
 import redis
 from langgraph.checkpoint.postgres import PostgresSaver
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from starlette.applications import Starlette
@@ -125,6 +125,21 @@ class DemoProfile(BaseModel):
     full_name: str = Field(min_length=3, max_length=120)
     current_amount: Decimal = Field(gt=0, le=10_000_000)
     days_overdue: StrictInt = Field(ge=0, le=3650)
+    cpf: str | None = Field(default=None, pattern=r"^\d{11}$")
+    phone: str | None = Field(default=None, pattern=r"^\+55[1-9]{2}\d{8,9}$")
+
+    @field_validator("cpf")
+    @classmethod
+    def valid_cpf(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if value == value[0] * 11:
+            raise ValueError("invalid_cpf")
+        for length in (9, 10):
+            total = sum(int(digit) * (length + 1 - index) for index, digit in enumerate(value[:length]))
+            if (total * 10 % 11) % 10 != int(value[length]):
+                raise ValueError("invalid_cpf")
+        return value
 
 
 async def portfolio_voice_email(request: Request) -> JSONResponse:
@@ -513,7 +528,7 @@ async def thread_create(request):
                 int(scope["scope_id"]),
                 scope["tenant_id"],
                 snapshot_id=snapshot_id,
-                demo_profile=profile.model_dump(mode="json"),
+                demo_profile=profile.model_dump(mode="json", exclude_none=True),
             )
         except (ValueError, OSError, KeyError):
             return _response({"detail": "demo_fixture_unavailable"}, 503)

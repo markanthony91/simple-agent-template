@@ -185,6 +185,10 @@ class PostgresSessionStore:
                 fixture.pop("identity_validated", None)
                 if demo_profile is not None:
                     fixture["full_name"] = demo_profile["full_name"]
+                    if demo_profile.get("cpf"):
+                        fixture["cpf"] = demo_profile["cpf"]
+                    if demo_profile.get("phone"):
+                        fixture["phone"] = demo_profile["phone"]
                     fixture["debt"]["current_amount"] = demo_profile["current_amount"]
                     fixture["debt"]["original_amount"] = demo_profile["current_amount"]
                     fixture["debt"]["days_overdue"] = demo_profile["days_overdue"]
