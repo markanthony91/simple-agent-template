@@ -280,10 +280,14 @@ def _setup():
             """CREATE TABLE IF NOT EXISTS langgraph.oss_threads (
                 thread_id uuid PRIMARY KEY,
                 metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+                instruction_snapshot jsonb,
                 status text NOT NULL DEFAULT 'idle',
                 created_at timestamptz NOT NULL DEFAULT now(),
                 updated_at timestamptz NOT NULL DEFAULT now()
             )"""
+        )
+        db.execute(
+            "ALTER TABLE langgraph.oss_threads ADD COLUMN IF NOT EXISTS instruction_snapshot jsonb"
         )
         db.execute(
             """CREATE TABLE IF NOT EXISTS langgraph.oss_runs (
@@ -668,6 +672,35 @@ async def thread_history(request):
     )
 
 
+_INSTRUCTION_FIELDS = ("system_prompt", "agent_instructions", "active_workflow")
+
+
+def _pinned_instruction_context(db, thread_id, context):
+    """Pin only instructions; identity, tools, LLM and OKF keep their own contracts."""
+    row = db.execute(
+        "SELECT instruction_snapshot FROM langgraph.oss_threads WHERE thread_id=%s",
+        (thread_id,),
+    ).fetchone()
+    if row is None:  # Imported legacy thread.
+        return context
+    if row["instruction_snapshot"] is not None:
+        return {**context, **row["instruction_snapshot"]}
+    snapshot = {
+        key: context[key]
+        for key in _INSTRUCTION_FIELDS
+        if isinstance(context.get(key), str)
+    }
+    if not snapshot:
+        return context
+    row = db.execute(
+        """UPDATE langgraph.oss_threads
+           SET instruction_snapshot=%s
+           WHERE thread_id=%s RETURNING instruction_snapshot""",
+        (Jsonb(snapshot), thread_id),
+    ).fetchone()
+    return {**context, **row["instruction_snapshot"]}
+
+
 def _run(assistant_id, input_value, thread_id=None, stream=False):
     with _db() as db:
         assistant = _assistant(db, assistant_id)
@@ -716,6 +749,8 @@ def _run(assistant_id, input_value, thread_id=None, stream=False):
                     ),
                 )
             context = assistant.get("context") or {}
+            if graph_id == "agent" and thread_id:
+                context = _pinned_instruction_context(db, thread_id, context)
             if (
                 graph_id == "agent"
                 and os.getenv("CHANNELS_LLM_CONTROL_ENABLED") == "true"
