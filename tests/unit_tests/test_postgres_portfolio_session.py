@@ -165,6 +165,7 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
             "cpf": "52998224725",
             "phone": "+5511999999999",
         },
+        name_provided=True,
     )
     assert db.row["state"]["fixture"]["full_name"] == "Mariane"
     assert db.row["state"]["fixture"]["cpf"] == "52998224725"
@@ -173,6 +174,20 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
     assert db.row["state"]["fixture"]["debt"]["original_amount"] == "456.00"
     assert db.row["state"]["fixture"]["debt"]["days_overdue"] == 60
     assert db.row["state"]["portfolio_scope_id"] == 2
+    assert db.row["state"]["name_context"] == {"provided": True, "source": "form"}
+    assert db.row["state"]["identity_verified"] is False
+    db.row = None
+    assert store.ensure_portfolio(
+        "thread-fallback",
+        2,
+        "tenant-2",
+        demo_profile={
+            "full_name": "Mariane",
+            "current_amount": "456.00",
+            "days_overdue": 60,
+        },
+    )
+    assert "name_context" not in db.row["state"]
     assert store.ensure_portfolio("thread-public", 2, "tenant-2") is False
     db.row = original
     db.row["state"] = {"fixture": {"customer_id": "global"}, "identity_verified": True}

@@ -60,6 +60,15 @@ def instructions(state: dict) -> str:
         if creditor
         else ""
     )
+    name_context = state.get("name_context")
+    name_note = (
+        "\n\n# Nome informado nesta sessão (não verificado)\n"
+        "A pessoa já informou seu nome. Não o solicite novamente apenas para "
+        "iniciar ou personalizar o atendimento. Isso não valida a identidade; "
+        "continue exigindo os fatores da política antes de revelar dados da dívida."
+        if isinstance(name_context, dict) and name_context.get("provided") is True
+        else ""
+    )
     cpf = {
         "full": "CPF completo",
         "first3": "3 primeiros dígitos do CPF",
@@ -81,8 +90,7 @@ def instructions(state: dict) -> str:
     )
     if policy.cpf_mode == "first3" and policy.secondary == "none":
         request = (
-            scope
-            + "Nesse estágio, solicite somente os 3 primeiros dígitos do CPF. "
+            scope + "Nesse estágio, solicite somente os 3 primeiros dígitos do CPF. "
             "Não solicite nome completo, data de nascimento nem outro dado de identidade. "
             "Use verify_and_get_customer somente com o argumento cpf. "
         )
@@ -96,6 +104,7 @@ def instructions(state: dict) -> str:
         )
     return (
         presentation
+        + name_note
         + "\n\n# Contrato de identificação da sessão (configuração do backend)\n"
         + request
         + (

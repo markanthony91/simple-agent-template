@@ -538,6 +538,11 @@ async def thread_create(request):
             r"[a-f0-9]{32}", str(metadata.get("demo_session_id", ""))
         ) or not isinstance(metadata.get("assistant_id"), str):
             return _response({"detail": "invalid_demo_metadata"}, 400)
+        if (
+            "name_provided_before_chat" in metadata
+            and metadata["name_provided_before_chat"] is not True
+        ):
+            return _response({"detail": "invalid_demo_metadata"}, 400)
         with _db() as db:
             assistant = _assistant(db, metadata["assistant_id"])
         context = assistant.get("context", {}) if assistant else {}
@@ -558,6 +563,8 @@ async def thread_create(request):
                 )
             except (ValueError, OSError, KeyError):
                 return _response({"detail": "demo_okf_unavailable"}, 503)
+    elif "name_provided_before_chat" in metadata:
+        return _response({"detail": "invalid_demo_metadata"}, 400)
     with _db() as db:
         existing = _thread(db, thread_id)
         if existing:
@@ -574,6 +581,8 @@ async def thread_create(request):
                             demo_profile=profile.model_dump(
                                 mode="json", exclude_none=True
                             ),
+                            name_provided=metadata.get("name_provided_before_chat")
+                            is True,
                         )
                     except (ValueError, OSError, KeyError):
                         return _response({"detail": "demo_fixture_unavailable"}, 503)
@@ -592,6 +601,7 @@ async def thread_create(request):
                 scope["tenant_id"],
                 snapshot_id=snapshot_id,
                 demo_profile=profile.model_dump(mode="json", exclude_none=True),
+                name_provided=metadata.get("name_provided_before_chat") is True,
             )
         except (ValueError, OSError, KeyError):
             return _response({"detail": "demo_fixture_unavailable"}, 503)
@@ -1168,7 +1178,9 @@ async def run_stream(request):
                         last_value = event["value"]
                         yield (
                             "event: values\ndata: "
-                            + json.dumps(_with_delivery_segments(copy.deepcopy(last_value)))
+                            + json.dumps(
+                                _with_delivery_segments(copy.deepcopy(last_value))
+                            )
                             + "\n\n"
                         )
                 if row["status"] in {"succeeded", "failed", "cancelled"}:
@@ -1176,7 +1188,9 @@ async def run_stream(request):
                     if row["status"] == "succeeded" and row["result"] != last_value:
                         yield (
                             "event: values\ndata: "
-                            + json.dumps(_with_delivery_segments(copy.deepcopy(row["result"])))
+                            + json.dumps(
+                                _with_delivery_segments(copy.deepcopy(row["result"]))
+                            )
                             + "\n\n"
                         )
                     elif row["status"] != "succeeded":

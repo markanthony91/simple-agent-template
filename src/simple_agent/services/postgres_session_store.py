@@ -144,7 +144,10 @@ class PostgresSessionStore:
         if (scope_id is None) != (tenant_id is None):
             raise ValueError("invalid_whatsapp_scope")
         if scope_id is not None and (
-            type(scope_id) is not int or scope_id < 1 or not isinstance(tenant_id, str) or not tenant_id.strip()
+            type(scope_id) is not int
+            or scope_id < 1
+            or not isinstance(tenant_id, str)
+            or not tenant_id.strip()
         ):
             raise ValueError("invalid_whatsapp_scope")
         state = self._initial_state()
@@ -190,6 +193,7 @@ class PostgresSessionStore:
         tenant_id: str,
         snapshot_id: str | None = "",
         demo_profile: dict | None = None,
+        name_provided: bool = False,
     ) -> bool:
         """Pin a Playground session without falling back to the global fixture."""
         key = validate_thread_id(key)
@@ -197,6 +201,8 @@ class PostgresSessionStore:
             raise ValueError("invalid_portfolio_scope")
         if not isinstance(tenant_id, str) or not tenant_id.strip():
             raise ValueError("invalid_portfolio_tenant")
+        if type(name_provided) is not bool or (name_provided and demo_profile is None):
+            raise ValueError("invalid_name_origin")
         tenant_id = tenant_id.strip()
 
         def fresh() -> dict:
@@ -224,6 +230,8 @@ class PostgresSessionStore:
                         - timedelta(days=demo_profile["days_overdue"])
                     ).isoformat()
                     fixture = normalize_fixture(fixture)
+                    if name_provided:
+                        state["name_context"] = {"provided": True, "source": "form"}
                 state["fixture"] = fixture
             else:
                 if demo_profile is not None:

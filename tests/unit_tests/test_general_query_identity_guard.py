@@ -1,7 +1,10 @@
 from simple_agent.tool_middleware import (
     ACTIVE_IDENTITY_REPLY,
+    _chat_name_was_given,
     _sanitize_identity_request,
 )
+from langchain_core.messages import AIMessage, HumanMessage
+from types import SimpleNamespace
 
 
 def test_first3_only_identity_request_drops_other_factors() -> None:
@@ -25,6 +28,49 @@ def test_first3_only_identity_request_drops_other_factors() -> None:
     assert "3 primeiros dígitos" in sanitized
     assert "nome completo" not in sanitized
     assert "data de nascimento" not in sanitized
+
+
+def test_name_from_form_is_not_requested_again_or_used_as_verification() -> None:
+    session = {
+        "identity_verified": False,
+        "name_context": {"provided": True, "source": "form"},
+        "fixture": {
+            "identity_policy": {
+                "cpf_mode": "first3",
+                "secondary": "none",
+                "max_attempts": 3,
+            }
+        },
+    }
+    question = "Para iniciar, poderia me informar seu nome, por gentileza?"
+    assert _sanitize_identity_request(question, session) == (
+        "Para consultar seu contrato com segurança, informe apenas os "
+        "3 primeiros dígitos do seu CPF."
+    )
+    assert session["identity_verified"] is False
+    assert (
+        _sanitize_identity_request(question, {**session, "name_context": {}})
+        == question
+    )
+
+
+def test_name_answer_is_detected_only_after_question_or_explicit_introduction() -> None:
+    def request(*messages):
+        return SimpleNamespace(
+            state={"messages": list(messages)}, messages=list(messages)
+        )
+
+    question = AIMessage(content="Poderia me informar seu nome?")
+    assert _chat_name_was_given(
+        request(question, HumanMessage(content="Marcelo Silva"))
+    )
+    assert _chat_name_was_given(request(HumanMessage(content="Meu nome é Marcelo")))
+    assert not _chat_name_was_given(
+        request(question, HumanMessage(content="Prefiro não informar"))
+    )
+    assert not _chat_name_was_given(
+        request(HumanMessage(content="Empréstimo consignado"))
+    )
 
 
 def test_vague_identity_process_becomes_exact_cpf_request() -> None:

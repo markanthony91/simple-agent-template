@@ -1,4 +1,15 @@
-# Agent Runtime — OKF simulator (0.19.0)
+# Agent Runtime — OKF simulator (0.19.1)
+
+## 0.19.1 — nome informado antes ou durante o chat
+
+Na criação de uma thread de demonstração, `name_provided_before_chat=true`
+marca somente perfis enviados explicitamente ao gateway. O perfil sintético
+padrão não recebe essa marca. O estado da sessão guarda apenas a origem do nome
+(`form` ou `chat`), sem duplicá-lo; o nome informado durante a conversa é
+reconhecido após uma pergunta do agente ou uma apresentação explícita. O
+Runtime deixa de solicitar novamente o nome já informado, sem mudar
+`identity_verified` ou dispensar a validação de CPF da carteira. O Runtime
+legado não muda.
 
 ## 0.19.0 — partes de entrega no Runtime OSS
 
