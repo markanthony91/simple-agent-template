@@ -23,7 +23,14 @@ from uuid import UUID, uuid4
 import psycopg
 import redis
 from langgraph.checkpoint.postgres import PostgresSaver
-from pydantic import BaseModel, ConfigDict, Field, StrictInt, ValidationError, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StrictInt,
+    ValidationError,
+    field_validator,
+)
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from starlette.applications import Starlette
@@ -37,12 +44,16 @@ from starlette.responses import JSONResponse, Response, StreamingResponse
 from starlette.routing import Route
 
 from simple_agent.admin_graph_v2 import graph as admin_graph
+from simple_agent.delivery_segments import split_reply_for_delivery
 from simple_agent.managed_graph import graph as agent_graph
 from simple_agent.llm_control_plane import resolve_routes
 from simple_agent.raw_compiler_graph import graph as raw_graph
 from simple_agent.tools.payment_tools import send_voice_demo_email
 from simple_agent.services.postgres_session_store import PostgresSessionStore
-from simple_agent.services.portfolio_okf import active_snapshot, configured as portfolio_okf_configured
+from simple_agent.services.portfolio_okf import (
+    active_snapshot,
+    configured as portfolio_okf_configured,
+)
 
 GRAPHS = {"agent": agent_graph, "okf_admin": admin_graph, "raw_compiler": raw_graph}
 _RUN_KEY = "oss-runtime:v1"
@@ -92,8 +103,37 @@ def _json(value):
 
 def _response(value, status=200):
     return JSONResponse(
-        json.loads(json.dumps(value, default=_json)), status_code=status
+        _with_delivery_segments(json.loads(json.dumps(value, default=_json))),
+        status_code=status,
     )
+
+
+def _with_delivery_segments(value):
+    """Expose delivery bubbles without changing the persisted LangGraph turn."""
+    if isinstance(value, list):
+        for item in value:
+            _with_delivery_segments(item)
+        return value
+    if not isinstance(value, dict):
+        return value
+    messages = value.get("messages")
+    if isinstance(messages, list):
+        for message in messages:
+            if not isinstance(message, dict) or message.get("type") != "ai":
+                continue
+            content = message.get("content")
+            if not isinstance(content, str) or message.get("tool_calls"):
+                continue
+            parts = split_reply_for_delivery(content)
+            if len(parts) > 1:
+                existing = message.get("additional_kwargs")
+                message["additional_kwargs"] = {
+                    **(existing if isinstance(existing, dict) else {}),
+                    "delivery_segments": parts,
+                }
+    if isinstance(value.get("values"), dict):
+        _with_delivery_segments(value["values"])
+    return value
 
 
 def _authorized(request: Request) -> bool:
@@ -136,7 +176,10 @@ class DemoProfile(BaseModel):
         if value == value[0] * 11:
             raise ValueError("invalid_cpf")
         for length in (9, 10):
-            total = sum(int(digit) * (length + 1 - index) for index, digit in enumerate(value[:length]))
+            total = sum(
+                int(digit) * (length + 1 - index)
+                for index, digit in enumerate(value[:length])
+            )
             if (total * 10 % 11) % 10 != int(value[length]):
                 raise ValueError("invalid_cpf")
         return value
@@ -491,10 +534,9 @@ async def thread_create(request):
             profile = DemoProfile.model_validate(body["demo_profile"])
         except ValidationError:
             return _response({"detail": "invalid_demo_profile"}, 400)
-        if (
-            not re.fullmatch(r"[a-f0-9]{32}", str(metadata.get("demo_session_id", "")))
-            or not isinstance(metadata.get("assistant_id"), str)
-        ):
+        if not re.fullmatch(
+            r"[a-f0-9]{32}", str(metadata.get("demo_session_id", ""))
+        ) or not isinstance(metadata.get("assistant_id"), str):
             return _response({"detail": "invalid_demo_metadata"}, 400)
         with _db() as db:
             assistant = _assistant(db, metadata["assistant_id"])
@@ -511,7 +553,9 @@ async def thread_create(request):
             return _response({"detail": "invalid_demo_scope"}, 400)
         if portfolio_okf_configured():
             try:
-                snapshot_id = active_snapshot(int(scope["scope_id"]), scope["tenant_id"])
+                snapshot_id = active_snapshot(
+                    int(scope["scope_id"]), scope["tenant_id"]
+                )
             except (ValueError, OSError, KeyError):
                 return _response({"detail": "demo_okf_unavailable"}, 503)
     with _db() as db:
@@ -527,7 +571,9 @@ async def thread_create(request):
                             int(scope["scope_id"]),
                             scope["tenant_id"],
                             snapshot_id=snapshot_id,
-                            demo_profile=profile.model_dump(mode="json", exclude_none=True),
+                            demo_profile=profile.model_dump(
+                                mode="json", exclude_none=True
+                            ),
                         )
                     except (ValueError, OSError, KeyError):
                         return _response({"detail": "demo_fixture_unavailable"}, 503)
@@ -1120,12 +1166,18 @@ async def run_stream(request):
                         )
                     elif event["kind"] == "values":
                         last_value = event["value"]
-                        yield "event: values\ndata: " + json.dumps(last_value) + "\n\n"
+                        yield (
+                            "event: values\ndata: "
+                            + json.dumps(_with_delivery_segments(copy.deepcopy(last_value)))
+                            + "\n\n"
+                        )
                 if row["status"] in {"succeeded", "failed", "cancelled"}:
                     finished = True
                     if row["status"] == "succeeded" and row["result"] != last_value:
                         yield (
-                            "event: values\ndata: " + json.dumps(row["result"]) + "\n\n"
+                            "event: values\ndata: "
+                            + json.dumps(_with_delivery_segments(copy.deepcopy(row["result"])))
+                            + "\n\n"
                         )
                     elif row["status"] != "succeeded":
                         yield 'event: error\ndata: {"error":"run_failed"}\n\n'
@@ -1162,7 +1214,11 @@ async def run_stream(request):
                     "event: "
                     + kind
                     + "\ndata: "
-                    + json.dumps(value, default=_json)
+                    + json.dumps(
+                        _with_delivery_segments(
+                            json.loads(json.dumps(value, default=_json))
+                        )
+                    )
                     + "\n\n"
                 )
         except Exception:  # noqa: BLE001 - never leak conversation or provider details

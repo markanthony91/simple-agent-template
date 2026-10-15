@@ -1,4 +1,15 @@
-# Agent Runtime — OKF simulator (0.18.3)
+# Agent Runtime — OKF simulator (0.19.0)
+
+## 0.19.0 — partes de entrega no Runtime OSS
+
+Respostas finais de texto podem incluir `additional_kwargs.delivery_segments`
+na serialização de `values`, `/runs/wait` e estado da thread. O conteúdo e o
+checkpoint continuam um único turno. Parágrafos explícitos têm prioridade;
+texto corrido com várias frases pode ser agrupado em até 12 partes. Markdown
+estruturado, respostas curtas e respostas de tools permanecem uma parte. Os
+fragmentos `messages` do SSE continuam chegando imediatamente; a divisão é
+um metadado final para os canais. Apenas o Runtime OSS de homologação usa esse
+contrato; o Runtime legado não muda.
 
 No atendimento WhatsApp vinculado a uma carteira, o grafo administrativo
 preserva `tenant_id` junto com `scope_id` ao validar uma sessão já fixada pelo
