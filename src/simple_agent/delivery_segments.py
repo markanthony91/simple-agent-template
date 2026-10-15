@@ -31,6 +31,15 @@ def split_reply_for_delivery(text: str, max_chars: int = 240) -> list[str]:
         part.strip() for part in _PARAGRAPH_BREAK.split(cleaned) if part.strip()
     ]
     if len(paragraphs) > 1:
+        opening = _SENTENCE_BREAK.split(paragraphs[0], maxsplit=1)
+        if (
+            len(opening) == 2
+            and len(opening[0]) <= 70
+            and opening[0]
+            .casefold()
+            .startswith(("obrigada pela confirmação", "obrigado pela confirmação"))
+        ):
+            paragraphs[:1] = opening
         return paragraphs if len(paragraphs) <= 12 else [cleaned]
 
     sentences: list[str] = []

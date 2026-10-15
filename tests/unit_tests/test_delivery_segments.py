@@ -24,6 +24,16 @@ def test_unmarked_reply_from_screenshot_becomes_three_messages():
     assert " ".join(segments) == original
 
 
+def test_confirmation_before_paragraph_break_is_its_own_message():
+    confirmation = "Obrigada pela confirmação, Marcelo."
+    original = f"{confirmation} {CONTRACT}\n\n{EXPLANATION}"
+
+    segments = split_reply_for_delivery(original)
+
+    assert segments == [confirmation, CONTRACT, EXPLANATION]
+    assert " ".join(segments) == " ".join(original.split())
+
+
 def test_explicit_paragraphs_take_priority_even_below_character_limit():
     segments = split_reply_for_delivery(
         "Olá, Ana.\n\nPodemos conversar sobre o contrato?"
