@@ -1,4 +1,8 @@
-# Agent Runtime — OKF simulator (0.18.2)
+# Agent Runtime — OKF simulator (0.18.3)
+
+No atendimento WhatsApp vinculado a uma carteira, o grafo administrativo
+preserva `tenant_id` junto com `scope_id` ao validar uma sessão já fixada pelo
+simulador. O deploy desta correção destina-se ao Runtime de homologação.
 
 In the Homologation Runtime, repeated WhatsApp turns retain a portfolio-bound
 demo session only when the tenant and scope match. A retry of the same scoped
