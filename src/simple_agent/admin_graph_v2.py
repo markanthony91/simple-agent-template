@@ -190,9 +190,11 @@ def execute(state: AdminState) -> AdminState:
             result = create_future_demo_session(required_text(state, "thread_id"), form)
         elif operation == "ensure_whatsapp_session":
             thread = required_text(state, "thread_id")
+            scope = state.get("scope_id")
+            tenant = state.get("tenant_id")
             result = {
                 "thread_id": thread,
-                "created": SessionStore().ensure_unbound(thread),
+                "created": SessionStore().ensure_unbound(thread, scope, tenant),
             }
         elif operation == "simulate_payment_settled":
             from simple_agent.tools.payment_tools import simulate_payment_settled

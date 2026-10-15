@@ -92,18 +92,19 @@ def test_policy_matrix(isolated, before, after, reason):
 
 
 @pytest.mark.parametrize(
-    "restriction,value,reason",
+    "restriction,value",
     [
-        ("can_negotiate", False, "customer_not_eligible"),
-        ("max_installments", 2, "customer_eligibility_exceeded"),
+        ("can_negotiate", False),
+        ("max_installments", 2),
     ],
 )
-def test_individual_restriction_still_applies(isolated, restriction, value, reason):
+def test_legacy_fixture_restrictions_do_not_override_policy(
+    isolated, restriction, value
+):
     rt = prepared(isolated)
     with SessionStore().transaction("matrix") as state:
         state["fixture"]["eligibility"][restriction] = value
-    assert generate(rt)["reason"] == reason
-    assert_no_financial_action("matrix")
+    assert generate(rt)["created"] is True
 
 
 def test_parallel_replays_create_exactly_one_payment(isolated):

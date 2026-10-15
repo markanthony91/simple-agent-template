@@ -18,6 +18,9 @@ class FakeDB:
         if sql.startswith("INSERT INTO runtime.sessions"):
             if self.row:
                 return Result(None)
+            if len(args) == 2:
+                self.row = {"state": args[1].obj}
+                return Result((args[0],))
             self.row = {
                 "tenant_id": args[1],
                 "portfolio_id": args[2],
@@ -44,6 +47,25 @@ class Result:
 
     def fetchone(self):
         return self.row
+
+
+def test_whatsapp_session_keeps_scope_and_rejects_cross_portfolio(monkeypatch):
+    db = FakeDB()
+
+    class Pool:
+        def connection(self):
+            return nullcontext(db)
+
+    monkeypatch.setenv("SESSION_DATABASE_URL", "postgresql://synthetic")
+    monkeypatch.setattr(module, "_pool", lambda _dsn: Pool())
+    monkeypatch.setattr(
+        module.PersistentOKFStore, "active_bundle_id", lambda _self: "snapshot"
+    )
+    store = module.PostgresSessionStore()
+    assert store.ensure_unbound("thread-1", 1, "will-tenant") is True
+    assert store.ensure_unbound("thread-1", 1, "will-tenant") is False
+    with pytest.raises(ValueError, match="portfolio_scope_mismatch"):
+        store.ensure_unbound("thread-1", 2, "usedigi-tenant")
 
 
 def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
@@ -85,8 +107,19 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
     assert "fixture" not in db.row["state"]
     assert db.row["portfolio_id"] == "2"
     assert store.ensure_portfolio("thread-1", 2, "tenant-2") is False
+    assert store.ensure_unbound("thread-1", 2, "tenant-2") is False
+    with pytest.raises(ValueError, match="portfolio_scope_mismatch"):
+        store.ensure_unbound("thread-1", 3, "tenant-2")
+    with pytest.raises(ValueError, match="portfolio_scope_mismatch"):
+        store.ensure_unbound("thread-1", 2, "other-tenant")
 
     original = db.row
+    db.row = None
+    with pytest.raises(ValueError, match="demo_simulator_fixture_unavailable"):
+        store.ensure_portfolio(
+            "thread-public", 2, "tenant-2", demo_profile={"full_name": "Mariane"}
+        )
+
     db.row = None
     assert (
         store.ensure_portfolio(
@@ -103,6 +136,45 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
         store.ensure_portfolio("thread-1", 3, "tenant-2")
 
     simulator.present = True
+    monkeypatch.setattr(
+        simulator,
+        "load",
+        lambda: {
+            "customer_id": "customer-2",
+            "full_name": "Rogério",
+            "cpf": "52998224725",
+            "birth_date": "1990-01-01",
+            "institution": "Usedigi",
+            "product": "Consignado",
+            "debt": {
+                "debt_id": "debt-2",
+                "current_amount": "850.00",
+                "due_date": "2026-08-17",
+            },
+        },
+    )
+    db.row = None
+    assert store.ensure_portfolio(
+        "thread-public",
+        2,
+        "tenant-2",
+        demo_profile={
+            "full_name": "Mariane",
+            "current_amount": "456.00",
+            "days_overdue": 60,
+            "cpf": "52998224725",
+            "phone": "+5511999999999",
+        },
+    )
+    assert db.row["state"]["fixture"]["full_name"] == "Mariane"
+    assert db.row["state"]["fixture"]["cpf"] == "52998224725"
+    assert db.row["state"]["fixture"]["phone"] == "+5511999999999"
+    assert db.row["state"]["fixture"]["debt"]["current_amount"] == "456.00"
+    assert db.row["state"]["fixture"]["debt"]["original_amount"] == "456.00"
+    assert db.row["state"]["fixture"]["debt"]["days_overdue"] == 60
+    assert db.row["state"]["portfolio_scope_id"] == 2
+    assert store.ensure_portfolio("thread-public", 2, "tenant-2") is False
+    db.row = original
     db.row["state"] = {"fixture": {"customer_id": "global"}, "identity_verified": True}
     assert store.ensure_portfolio("thread-1", 2, "tenant-2") is True
     assert db.row["state"]["fixture"]["customer_id"] == "customer-2"

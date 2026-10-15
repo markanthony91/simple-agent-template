@@ -66,6 +66,7 @@ def test_tier_generates_correct_cash_payment(isolated, days, discount, total, me
     assert verify(rt)["verified"]
     with SessionStore().transaction(key) as state:
         state["fixture"]["debt"]["days_overdue"] = days
+        state["fixture"]["eligibility"]["max_discount_percentage"] = "0"
     read_policy(rt)
     args = dict(payment_type="cash", method=method, policy_path=PATH)
     result = call(payment_tools.generate_payment_offer, rt, **args)

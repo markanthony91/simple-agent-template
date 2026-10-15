@@ -327,9 +327,9 @@ def test_actual_candidate_document_with_runtime_tools(
     assert result["payment"]["amount"] == expected
 
 
-@pytest.mark.parametrize("customer_limit,created", [(10, False), (12, True)])
-def test_canonical_overdue_override_never_expands_customer_eligibility(
-    isolated, customer_limit, created
+@pytest.mark.parametrize("legacy_customer_limit", [10, 12])
+def test_canonical_overdue_override_follows_published_policy(
+    isolated, legacy_customer_limit
 ):
     rt, _ = prepare(isolated, "overdue-limit", days=181)
     candidate = (
@@ -341,7 +341,7 @@ def test_canonical_overdue_override_never_expands_customer_eligibility(
     )
     with SessionStore().transaction("overdue-limit") as state:
         state["fixture"].update(institution="will-bank", product="cartao_de_credito")
-        state["fixture"]["eligibility"]["max_installments"] = customer_limit
+        state["fixture"]["eligibility"]["max_installments"] = legacy_customer_limit
     read_policy(rt)
     result = call(
         generate_payment_offer,
@@ -352,11 +352,7 @@ def test_canonical_overdue_override_never_expands_customer_eligibility(
         policy_path=PATH,
         down_payment_amount="1200.00",
     )
-    assert result["created"] is created
-    if created:
-        schedule = result["offer"]["installment_schedule"]
-        assert len(schedule) == 12 and schedule[0] == "1200.00"
-        assert sum(map(Decimal, schedule)) == Decimal("5873.42")
-    else:
-        assert result["reason"] == "customer_eligibility_exceeded"
-        assert_no_financial_action("overdue-limit")
+    assert result["created"] is True
+    schedule = result["offer"]["installment_schedule"]
+    assert len(schedule) == 12 and schedule[0] == "1200.00"
+    assert sum(map(Decimal, schedule)) == Decimal("5873.42")

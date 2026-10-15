@@ -5,7 +5,7 @@ from __future__ import annotations
 import copy
 import os
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Iterator
 
@@ -16,6 +16,7 @@ from simple_agent.services.okf_store import PersistentOKFStore
 from simple_agent.services.boleto_store import second_copy_result
 from simple_agent.services.session_store import validate_thread_id
 from simple_agent.services.simulator_store import SimulatorStore
+from simple_agent.services.simulator_schema import normalize_fixture
 from simple_agent.tool_timing import timed_phase
 
 
@@ -136,10 +137,21 @@ class PostgresSessionStore:
                 return False
             raise ValueError("session_already_exists")
 
-    def ensure_unbound(self, key: str) -> bool:
+    def ensure_unbound(
+        self, key: str, scope_id: int | None = None, tenant_id: str | None = None
+    ) -> bool:
         key = validate_thread_id(key)
+        if (scope_id is None) != (tenant_id is None):
+            raise ValueError("invalid_whatsapp_scope")
+        if scope_id is not None and (
+            type(scope_id) is not int or scope_id < 1 or not isinstance(tenant_id, str) or not tenant_id.strip()
+        ):
+            raise ValueError("invalid_whatsapp_scope")
         state = self._initial_state()
         state["unbound_session"] = True
+        if scope_id is not None:
+            state["whatsapp_scope_id"] = scope_id
+            state["whatsapp_tenant_id"] = tenant_id
         with self.pool.connection() as db, db.transaction():
             created = db.execute(
                 """INSERT INTO runtime.sessions(id,state) VALUES (%s,%s)
@@ -151,12 +163,33 @@ class PostgresSessionStore:
             current = db.execute(
                 "SELECT state FROM runtime.sessions WHERE id = %s FOR UPDATE", (key,)
             ).fetchone()[0]
+            if scope_id is not None and current.get("portfolio_scope_id") is not None:
+                if (
+                    current["portfolio_scope_id"] == scope_id
+                    and current.get("portfolio_tenant_id") == tenant_id
+                ):
+                    return False
+                raise ValueError("portfolio_scope_mismatch")
+            if scope_id is not None and current.get("whatsapp_scope_id") is not None:
+                if (
+                    current["whatsapp_scope_id"] == scope_id
+                    and current.get("whatsapp_tenant_id") == tenant_id
+                ):
+                    return False
+                raise ValueError("portfolio_scope_mismatch")
+            if scope_id is not None and current.get("demo_session"):
+                raise ValueError("portfolio_scope_mismatch")
             if current.get("demo_session") or current.get("unbound_session"):
                 return False
             raise ValueError("whatsapp_session_requires_reset")
 
     def ensure_portfolio(
-        self, key: str, scope_id: int, tenant_id: str, snapshot_id: str | None = ""
+        self,
+        key: str,
+        scope_id: int,
+        tenant_id: str,
+        snapshot_id: str | None = "",
+        demo_profile: dict | None = None,
     ) -> bool:
         """Pin a Playground session without falling back to the global fixture."""
         key = validate_thread_id(key)
@@ -177,8 +210,24 @@ class PostgresSessionStore:
                 fixture = simulator.load()
                 fixture.pop("_runtime", None)
                 fixture.pop("identity_validated", None)
+                if demo_profile is not None:
+                    fixture["full_name"] = demo_profile["full_name"]
+                    if demo_profile.get("cpf"):
+                        fixture["cpf"] = demo_profile["cpf"]
+                    if demo_profile.get("phone"):
+                        fixture["phone"] = demo_profile["phone"]
+                    fixture["debt"]["current_amount"] = demo_profile["current_amount"]
+                    fixture["debt"]["original_amount"] = demo_profile["current_amount"]
+                    fixture["debt"]["days_overdue"] = demo_profile["days_overdue"]
+                    fixture["debt"]["due_date"] = (
+                        datetime.now(timezone.utc).date()
+                        - timedelta(days=demo_profile["days_overdue"])
+                    ).isoformat()
+                    fixture = normalize_fixture(fixture)
                 state["fixture"] = fixture
             else:
+                if demo_profile is not None:
+                    raise ValueError("demo_simulator_fixture_unavailable")
                 state["unbound_session"] = True
             return state
 

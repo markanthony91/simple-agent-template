@@ -77,11 +77,6 @@ def test_portfolio_simulators_do_not_cross_sessions(isolated):
             "due_date": "2026-01-01",
             "status": "overdue",
         },
-        "eligibility": {
-            "can_negotiate": True,
-            "max_installments": 1,
-            "max_discount_percentage": "0",
-        },
         "identity_policy": {
             "cpf_mode": "first3",
             "secondary": "none",
@@ -97,6 +92,7 @@ def test_portfolio_simulators_do_not_cross_sessions(isolated):
     c6 = SessionStore().read("c6")
     usedigi = SessionStore().read("usedigi")
     assert c6["fixture"]["customer_id"] == "CUS-C6"
+    assert "eligibility" in c6["fixture"]
     assert usedigi.get("unbound_session") is True
     assert "fixture" not in usedigi
 

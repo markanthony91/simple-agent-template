@@ -1,4 +1,10 @@
-# Agent Runtime — OKF simulator (0.17.11)
+# Agent Runtime — OKF simulator (0.18.2)
+
+In the Homologation Runtime, repeated WhatsApp turns retain a portfolio-bound
+demo session only when the tenant and scope match. A retry of the same scoped
+thread request repairs a session that was interrupted before profile pinning.
+This change is for the Agente de Homologação only; do not deploy the principal
+or legacy Runtime.
 
 ## 0.17.11 — fragmentos de texto no streaming OSS
 
@@ -66,6 +72,18 @@ Para ativar por carteira, o serviço que prepara o Assistant precisa persistir e
 entregar a lista no contexto confiável dele; o cadastro do Canais sozinho ainda
 não faz isso. A configuração deve ser validada com fixtures e OKF da carteira
 antes de habilitar tools de negociação e envio.
+
+## 0.18.1 — perfil isolado da demo pública
+
+No Agente de Homologação OSS, `POST /threads` aceita `demo_profile` somente
+quando a thread traz Assistant, escopo e sessão de demo válidos. O Runtime
+confere o escopo com o contexto persistido do Assistant e fixa nome, valor e
+dias de atraso na nova sessão. O perfil pode incluir CPF valido e telefone
+brasileiro em E.164; quando presentes, tambem ficam fixados apenas na sessao.
+A ficha do simulador da carteira não é alterada. O gateway do Playground só
+aceita esses campos do backend da demo na primeira mensagem, nunca de uma
+thread existente. A release OKF da
+carteira continua fixada na criação da sessão.
 
 ## 0.14.13 — isolamento do Playground por carteira
 
@@ -204,7 +222,7 @@ Sucesso continua sendo apresentado sem uma chamada adicional ao modelo.
 O desconto da proposta segue a política publicada do credor. Contratos legados
 usam `offer_discount_percentage`; contratos com `max_discount_tiers` partem de
 0% e só aceitam `discount_percentage` quando há pedido explícito de desconto,
-limitado pela faixa de atraso e pela elegibilidade do cliente. O backend não
+limitado pela faixa de atraso da política, sem teto adicional no simulador. O backend não
 interpreta a conversa para decidir se houve esse pedido.
 
 Os meios também são definidos por modalidade: no piloto Will Bank, PIX é somente
@@ -222,9 +240,9 @@ a failed call returns no financial data. The identity result returns to the mode
 so the active Workflow controls the next message. Payment creation and delivery
 remain backend-rendered return-direct operations.
 
-Customer balance and eligibility come from the session fixture pinned by the
-backend. Commercial limits, validity, payment methods and delivery channels come
-from the published OKF policy that the model finds and reads for that session's
+Customer balance comes from the session fixture pinned by the backend.
+Commercial eligibility, limits, validity, payment methods and delivery channels
+come from the published OKF policy that the model finds and reads for that session's
 institution and product. The model passes the canonical policy path with the
 customer's choices; the backend validates the read receipt, scope, lifecycle and
 terms before applying the creditor-owned discount.
