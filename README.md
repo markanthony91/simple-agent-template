@@ -1,4 +1,10 @@
-# Agent Runtime — OKF simulator (0.19.1)
+# Agent Runtime — OKF simulator (0.19.2)
+
+## 0.19.2 — confirmação em balão próprio
+
+Uma confirmação curta como `Obrigada pela confirmação, Marcelo.` vira uma
+parte de entrega separada mesmo quando a resposta contém parágrafos. O texto
+continua um único turno no Runtime; o streaming e os demais canais não mudam.
 
 ## 0.19.1 — nome informado antes ou durante o chat
 
