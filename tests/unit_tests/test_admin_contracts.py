@@ -116,6 +116,33 @@ def test_whatsapp_session_requires_approval_and_is_idempotent(admin):
     assert replay["result"] == {"thread_id": "wa-thread", "created": False}
 
 
+def test_compiled_admin_graph_preserves_scoped_whatsapp_tenant(admin, monkeypatch):
+    captured = {}
+
+    class Store:
+        def ensure_unbound(self, thread_id, scope_id, tenant_id):
+            captured.update(thread_id=thread_id, scope_id=scope_id, tenant_id=tenant_id)
+            return False
+
+    monkeypatch.setattr(admin, "SessionStore", Store)
+    result = admin.graph.invoke(
+        {
+            "operation": "ensure_whatsapp_session",
+            "approved": True,
+            "thread_id": "wa-thread",
+            "scope_id": 2,
+            "tenant_id": "tenant-test",
+        }
+    )
+    assert result["error"] == ""
+    assert result["result"] == {"thread_id": "wa-thread", "created": False}
+    assert captured == {
+        "thread_id": "wa-thread",
+        "scope_id": 2,
+        "tenant_id": "tenant-test",
+    }
+
+
 def test_dummy_settlement_requires_operator_approval(admin, monkeypatch):
     captured = {}
 

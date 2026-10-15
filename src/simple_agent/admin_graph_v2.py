@@ -33,6 +33,7 @@ class AdminState(TypedDict, total=False):
     settings: dict[str, Any]
     payment_id: str
     scope_id: int
+    tenant_id: str
 
 
 store = PersistentOKFStore()
