@@ -93,6 +93,14 @@ IDENTITY_PROCESS = re.compile(
 ACTIVE_OPENING_ACCEPTANCE = re.compile(
     r"(?:podemos|pode|podem) falar|sim|claro|estou disponivel"
 )
+NAME_REQUEST = re.compile(
+    r"(?:qual (?:e|seria) (?:o )?seu nome|como (?:voce|se) chama|"
+    r"(?:informar|dizer|confirmar|passar).{0,100}(?:seu nome|nome completo))"
+)
+NAME_INTRODUCTION = re.compile(
+    r"(?:meu nome (?:e|eh)|me chamo|pode me chamar de) "
+    r"[a-z]{2,}(?: [a-z]{2,}){0,5}"
+)
 ACTIVE_IDENTITY_REPLY = (
     "Para que possamos conversar com segurança e eu possa confirmar sua identidade, "
     "você poderia me informar os 3 primeiros dígitos do seu CPF, por favor?"
@@ -504,6 +512,33 @@ def _asks_for_identity(text: str) -> bool:
     )
 
 
+def _chat_name_was_given(request: ModelRequest) -> bool:
+    messages = request.state.get("messages", request.messages)
+    for index in range(len(messages) - 1, -1, -1):
+        if getattr(messages[index], "type", None) != "human":
+            continue
+        answer = _normalize(_plain_text(messages[index].content)).strip(" .,!?:;")
+        if NAME_INTRODUCTION.fullmatch(answer):
+            return True
+        previous = next(
+            (
+                message
+                for message in reversed(messages[:index])
+                if getattr(message, "type", None) == "ai"
+            ),
+            None,
+        )
+        words = answer.split()
+        return bool(
+            previous
+            and NAME_REQUEST.search(_normalize(_plain_text(previous.content)))
+            and 1 <= len(words) <= 5
+            and all(re.fullmatch(r"[a-z]{2,}", word) for word in words)
+            and not {"nao", "prefiro", "informar", "dizer", "agora"}.intersection(words)
+        )
+    return False
+
+
 def _sanitize_identity_request(
     text: str, session: dict, latest_human_text: str = ""
 ) -> str:
@@ -520,6 +555,13 @@ def _sanitize_identity_request(
         "unbound_session"
     ) is not True and ACTIVE_OPENING_ACCEPTANCE.fullmatch(accepted):
         return ACTIVE_IDENTITY_REPLY
+    if session.get("name_context", {}).get("provided") is True and NAME_REQUEST.search(
+        _normalize(text)
+    ):
+        return (
+            "Para consultar seu contrato com segurança, informe apenas os "
+            "3 primeiros dígitos do seu CPF."
+        )
     if not _asks_for_identity(text):
         return text
     return (
@@ -650,6 +692,18 @@ class FilterEnabledToolsMiddleware(AgentMiddleware):
             else:
                 sessions.ensure_portfolio(key, *context_scope)
         session = sessions.read(key)
+        if (
+            context_scope
+            and session.get("name_context", {}).get("provided") is not True
+            and _chat_name_was_given(request)
+        ):
+            with sessions.transaction(key) as writable:
+                if (
+                    writable.get("portfolio_scope_id") == context_scope[0]
+                    and writable.get("portfolio_tenant_id") == context_scope[1]
+                ):
+                    writable["name_context"] = {"provided": True, "source": "chat"}
+            session = sessions.read(key)
         unbound = session.get("unbound_session") is True
         contract = UNBOUND_SESSION_INSTRUCTION if unbound else instructions(session)
         creditor = (

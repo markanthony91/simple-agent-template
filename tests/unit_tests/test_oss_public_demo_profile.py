@@ -47,6 +47,7 @@ def test_public_demo_profile_is_pinned_to_assistant_scope(monkeypatch):
                     "assistant_id": "00000000-0000-4000-8000-000000000002",
                     "zerai_scope_id": "2",
                     "demo_session_id": "1" * 32,
+                    "name_provided_before_chat": True,
                 },
                 "demo_profile": {
                     "full_name": "Mariane",
@@ -77,6 +78,7 @@ def test_public_demo_profile_is_pinned_to_assistant_scope(monkeypatch):
         "current_amount": "456.00",
         "days_overdue": 60,
     }
+    assert pinned[0][1]["name_provided"] is True
 
     # A previous process may have stored the thread before pinning its session.
     # Retrying the same request must repair the session before a send proceeds.
@@ -108,3 +110,11 @@ def test_public_demo_profile_is_pinned_to_assistant_scope(monkeypatch):
     request.json = wrong_scope
     assert asyncio.run(oss_runtime.thread_create(request)).status_code == 400
     assert len(pinned) == 2
+
+    async def invalid_name_origin():
+        body = await Request().json()
+        body["metadata"]["name_provided_before_chat"] = False
+        return body
+
+    request.json = invalid_name_origin
+    assert asyncio.run(oss_runtime.thread_create(request)).status_code == 400

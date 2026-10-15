@@ -119,6 +119,11 @@ def test_first3_only_accepts_exact_segment_without_secondary_factor(isolated):
     assert "Não solicite nome completo" in prompt
     assert "somente com o argumento cpf" in prompt
     assert "birth_date" not in prompt
+    state["name_context"] = {"provided": True, "source": "form"}
+    prompt = instructions(state)
+    assert "A pessoa já informou seu nome" in prompt
+    assert "Isso não valida a identidade" in prompt
+    assert fixture["full_name"] not in prompt
 
 
 @pytest.mark.parametrize(

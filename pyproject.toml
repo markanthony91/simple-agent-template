@@ -1,6 +1,6 @@
 [project]
 name = "simple-agent-template"
-version = "0.19.0"
+version = "0.19.1"
 description = "Minimal LangChain agent template for LangGraph deployment"
 readme = "README.md"
 requires-python = ">=3.12"

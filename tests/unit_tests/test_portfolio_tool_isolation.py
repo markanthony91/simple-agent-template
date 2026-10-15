@@ -132,6 +132,37 @@ def test_model_request_pins_portfolio_before_exposing_tools(isolated, monkeypatc
     assert names.isdisjoint(tool_middleware.UNBOUND_BLOCKED_TOOLS)
 
 
+def test_name_given_in_chat_is_pinned_without_verifying_identity(isolated, monkeypatch):
+    from langchain.agents.middleware import ModelRequest
+    from langchain_core.messages import AIMessage, HumanMessage
+    from langgraph.runtime import Runtime
+    from simple_agent import managed_graph, tool_middleware
+
+    key = "name-in-chat"
+    monkeypatch.setattr(
+        tool_middleware,
+        "get_config",
+        lambda: {"configurable": {"thread_id": key}},
+    )
+    messages = [
+        AIMessage(content="Poderia me informar seu nome?"),
+        HumanMessage(content="Marcelo"),
+    ]
+    request = ModelRequest(
+        model=managed_graph.create_llm(),
+        messages=messages,
+        tools=managed_graph.ALL_TOOLS,
+        runtime=Runtime(
+            context={"portfolio_context": {"scope_id": "3", "tenant_id": "tenant-c6"}}
+        ),
+        state={"messages": messages},
+    )
+    tool_middleware.filter_enabled_tools._filtered_request(request)
+    state = SessionStore().read(key)
+    assert state["name_context"] == {"provided": True, "source": "chat"}
+    assert state["identity_verified"] is False
+
+
 def test_assistant_tool_allowlists_filter_and_guard_each_portfolio(
     isolated, monkeypatch
 ):
