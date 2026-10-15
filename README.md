@@ -10,6 +10,20 @@ thread request repairs a session that was interrupted before profile pinning.
 This change is for the Agente de Homologação only; do not deploy the principal
 or legacy Runtime.
 
+## 0.18.4 — instruções fixadas por conversa no Runtime OSS
+
+No primeiro run de cada thread OSS do agente, `system_prompt`,
+`agent_instructions` e `active_workflow` são copiados para uma coluna privada
+`instruction_snapshot`. Os runs posteriores da mesma thread usam essa cópia,
+mesmo que uma versão global ou local do Assistant seja publicada. Identidade,
+permissões de tools, LLM e OKF continuam nos seus contratos próprios e não são
+congelados por este snapshot. A coluna é criada de forma aditiva no startup;
+não aparece nas respostas de `/threads`.
+
+Threads anteriores à atualização não têm snapshot histórico retroativo: seu
+primeiro run após a atualização fixa o conteúdo então ativo. O caminho legado
+não é alterado.
+
 ## 0.17.11 — fragmentos de texto no streaming OSS
 
 O endpoint OSS `/threads/{thread_id}/runs/stream` emite eventos `messages`
