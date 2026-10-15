@@ -137,10 +137,21 @@ class PostgresSessionStore:
                 return False
             raise ValueError("session_already_exists")
 
-    def ensure_unbound(self, key: str) -> bool:
+    def ensure_unbound(
+        self, key: str, scope_id: int | None = None, tenant_id: str | None = None
+    ) -> bool:
         key = validate_thread_id(key)
+        if (scope_id is None) != (tenant_id is None):
+            raise ValueError("invalid_whatsapp_scope")
+        if scope_id is not None and (
+            type(scope_id) is not int or scope_id < 1 or not isinstance(tenant_id, str) or not tenant_id.strip()
+        ):
+            raise ValueError("invalid_whatsapp_scope")
         state = self._initial_state()
         state["unbound_session"] = True
+        if scope_id is not None:
+            state["whatsapp_scope_id"] = scope_id
+            state["whatsapp_tenant_id"] = tenant_id
         with self.pool.connection() as db, db.transaction():
             created = db.execute(
                 """INSERT INTO runtime.sessions(id,state) VALUES (%s,%s)
@@ -152,6 +163,22 @@ class PostgresSessionStore:
             current = db.execute(
                 "SELECT state FROM runtime.sessions WHERE id = %s FOR UPDATE", (key,)
             ).fetchone()[0]
+            if scope_id is not None and current.get("portfolio_scope_id") is not None:
+                if (
+                    current["portfolio_scope_id"] == scope_id
+                    and current.get("portfolio_tenant_id") == tenant_id
+                ):
+                    return False
+                raise ValueError("portfolio_scope_mismatch")
+            if scope_id is not None and current.get("whatsapp_scope_id") is not None:
+                if (
+                    current["whatsapp_scope_id"] == scope_id
+                    and current.get("whatsapp_tenant_id") == tenant_id
+                ):
+                    return False
+                raise ValueError("portfolio_scope_mismatch")
+            if scope_id is not None and current.get("demo_session"):
+                raise ValueError("portfolio_scope_mismatch")
             if current.get("demo_session") or current.get("unbound_session"):
                 return False
             raise ValueError("whatsapp_session_requires_reset")

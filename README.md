@@ -1,4 +1,10 @@
-# Agent Runtime — OKF simulator (0.18.1)
+# Agent Runtime — OKF simulator (0.18.2)
+
+In the Homologation Runtime, repeated WhatsApp turns retain a portfolio-bound
+demo session only when the tenant and scope match. A retry of the same scoped
+thread request repairs a session that was interrupted before profile pinning.
+This change is for the Agente de Homologação only; do not deploy the principal
+or legacy Runtime.
 
 ## 0.17.11 — fragmentos de texto no streaming OSS
 

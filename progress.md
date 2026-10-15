@@ -523,3 +523,9 @@ Coordinate PR integration before another main autodeploy.
 - [x] Manter o dia da primeira parcela nos meses seguintes.
 - [x] Limitar ao último dia apenas quando o mês não possuir o dia original.
 - [x] Preservar o cronograma somente para boleto; PIX continua sem próximas parcelas.
+# Candidate 0.18.2 (not deployed)
+
+- [x] Accept repeated scoped WhatsApp turns and reject another tenant/scope.
+- [x] Repair idempotent profile-thread creation if session pinning was interrupted.
+- [ ] Merge the live 0.18.1 source and this fix into main, then deploy only
+      Agente de Homologacao. Do not deploy the legacy Runtime.

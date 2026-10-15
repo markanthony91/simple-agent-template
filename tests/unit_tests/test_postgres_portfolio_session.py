@@ -18,6 +18,9 @@ class FakeDB:
         if sql.startswith("INSERT INTO runtime.sessions"):
             if self.row:
                 return Result(None)
+            if len(args) == 2:
+                self.row = {"state": args[1].obj}
+                return Result((args[0],))
             self.row = {
                 "tenant_id": args[1],
                 "portfolio_id": args[2],
@@ -44,6 +47,25 @@ class Result:
 
     def fetchone(self):
         return self.row
+
+
+def test_whatsapp_session_keeps_scope_and_rejects_cross_portfolio(monkeypatch):
+    db = FakeDB()
+
+    class Pool:
+        def connection(self):
+            return nullcontext(db)
+
+    monkeypatch.setenv("SESSION_DATABASE_URL", "postgresql://synthetic")
+    monkeypatch.setattr(module, "_pool", lambda _dsn: Pool())
+    monkeypatch.setattr(
+        module.PersistentOKFStore, "active_bundle_id", lambda _self: "snapshot"
+    )
+    store = module.PostgresSessionStore()
+    assert store.ensure_unbound("thread-1", 1, "will-tenant") is True
+    assert store.ensure_unbound("thread-1", 1, "will-tenant") is False
+    with pytest.raises(ValueError, match="portfolio_scope_mismatch"):
+        store.ensure_unbound("thread-1", 2, "usedigi-tenant")
 
 
 def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
@@ -85,6 +107,11 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
     assert "fixture" not in db.row["state"]
     assert db.row["portfolio_id"] == "2"
     assert store.ensure_portfolio("thread-1", 2, "tenant-2") is False
+    assert store.ensure_unbound("thread-1", 2, "tenant-2") is False
+    with pytest.raises(ValueError, match="portfolio_scope_mismatch"):
+        store.ensure_unbound("thread-1", 3, "tenant-2")
+    with pytest.raises(ValueError, match="portfolio_scope_mismatch"):
+        store.ensure_unbound("thread-1", 2, "other-tenant")
 
     original = db.row
     db.row = None

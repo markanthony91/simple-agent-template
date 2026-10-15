@@ -78,6 +78,28 @@ def test_public_demo_profile_is_pinned_to_assistant_scope(monkeypatch):
         "days_overdue": 60,
     }
 
+    # A previous process may have stored the thread before pinning its session.
+    # Retrying the same request must repair the session before a send proceeds.
+    existing = json.loads(response.body)
+    monkeypatch.setattr(oss_runtime, "_thread", lambda _db, _id: existing)
+    original_json = request.json
+
+    async def retry():
+        return {**(await original_json()), "if_exists": "do_nothing"}
+
+    request.json = retry
+    assert asyncio.run(oss_runtime.thread_create(request)).status_code == 200
+    assert len(pinned) == 2
+
+    async def changed_metadata():
+        body = await retry()
+        body["metadata"]["demo_session_id"] = "2" * 32
+        return body
+
+    request.json = changed_metadata
+    assert asyncio.run(oss_runtime.thread_create(request)).status_code == 409
+    assert len(pinned) == 2
+
     async def wrong_scope():
         body = await Request().json()
         body["metadata"]["zerai_scope_id"] = "1"
@@ -85,4 +107,4 @@ def test_public_demo_profile_is_pinned_to_assistant_scope(monkeypatch):
 
     request.json = wrong_scope
     assert asyncio.run(oss_runtime.thread_create(request)).status_code == 400
-    assert len(pinned) == 1
+    assert len(pinned) == 2

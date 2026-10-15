@@ -514,6 +514,19 @@ async def thread_create(request):
         existing = _thread(db, thread_id)
         if existing:
             if body.get("if_exists") == "do_nothing":
+                if profile is not None:
+                    if existing.get("metadata") != metadata:
+                        return _response({"detail": "thread_metadata_mismatch"}, 409)
+                    try:
+                        PostgresSessionStore().ensure_portfolio(
+                            thread_id,
+                            int(scope["scope_id"]),
+                            scope["tenant_id"],
+                            snapshot_id=snapshot_id,
+                            demo_profile=profile.model_dump(mode="json", exclude_none=True),
+                        )
+                    except (ValueError, OSError, KeyError):
+                        return _response({"detail": "demo_fixture_unavailable"}, 503)
                 return _response(existing)
             return _response({"detail": "thread_exists"}, 409)
         row = db.execute(
