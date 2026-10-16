@@ -124,9 +124,15 @@ def _with_delivery_segments(value):
             content = message.get("content")
             if not isinstance(content, str) or message.get("tool_calls"):
                 continue
+            existing = message.get("additional_kwargs")
+            if (
+                isinstance(existing, dict)
+                and existing.get("deterministic_reply") is True
+            ):
+                existing.pop("delivery_segments", None)
+                continue
             parts = split_reply_for_delivery(content)
             if len(parts) > 1:
-                existing = message.get("additional_kwargs")
                 message["additional_kwargs"] = {
                     **(existing if isinstance(existing, dict) else {}),
                     "delivery_segments": parts,
