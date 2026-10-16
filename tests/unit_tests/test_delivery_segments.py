@@ -104,6 +104,28 @@ def test_runtime_decorates_thread_search_rows_too():
     ] == [ACKNOWLEDGEMENT, CONTRACT, EXPLANATION]
 
 
+def test_deterministic_offer_stays_one_bubble_with_its_internal_line_breaks():
+    summary = (
+        "**Resumo da sua negociação**\nValor final: **R$ 450,00**\nMétodo: **PIX**"
+        "\n\nCódigo dummy: DUMMY-PIX-TESTE"
+        "\n\nEsta simulação não gera pagamento real."
+        "\n\nPara concluir, informe o e-mail."
+    )
+    message = {
+        "type": "ai",
+        "content": summary,
+        "additional_kwargs": {
+            "deterministic_reply": True,
+            "delivery_segments": ["fragmento antigo"],
+        },
+    }
+
+    _with_delivery_segments({"values": {"messages": [message]}})
+
+    assert message["content"] == summary
+    assert message["additional_kwargs"] == {"deterministic_reply": True}
+
+
 if __name__ == "__main__":
     parts = split_reply_for_delivery(" ".join((ACKNOWLEDGEMENT, CONTRACT, EXPLANATION)))
     for index, part in enumerate(parts, start=1):

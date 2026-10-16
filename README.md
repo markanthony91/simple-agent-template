@@ -1,4 +1,11 @@
-# Agent Runtime — OKF simulator (0.19.2)
+# Agent Runtime — OKF simulator (0.19.3)
+
+## 0.19.3 — resumo de negociação em um balão
+
+Respostas determinísticas de tools, incluindo o resumo de negociação com
+código de pagamento de demonstração, mantêm as quebras de linha internas sem
+criar balões separados. Respostas comuns continuam usando as partes de entrega;
+o streaming e o Runtime legado não mudam.
 
 ## 0.19.2 — confirmação em balão próprio
 
