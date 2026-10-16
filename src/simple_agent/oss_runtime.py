@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import hmac
 import json
 import os
@@ -398,6 +399,93 @@ async def assistant_get(request):
     return _response(record) if record else _response({"detail": "not_found"}, 404)
 
 
+async def assistant_create(request):
+    body = await request.json()
+    if not isinstance(body, dict) or set(body) - {
+        "graph_id",
+        "name",
+        "description",
+        "config",
+        "context",
+        "metadata",
+    }:
+        return _response({"detail": "invalid_request"}, 400)
+    metadata = body.get("metadata")
+    context = body.get("context")
+    if (
+        body.get("graph_id") != "agent"
+        or not isinstance(body.get("name"), str)
+        or not 1 <= len(body["name"].strip()) <= 200
+        or not isinstance(metadata, dict)
+        or set(metadata) != {"zerai_scope_id", "zerai_tenant_id"}
+        or not isinstance(metadata.get("zerai_scope_id"), str)
+        or not re.fullmatch(r"[1-9]\d{0,17}", metadata["zerai_scope_id"])
+        or int(metadata["zerai_scope_id"]) <= 1
+        or not isinstance(metadata.get("zerai_tenant_id"), str)
+        or not isinstance(context, dict)
+        or context.get("portfolio_context")
+        != {
+            "scope_id": metadata["zerai_scope_id"],
+            "tenant_id": metadata["zerai_tenant_id"],
+        }
+        or not isinstance(context.get("agent_profile"), dict)
+        or not isinstance(context["agent_profile"].get("name"), str)
+        or not context["agent_profile"]["name"].strip()
+        or not isinstance(context.get("allowed_tools"), list)
+        or any(not isinstance(tool, str) for tool in context["allowed_tools"])
+        or not isinstance(body.get("config", {}), dict)
+        or not isinstance(body.get("description", ""), str)
+    ):
+        return _response({"detail": "invalid_request"}, 400)
+    try:
+        UUID(metadata["zerai_tenant_id"])
+    except ValueError:
+        return _response({"detail": "invalid_request"}, 400)
+    with _db() as db, db.transaction():
+        db.execute(
+            "SELECT pg_advisory_xact_lock(hashtext(%s))",
+            (f"assistant:{metadata['zerai_tenant_id']}:{metadata['zerai_scope_id']}",),
+        )
+        existing = db.execute(
+            """SELECT record FROM langgraph.legacy_assistants
+               WHERE graph_id='agent' AND record->'metadata' @> %s""",
+            (Jsonb(metadata),),
+        ).fetchall()
+        if len(existing) > 1:
+            return _response({"detail": "assistant_provisioning_ambiguous"}, 409)
+        if existing:
+            return _response(existing[0]["record"])
+        now = datetime.now(UTC).isoformat()
+        record = {
+            "assistant_id": str(uuid4()),
+            "graph_id": "agent",
+            "version": 1,
+            "name": body["name"].strip(),
+            "description": body.get("description", ""),
+            "config": body.get("config", {}),
+            "context": context,
+            "metadata": metadata,
+            "created_at": now,
+            "updated_at": now,
+        }
+        source_sha256 = hashlib.sha256(
+            json.dumps(body, sort_keys=True, ensure_ascii=False).encode()
+        ).hexdigest()
+        db.execute(
+            """INSERT INTO langgraph.legacy_assistants
+               (assistant_id,graph_id,record,source_sha256,hostname)
+               VALUES (%s,%s,%s,%s,%s)""",
+            (
+                record["assistant_id"],
+                "agent",
+                Jsonb(record),
+                source_sha256,
+                os.uname().nodename,
+            ),
+        )
+    return _response(record)
+
+
 async def assistant_update(request):
     body = await request.json()
     allowed = {
@@ -511,14 +599,32 @@ async def assistant_versions(request):
 
 async def assistant_search(request):
     body = await request.json()
-    limit = min(max(int(body.get("limit", 20)), 1), 100)
-    offset = max(int(body.get("offset", 0)), 0)
+    if not isinstance(body, dict):
+        return _response({"detail": "invalid_request"}, 400)
+    limit, offset = body.get("limit", 20), body.get("offset", 0)
+    metadata = body.get("metadata")
+    if (
+        type(limit) is not int
+        or not 1 <= limit <= 100
+        or type(offset) is not int
+        or offset < 0
+        or (metadata is not None and not isinstance(metadata, dict))
+    ):
+        return _response({"detail": "invalid_request"}, 400)
     with _db() as db:
         rows = db.execute(
             """SELECT record FROM langgraph.legacy_assistants
                WHERE (%s::text IS NULL OR graph_id=%s)
+                 AND (%s::jsonb IS NULL OR record->'metadata' @> %s::jsonb)
                ORDER BY (record->>'updated_at') DESC LIMIT %s OFFSET %s""",
-            (body.get("graph_id"), body.get("graph_id"), limit, offset),
+            (
+                body.get("graph_id"),
+                body.get("graph_id"),
+                Jsonb(metadata) if metadata is not None else None,
+                Jsonb(metadata) if metadata is not None else None,
+                limit,
+                offset,
+            ),
         ).fetchall()
     return _response([row["record"] for row in rows])
 
@@ -1330,6 +1436,7 @@ app = Starlette(
             methods=["POST"],
         ),
         Route("/assistants/search", assistant_search, methods=["POST"]),
+        Route("/assistants", assistant_create, methods=["POST"]),
         Route("/assistants/{assistant_id}", assistant_get),
         Route("/assistants/{assistant_id}", assistant_update, methods=["PATCH"]),
         Route(

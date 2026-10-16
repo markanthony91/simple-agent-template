@@ -1,4 +1,13 @@
-# Agent Runtime — OKF simulator (0.19.3)
+# Agent Runtime — OKF simulator (0.19.4)
+
+## 0.19.4 — provisionamento de carteiras no Runtime novo
+
+O Runtime OSS agora aceita `POST /assistants` para criar Assistants vinculados a
+uma carteira não legada (escopo maior que 1). A criação é idempotente por
+escopo e tenant, exige contexto correspondente e não altera Assistants já
+existentes. `POST /assistants/search` filtra os metadados enviados por Canais,
+evitando reuso entre carteiras. A carteira do escopo 1 e seus caminhos legados
+continuam fora deste provisionamento.
 
 ## 0.19.3 — resumo de negociação em um balão
 
