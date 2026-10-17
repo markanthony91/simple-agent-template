@@ -107,6 +107,13 @@ def test_legacy_fixture_restrictions_do_not_override_policy(
     assert generate(rt)["created"] is True
 
 
+def test_offer_uses_okf_policy_without_fixture_eligibility(isolated):
+    rt = prepared(isolated)
+    with SessionStore().transaction("matrix") as state:
+        state["fixture"].pop("eligibility", None)
+    assert generate(rt)["created"] is True
+
+
 def test_parallel_replays_create_exactly_one_payment(isolated):
     rt = prepared(isolated)
     with ThreadPoolExecutor(max_workers=4) as executor:

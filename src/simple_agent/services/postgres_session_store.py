@@ -63,6 +63,13 @@ class PostgresSessionStore:
     @staticmethod
     def _state(value: dict) -> dict:
         state = copy.deepcopy(value)
+        fixture = state.get("fixture")
+        if (
+            type(state.get("portfolio_scope_id")) is int
+            and state["portfolio_scope_id"] > 1
+            and isinstance(fixture, dict)
+        ):
+            fixture.pop("eligibility", None)
         state.setdefault("payments", {})
         state.setdefault("deliveries", {})
         state.setdefault("receipts", {})

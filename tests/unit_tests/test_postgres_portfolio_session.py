@@ -49,6 +49,27 @@ class Result:
         return self.row
 
 
+def test_existing_postgres_portfolio_session_ignores_legacy_eligibility():
+    old = {
+        "portfolio_scope_id": 2,
+        "fixture": {
+            "customer_id": "test-customer",
+            "debt": {"current_amount": "850.00"},
+            "identity_policy": {"cpf_mode": "first3"},
+            "eligibility": {"can_negotiate": False, "max_installments": 1},
+        },
+    }
+    scoped = module.PostgresSessionStore._state(old)
+    assert "eligibility" not in scoped["fixture"]
+    assert scoped["fixture"]["debt"]["current_amount"] == "850.00"
+    assert scoped["fixture"]["identity_policy"] == {"cpf_mode": "first3"}
+    assert "eligibility" in old["fixture"]
+    legacy = module.PostgresSessionStore._state({"fixture": old["fixture"]})
+    assert "eligibility" in legacy["fixture"]
+    legacy_scope = module.PostgresSessionStore._state({**old, "portfolio_scope_id": 1})
+    assert "eligibility" in legacy_scope["fixture"]
+
+
 def test_whatsapp_session_keeps_scope_and_rejects_cross_portfolio(monkeypatch):
     db = FakeDB()
 

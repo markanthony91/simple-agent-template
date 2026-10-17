@@ -1,4 +1,14 @@
-# Agent Runtime — OKF simulator (0.19.4)
+# Agent Runtime — OKF simulator (0.19.5)
+
+## 0.19.5 — limites comerciais somente da política OKF
+
+Fichas de simulador de carteiras novas (escopo maior que 1) ignoram os campos antigos `eligibility` na
+leitura e na gravação, inclusive quando vierem de um arquivo já existente.
+Sessões de carteira previamente criadas também deixam de expor esses campos ao
+Runtime; elas mantêm os dados de cliente, dívida, identidade e o snapshot OKF.
+As ofertas continuam dependendo da política publicada, lida e validada no
+snapshot da conversa. O simulador global e as sessões legadas permanecem
+compatíveis; nenhum arquivo ou conversa existente é apagado por esta versão.
 
 ## 0.19.4 — provisionamento de carteiras no Runtime novo
 

@@ -71,9 +71,39 @@ def test_admin_portfolio_simulator_starts_empty_and_is_isolated(admin):
     )["result"]
     assert saved["configured"] is True
     assert saved["fixture"]["institution"] == "C6"
+    assert "eligibility" not in saved["fixture"]
+    scoped = admin.execute({"operation": "get_simulator_fixture", "scope_id": 2})[
+        "result"
+    ]["fixture"]
+    assert "eligibility" not in scoped
+    assert "eligibility" in legacy
     assert admin.execute({"operation": "get_simulator_fixture", "scope_id": 3})[
         "result"
     ] == {"configured": False, "fixture": None}
+
+
+def test_portfolio_simulator_ignores_legacy_eligibility_on_read_and_save(admin):
+    import json
+
+    from simple_agent.services.simulator_store import SimulatorStore
+
+    legacy = admin.execute({"operation": "get_simulator_fixture"})["result"]
+    store = SimulatorStore.for_portfolio(2)
+    saved = store.save({**legacy, "eligibility": {"can_negotiate": "stale"}})
+    assert "eligibility" not in saved
+    assert "eligibility" not in json.loads(store.file.read_text())
+    assert "eligibility" in SimulatorStore.for_portfolio(1).save(legacy)
+
+    old_file = json.loads(store.file.read_text())
+    old_file["eligibility"] = {"max_installments": "invalid"}
+    store.file.write_text(json.dumps(old_file))
+    assert "eligibility" not in store.load()
+    assert (
+        "eligibility"
+        not in admin.execute({"operation": "get_simulator_fixture", "scope_id": 2})[
+            "result"
+        ]["fixture"]
+    )
 
 
 def test_future_form_requires_approval_and_passes_exact_contract(admin, monkeypatch):
