@@ -220,6 +220,12 @@ class SessionStore:
         fixture = cls._fixture(db, key)
         if fixture:
             state["fixture"] = fixture
+        if (
+            type(state.get("portfolio_scope_id")) is int
+            and state["portfolio_scope_id"] > 1
+            and isinstance(state.get("fixture"), dict)
+        ):
+            state["fixture"].pop("eligibility", None)
         return state
 
     @staticmethod

@@ -92,9 +92,16 @@ def test_portfolio_simulators_do_not_cross_sessions(isolated):
     c6 = SessionStore().read("c6")
     usedigi = SessionStore().read("usedigi")
     assert c6["fixture"]["customer_id"] == "CUS-C6"
-    assert "eligibility" in c6["fixture"]
+    assert "eligibility" not in c6["fixture"]
+    with SessionStore().transaction("c6") as state:
+        state["fixture"]["eligibility"] = {"can_negotiate": False}
+    assert "eligibility" not in SessionStore().read("c6")["fixture"]
     assert usedigi.get("unbound_session") is True
     assert "fixture" not in usedigi
+
+    SimulatorStore.for_portfolio(1).save(fixture)
+    SessionStore().ensure_portfolio("legacy-scope", 1, "tenant-test")
+    assert "eligibility" in SessionStore().read("legacy-scope")["fixture"]
 
 
 def test_model_request_pins_portfolio_before_exposing_tools(isolated, monkeypatch):

@@ -36,10 +36,17 @@ DEFAULT_FIXTURE: dict[str, Any] = {
 class SimulatorStore:
     """Persistent fixture used only by the debt-collection simulator tools."""
 
-    def __init__(self, root: Path | None = None, *, create_default: bool = True):
+    def __init__(
+        self,
+        root: Path | None = None,
+        *,
+        create_default: bool = True,
+        policy_only: bool = False,
+    ):
         configured = os.getenv("SIMULATOR_ROOT", "/data/simulator")
         self.root = (root or Path(configured)).resolve()
         self.file = self.root / "customer.json"
+        self.policy_only = policy_only
         self.root.mkdir(parents=True, exist_ok=True)
         if create_default and not self.file.exists():
             self.save(DEFAULT_FIXTURE)
@@ -49,10 +56,24 @@ class SimulatorStore:
         if type(scope_id) is not int or scope_id <= 0:
             raise ValueError("invalid_portfolio_scope")
         configured = Path(os.getenv("SIMULATOR_ROOT", "/data/simulator"))
-        return cls(configured / "portfolios" / str(scope_id), create_default=False)
+        return cls(
+            configured / "portfolios" / str(scope_id),
+            create_default=False,
+            policy_only=scope_id > 1,
+        )
 
     def exists(self) -> bool:
         return self.file.is_file()
+
+    def _normalize(self, fixture: dict[str, Any]) -> dict[str, Any]:
+        if self.policy_only:
+            fixture = {
+                key: value for key, value in fixture.items() if key != "eligibility"
+            }
+        payload = normalize_fixture(fixture)
+        if self.policy_only:
+            payload.pop("eligibility", None)
+        return payload
 
     def _write_atomic(self, payload: dict[str, Any]) -> None:
         fd, tmp_name = tempfile.mkstemp(prefix="customer", suffix=".tmp", dir=self.root)
@@ -71,12 +92,12 @@ class SimulatorStore:
             payload = json.loads(self.file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise ValueError("simulator_fixture_unavailable") from exc
-        return normalize_fixture(payload)
+        return self._normalize(payload)
 
     def save(self, fixture: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(fixture, dict):
             raise ValueError("fixture must be an object")
-        payload = normalize_fixture(fixture)
+        payload = self._normalize(fixture)
         payload["updated_at"] = datetime.now(timezone.utc).isoformat()
         self._write_atomic(payload)
         return payload
