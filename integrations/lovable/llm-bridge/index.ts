@@ -7,7 +7,8 @@ const error = (status: number, message: string) =>
   Response.json({ error: { message, type: "bridge_error" } }, { status });
 
 export async function handle(request: Request): Promise<Response> {
-  if (request.method !== "POST") return error(405, "POST required");
+  if (request.method !== "POST" && request.method !== "GET")
+    return error(405, "GET or POST required");
   const tokenHash =
     Deno.env.get("LLM_BRIDGE_TOKEN_SHA256") || BRIDGE_CONFIG.token_sha256;
   const key = Deno.env.get("LOVABLE_API_KEY");
@@ -27,6 +28,14 @@ export async function handle(request: Request): Promise<Response> {
     !timingSafeEqual(expected, received)
   )
     return error(401, "Unauthorized");
+  if (request.method === "GET") {
+    if (!new URL(request.url).pathname.endsWith("/v1/models"))
+      return error(404, "Not found");
+    return Response.json(
+      { object: "list", data: models.map((id) => ({ id, object: "model" })) },
+      { headers: { "cache-control": "no-store" } },
+    );
+  }
   // A body cap prevents this endpoint from buffering arbitrary uploads.
   const reader = request.body?.getReader();
   if (!reader) return error(400, "Missing body");

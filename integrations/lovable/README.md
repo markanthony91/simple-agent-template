@@ -4,6 +4,9 @@
 runtime. It forwards the OpenAI Chat Completions payload and SSE unchanged to
 Lovable's gateway. It does not use the existing playground, portfolio router,
 RAG, boleto, prompt augmentation, or business tools. The runtime executes tools.
+The same bearer also permits `GET /v1/models`, which returns only the bridge's
+configured model allowlist in the OpenAI list format for Canais. This read-only
+catalog does not call the gateway or change chat streaming.
 
 Connection preparation was authorized on 2026-09-17; selecting/enabling fallback
 remains exclusively Marcelo's action. Registration is not activation.
