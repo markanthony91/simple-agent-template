@@ -17,6 +17,43 @@ const request = (payload, token = bridgeToken) =>
     headers: { authorization: `Bearer ${token}` },
     body: JSON.stringify(payload),
   });
+test("authenticated model catalog lists only bridge-allowed models without calling the gateway", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async () => {
+    throw new Error("catalog must not call the gateway");
+  };
+  const catalogRequest = (url, token = bridgeToken) =>
+    new Request(url, { headers: { authorization: `Bearer ${token}` } });
+  try {
+    const url = "https://bridge.invalid/functions/v1/llm-bridge/v1/models";
+    assert.equal((await handle(new Request(url, { method: "PUT" }))).status, 405);
+    assert.equal((await handle(catalogRequest(url, "wrong"))).status, 401);
+    assert.equal(
+      (await handle(catalogRequest(url, env.LLM_BRIDGE_TOKEN_SHA256))).status,
+      401,
+    );
+    assert.equal(
+      (
+        await handle(
+          catalogRequest("https://bridge.invalid/functions/v1/llm-bridge/other"),
+        )
+      ).status,
+      404,
+    );
+    const response = await handle(catalogRequest(url));
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("cache-control"), "no-store");
+    assert.deepEqual(await response.json(), {
+      object: "list",
+      data: [
+        { id: "google/gemini-test", object: "model" },
+        { id: "openai/gpt-test", object: "model" },
+      ],
+    });
+  } finally {
+    globalThis.fetch = original;
+  }
+});
 test("authenticated bridge preserves prompt, zero, tools, results and SSE; rejects unsafe inputs", async () => {
   const original = globalThis.fetch;
   const payload = {

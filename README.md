@@ -1,4 +1,11 @@
-# Agent Runtime — OKF simulator (0.19.5)
+# Agent Runtime — OKF simulator (0.19.6)
+
+## 0.19.6 — catálogo do bridge Lovable para Canais
+
+O `llm-bridge` aceita `GET /v1/models` autenticado e devolve somente os modelos
+permitidos em sua configuração. O `POST /v1/chat/completions` e seu streaming
+permanecem inalterados. Esta correção exige publicar apenas a função Edge;
+não implica deploy do Runtime principal, do Runtime de homologação nem do portal.
 
 ## 0.19.5 — limites comerciais somente da política OKF
 
