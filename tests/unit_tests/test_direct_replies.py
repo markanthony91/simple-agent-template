@@ -140,14 +140,14 @@ def test_identity_result_returns_to_model_for_workflow_response(isolated):
     assert "deterministic_reply" not in result["messages"][-1].additional_kwargs
 
 
-def test_email_reply_reports_success_after_provider_acceptance():
+def test_email_reply_reports_acceptance_without_promising_delivery():
     accepted = render_direct_reply(
         "send_payment_instruction",
         json.dumps({"sent": True, "status": "accepted"}),
     )
     assert accepted == (
-        "Sua proposta foi enviada com sucesso, verifique a caixa de entrada e a "
-        "caixa de spam. Se precisar de qualquer coisa, é só me chamar!"
+        "O envio da sua proposta foi aceito. Confira a caixa de entrada e a "
+        "pasta de spam; a entrega pode levar alguns instantes. Se precisar, é só me chamar!"
     )
     denied = render_direct_reply(
         "send_payment_instruction",
