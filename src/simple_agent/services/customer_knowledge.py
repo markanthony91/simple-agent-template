@@ -3,6 +3,7 @@
 This identifies a branch, not a commercial policy or permission to make an offer.
 """
 
+import os
 from pathlib import Path
 
 from simple_agent.services.okf_service import OKFService
@@ -36,6 +37,7 @@ def customer_knowledge(state: dict) -> dict:
 
         institution = fixture.get("institution")
         product = fixture.get("product")
+        scope = state.get("portfolio_scope_id")
         matches = []
         if key(institution) and key(product):
             for companies in children("", "COMPANIES"):
@@ -56,6 +58,23 @@ def customer_knowledge(state: dict) -> dict:
                 okf_directory=directory,
                 okf_context_status="resolved",
             )
+        elif (
+            type(scope) is int
+            and scope > 1
+            and os.environ.get("OKF_RAW_PILOT_SCOPE_ID") == str(scope)
+            and key(institution)
+            and key(product)
+        ):
+            directories = [
+                directory
+                for root in children("", "INSTITUTIONS")
+                for creditor in children(root, institution)
+                for directory in children(creditor, product)
+            ]
+            if len(directories) == 1:
+                context.update(okf_directory=directories[0], okf_context_status="resolved")
+            elif directories:
+                context["okf_context_status"] = "ambiguous"
     except (OSError, ValueError):
         # Unavailable knowledge must not turn successful identity verification
         # into an error. Normal OKF navigation remains available to the agent.

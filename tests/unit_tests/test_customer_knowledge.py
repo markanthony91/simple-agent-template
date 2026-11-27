@@ -68,6 +68,51 @@ def test_case_collision_is_ambiguous(isolated):
     )
 
 
+def test_raw_institution_product_is_resolved_only_for_matching_portfolio(isolated, monkeypatch):
+    base = "INSTITUTIONS/aurora-sintetica/homologacao-raw-30-45"
+    files = {
+        "index.md": "# Índice",
+        f"{base}/prazo.md": "---\ntype: Knowledge\n---\n# Prazo\n\n45 dias.",
+        "INSTITUTIONS/aurora-sintetica/outro-produto/separado.md": "---\ntype: Knowledge\n---\n# Outro produto",
+    }
+    snapshot = isolated.import_bundle("raw-portfolio", "0.2", files)["bundle_id"]
+    session = state(snapshot, institution="Aurora Sintética", product="Homologação RAW 30-45")
+    assert customer_knowledge(session)["okf_directory"] is None
+    session["portfolio_scope_id"] = 7
+    monkeypatch.delenv("OKF_RAW_PILOT_SCOPE_ID", raising=False)
+    assert customer_knowledge(session)["okf_directory"] is None
+    monkeypatch.setenv("OKF_RAW_PILOT_SCOPE_ID", "7")
+    for scope in (1, 2, 5, 8, "7", None):
+        other = {**session, "portfolio_scope_id": scope}
+        assert customer_knowledge(other)["okf_directory"] is None
+    assert customer_knowledge(session)["okf_directory"] == base
+    assert customer_knowledge(session)["company"] is None
+    session["fixture"]["product"] = "Produto ausente"
+    assert customer_knowledge(session)["okf_directory"] is None
+    session["fixture"].update(institution="Outro banco", product="Homologação RAW 30-45")
+    assert customer_knowledge(session)["okf_directory"] is None
+
+
+def test_raw_pilot_rejects_ambiguous_product_and_prefers_existing_company_tree(isolated, monkeypatch):
+    monkeypatch.setenv("OKF_RAW_PILOT_SCOPE_ID", "7")
+    branch = "INSTITUTIONS/aurora"
+    files = {
+        "index.md": "# Index",
+        f"{branch}/cartao/index.md": "# Cartão",
+        f"{branch}/Cartao/index.md": "# Cartão",
+    }
+
+    def resolve():
+        snapshot = isolated.import_bundle("pilot", "0.2", files)["bundle_id"]
+        session = state(snapshot, institution="Aurora", product="cartao")
+        return customer_knowledge({**session, "portfolio_scope_id": 7})
+
+    assert resolve()["okf_context_status"] == "ambiguous"
+    legacy = f"COMPANIES/acme/{branch}/cartao"
+    files[f"{legacy}/index.md"] = "# Cartão"
+    assert resolve()["okf_directory"] == legacy
+
+
 def test_snapshot_is_pinned_even_after_new_bundle(isolated):
     old = bundle(isolated, ("old-company",))
     new = bundle(isolated, ("new-company",))
