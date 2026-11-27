@@ -30,7 +30,7 @@ def _service(runtime):
         return service, None
     allowed = ["GLOBAL"]
     if "fixture" in state:
-        directory = customer_knowledge(state).get("okf_directory")
+        directory = customer_knowledge(state, institution_root=True).get("okf_directory")
         if isinstance(directory, str) and directory:
             allowed.append(service.canonical_directory(directory))
     return service, tuple(dict.fromkeys(allowed))
