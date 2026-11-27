@@ -109,7 +109,7 @@ Principal nem o Runtime legado.
 
 ## 0.17.9 — OKF ativado por carteira na homologação
 
-O piloto de leitura RAW usa `OKF_RAW_PILOT_SCOPE_ID` (vazio por padrão). Na carteira indicada, se não houver correspondência na árvore `COMPANIES`, a busca e a leitura podem usar a pasta única `INSTITUTIONS/<instituição>/<produto>` da release fixada na conversa.
+O piloto de leitura RAW usa `OKF_RAW_PILOT_SCOPE_ID` (vazio por padrão). Na carteira indicada, as tools de navegação, busca e leitura usam `GLOBAL/` e toda a árvore `INSTITUTIONS/<instituição>/` da release fixada na conversa, inclusive outros produtos da mesma instituição. A instituição vem da sessão e deve corresponder a uma única pasta. O contexto operacional do cliente continua sendo resolvido por produto.
 
 Configure `PORTFOLIO_OKF_SERVICE_URL` e `PORTFOLIO_OKF_SERVICE_TOKEN` somente
 no Runtime de homologação, apontando para o mesmo serviço OKF usado por Canais.
