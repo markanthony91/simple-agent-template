@@ -440,6 +440,18 @@ results in PostgreSQL and uses Redis database 1 for worker wake-ups and live
 streaming. The principal `langgraph dev` service remains unchanged.
 Interrupted worker runs expire after a renewed PostgreSQL lease and end as
 `worker_lost` without automatic replay of possible external actions.
+With Redis-enabled OSS 0.20.0, set `OSS_RUNTIME_WORKERS` for concurrent turns
+per process (default 1). `OSS_RUNTIME_PARALLEL_ASSISTANTS` optionally limits
+extra consumers to a comma-separated list of assistant IDs. The first consumer
+continues to serve every assistant. The runtime's short-operation Postgres pool
+defaults to 8 connections per process (`OSS_RUNTIME_DB_POOL_SIZE`).
+A client with the run ID from the POST can reconnect through
+`GET /runs/{run_id}/stream` on any API replica. The final values snapshot
+includes the complete reply. Reconnecting receives future message fragments.
+If a worker dies during a tool call, reconcile the failed turn using the run ID
+before submitting another. See the [replica storage audit](docs/evidence/aurora-replica-storage-2026-11-28.md)
+and [Aurora model timings](docs/evidence/aurora-llm-route.md).
+
 The OSS `/info` readiness check now requires PostgreSQL and, when enabled, Redis
 to answer.
 An SSE client using `on_disconnect=cancel` requests cancellation promptly;
