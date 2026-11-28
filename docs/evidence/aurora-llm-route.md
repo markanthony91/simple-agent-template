@@ -39,3 +39,27 @@ python3 scripts/probe_aurora_route/railway_probe.py route
 ```
 
 O comando fixa os serviços Railway de homologação e gateway pelos respectivos IDs. O nome do ambiente Railway é `production` para os dois. A sonda valida o escopo e o assistente antes da inferência. A saída JSON carrega tempos, códigos HTTP, nomes de ferramentas e hashes de correlação.
+
+### Canário HTTP/SSE de quatro conversas
+
+A sonda `parallel.py` usa a conexão HTTP de homologação configurada no serviço do Playground. O modo `preflight` consulta a carteira e o assistente vigentes e verifica a coluna `started_at` no PostgreSQL. O modo `canary` abre quatro threads independentes e dispara uma saudação por thread simultaneamente. O cliente mede do início do POST ao primeiro texto SSE. O banco calcula a fila como `started_at - created_at` e o pico de concorrência pelos intervalos `[started_at, updated_at)`, correlacionados com os quatro IDs fornecidos pelo servidor. O p95 usa interpolação contínua sobre a amostra. O JSON sanitizado identifica os runs por hashes. O teste cobre a API interna HTTP do Playground até o Runtime e o retorno SSE. A interface no navegador e o proxy público ficam fora desse percurso.
+
+```bash
+python3 scripts/probe_aurora_route/parallel.py preflight
+python3 scripts/probe_aurora_route/parallel.py canary
+```
+
+Em 28/11/2026 às 07:05:55 UTC o preflight confirmou o assistente e o escopo. A coluna `started_at` ainda estava ausente antes do deploy. O parser SSE passou em quatro streams locais concorrentes com eventos fragmentados. O cálculo SQL passou em um PostgreSQL 17 isolado com quatro intervalos de interseção conhecida. O painel de IA documentado pelo Lovable mostra uso e custo por requisição. Os conectores e a especificação pública consultados não forneceram a quota de RPM/TPM contratada para esta rota. [Documentação do AI Gateway](https://docs.lovable.dev/features/ai) · [Especificação pública da API Lovable](https://api.lovable.dev/v1/openapi.json)
+
+#### Resultado pós-deploy
+
+Em 28/11/2026 às 07:09:06 UTC, o preflight confirmou que a coluna `started_at` estava disponível após a publicação Railway `e8035f10`. Às 07:09:17 UTC, o serviço do Playground disparou uma única rodada de quatro saudações em threads distintas, com 2 ms entre o primeiro e o último POST. Os quatro streams entregaram texto, os quatro runs terminaram em `succeeded` e nenhuma ferramenta foi executada.
+
+| Turno | Hash do run | Fila (ms) | Início → fim no PG (ms) | Primeiro texto SSE (ms) | Total SSE (ms) |
+|---|---|---:|---:|---:|---:|
+| 1 | `ff2cf8fb68d579c5` | 39,6 | 39,6 → 2468,4 | 2164 | 2551 |
+| 2 | `e462bee646dfc518` | 44,1 | 44,3 → 2468,5 | 2202 | 2553 |
+| 3 | `c420d533f4a411d8` | 44,0 | 45,4 → 2589,2 | 2186 | 2670 |
+| 4 | `58f86d4f261b96aa` | 44,2 | 44,8 → 2673,9 | 2427 | 2754 |
+
+Os intervalos no PostgreSQL são relativos à criação do primeiro run e compartilham o mesmo relógio. Os quatro estiveram em execução simultânea por **2.423,0 ms**. O p95 de fila foi **44,2 ms** e o p95 de primeiro texto no cliente SSE foi **2.393,3 ms**, ambos por interpolação contínua sobre quatro observações. Este canário confirma concorrência de quatro conversas curtas no escopo 7. Carga sustentada, entrega WhatsApp e concorrência de 1.000 conversas continuam fora da medição.
