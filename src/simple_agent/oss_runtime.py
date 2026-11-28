@@ -15,7 +15,7 @@ import os
 import re
 import threading
 import time
-from contextlib import asynccontextmanager, closing
+from contextlib import asynccontextmanager, closing, nullcontext
 from datetime import UTC, datetime
 from decimal import Decimal
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
@@ -23,6 +23,7 @@ from uuid import UUID, uuid4
 
 import psycopg
 import redis
+import redis.asyncio as async_redis
 from langgraph.checkpoint.postgres import PostgresSaver
 from pydantic import (
     BaseModel,
@@ -32,6 +33,7 @@ from pydantic import (
     ValidationError,
     field_validator,
 )
+from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from starlette.applications import Starlette
@@ -59,15 +61,15 @@ from simple_agent.services.portfolio_okf import (
 GRAPHS = {"agent": agent_graph, "okf_admin": admin_graph, "raw_compiler": raw_graph}
 _RUN_KEY = "oss-runtime:v1"
 _RUN_LEASE_SECONDS = 30
-_run_worker_stop = threading.Event()
-_run_worker = None
+_run_workers: list[threading.Thread] = []
+_db_pool: ConnectionPool | None = None
 
 
 def _redis_enabled():
     return os.getenv("OSS_RUNTIME_REDIS_ENABLED") == "true"
 
 
-def _redis():
+def _redis_url():
     url = os.environ["OSS_RUNTIME_REDIS_URL"]
     parsed = urlsplit(url)
     if parsed.scheme not in {"redis", "rediss"} or not parsed.hostname:
@@ -78,13 +80,16 @@ def _redis():
     query = urlencode(
         [(key, value) for key, value in parse_qsl(parsed.query) if key != "db"]
     )
-    isolated_url = urlunsplit(parsed._replace(path=f"/{database}", query=query))
+    return urlunsplit(parsed._replace(path=f"/{database}", query=query))
+
+
+def _redis():
     return redis.Redis.from_url(
-        isolated_url, decode_responses=True, socket_connect_timeout=2, socket_timeout=2
+        _redis_url(), decode_responses=True, socket_connect_timeout=2, socket_timeout=2
     )
 
 
-def _db(connect_timeout=10):
+def _dedicated_db(connect_timeout=10):
     return psycopg.connect(
         os.environ["SESSION_DATABASE_URL"],
         autocommit=True,
@@ -92,6 +97,12 @@ def _db(connect_timeout=10):
         options="-c search_path=langgraph",
         connect_timeout=connect_timeout,
     )
+
+
+def _db(connect_timeout=10):
+    if _db_pool is None:
+        return _dedicated_db(connect_timeout)
+    return _db_pool.connection(timeout=connect_timeout)
 
 
 def _json(value):
@@ -290,7 +301,11 @@ def _setup():
         raise RuntimeError("oss_runtime_token_required")
     if os.getenv("LANGGRAPH_STRICT_MSGPACK") != "true":
         raise RuntimeError("strict_serialization_required")
-    with _db() as db:
+    with _dedicated_db() as db:
+        # The checkpointer runs autocommit DDL. Serialize simultaneous replica starts.
+        db.execute(
+            "SELECT pg_advisory_lock(hashtextextended('oss-runtime-bootstrap', 1))"
+        )
         db.execute("CREATE SCHEMA IF NOT EXISTS langgraph")
         db.execute(
             """CREATE TABLE IF NOT EXISTS langgraph.legacy_assistants (
@@ -369,11 +384,21 @@ def _setup():
             """CREATE INDEX IF NOT EXISTS oss_runs_running_lease_idx
                ON langgraph.oss_runs(lease_expires_at) WHERE status='running'"""
         )
+        db.execute(
+            "ALTER TABLE langgraph.oss_runs ADD COLUMN IF NOT EXISTS started_at timestamptz"
+        )
+        db.execute(
+            """CREATE INDEX IF NOT EXISTS oss_runs_thread_pending_idx
+               ON langgraph.oss_runs(thread_id,created_at,run_id)
+               WHERE status IN ('queued','running')"""
+        )
         PostgresSaver(db).setup()
 
 
 async def info(_request):
-    if _redis_enabled() and (_run_worker is None or not _run_worker.is_alive()):
+    if _redis_enabled() and (
+        not _run_workers or not all(w.is_alive() for w in _run_workers)
+    ):
         return _response({"detail": "worker_unavailable"}, 503)
 
     def ready():
@@ -869,8 +894,8 @@ def _pinned_instruction_context(db, thread_id, context):
     return {**context, **row["instruction_snapshot"]}
 
 
-def _run(assistant_id, input_value, thread_id=None, stream=False):
-    with _db() as db:
+def _run(assistant_id, input_value, thread_id=None, stream=False, *, connection=None):
+    with nullcontext(connection) if connection is not None else _db() as db:
         assistant = _assistant(db, assistant_id)
         if not assistant:
             raise ValueError("assistant_not_found")
@@ -946,10 +971,15 @@ def _run_channel(run_id):
 
 
 def _enqueue_run(run_id, assistant_id, input_value, thread_id, client):
-    with _db() as db:
+    with _db() as db, db.transaction():
+        if thread_id:
+            # Serialize admission to the same thread before assigning FIFO timestamps.
+            db.execute(
+                "SELECT pg_advisory_xact_lock(hashtextextended(%s, 3))", (thread_id,)
+            )
         db.execute(
-            """INSERT INTO langgraph.oss_runs(run_id,thread_id,assistant_id,input)
-               VALUES (%s,%s,%s,%s)""",
+            """INSERT INTO langgraph.oss_runs(run_id,thread_id,assistant_id,input,created_at)
+               VALUES (%s,%s,%s,%s,clock_timestamp())""",
             (run_id, thread_id, assistant_id, Jsonb(input_value)),
         )
     # The queue contains only wake-up signals. PostgreSQL owns the run input.
@@ -977,21 +1007,35 @@ def _expire_runs():
                SET status='failed',error_code='worker_lost',updated_at=now()
                WHERE status='running'
                  AND (lease_expires_at IS NULL OR lease_expires_at <= now())
+                 AND pg_try_advisory_xact_lock(hashtextextended(run_id::text, 2))
                RETURNING run_id::text"""
         ).fetchall()
 
 
-def _claim_run():
-    with _db() as db, db.transaction():
+def _claim_run(db, assistant_ids=None):
+    with db.transaction():
         row = db.execute(
             """SELECT run_id::text,thread_id::text,assistant_id,input
-               FROM langgraph.oss_runs WHERE status='queued'
-               ORDER BY created_at FOR UPDATE SKIP LOCKED LIMIT 1"""
+               FROM langgraph.oss_runs AS q WHERE q.status='queued'
+                 AND (%s::text[] IS NULL OR q.assistant_id=ANY(%s::text[]))
+                 AND NOT EXISTS (
+                     SELECT 1 FROM langgraph.oss_runs AS earlier
+                     WHERE earlier.thread_id=q.thread_id
+                       AND (earlier.status='running' OR
+                            (earlier.status='queued' AND
+                             (earlier.created_at,earlier.run_id) < (q.created_at,q.run_id)))
+                 )
+               ORDER BY q.created_at,q.run_id FOR UPDATE OF q SKIP LOCKED LIMIT 1""",
+            (assistant_ids, assistant_ids),
         ).fetchone()
         if row:
+            # The checkpoint connection owns execution until finalization or process loss.
+            db.execute(
+                "SELECT pg_advisory_lock(hashtextextended(%s, 2))", (row["run_id"],)
+            )
             db.execute(
                 """UPDATE langgraph.oss_runs
-                   SET status='running',lease_expires_at=now() + %s * interval '1 second',
+                   SET status='running',started_at=clock_timestamp(),lease_expires_at=now() + %s * interval '1 second',
                        updated_at=now()
                    WHERE run_id=%s""",
                 (_RUN_LEASE_SECONDS, row["run_id"]),
@@ -1007,7 +1051,6 @@ def _lease_heartbeat(stop, run_id):
                     """UPDATE langgraph.oss_runs
                        SET lease_expires_at=now() + %s * interval '1 second'
                        WHERE run_id=%s AND status='running'
-                         AND lease_expires_at > now()
                        RETURNING 1""",
                     (_RUN_LEASE_SECONDS, run_id),
                 ).fetchone()
@@ -1047,7 +1090,7 @@ def _assistant_text_event(value):
     )
 
 
-def _execute_queued_run(row, client):
+def _execute_queued_run(row, client, db):
     run_id = row["run_id"]
     result = None
     stored_result = None
@@ -1062,7 +1105,13 @@ def _execute_queued_run(row, client):
             status = "cancelled"
         else:
             with closing(
-                _run(row["assistant_id"], row["input"], row["thread_id"], stream=True)
+                _run(
+                    row["assistant_id"],
+                    row["input"],
+                    row["thread_id"],
+                    stream=True,
+                    connection=db,
+                )
             ) as execution:
                 for kind, value in execution:
                     if kind == "messages":
@@ -1071,17 +1120,9 @@ def _execute_queued_run(row, client):
                         continue
                     result = value
                     _publish(client, run_id, "values", result)
-                    with _db() as db:
-                        current = db.execute(
-                            """SELECT cancel_requested,status,lease_expires_at > now() AS lease_valid
-                               FROM langgraph.oss_runs WHERE run_id=%s""",
-                            (run_id,),
-                        ).fetchone()
-                    if (
-                        current["cancel_requested"]
-                        or current["status"] != "running"
-                        or not current["lease_valid"]
-                    ):
+                    # The graph may still be writing checkpoints on its own connection.
+                    current = _run_row(run_id)
+                    if current["cancel_requested"] or current["status"] != "running":
                         status = (
                             "cancelled" if current["cancel_requested"] else "failed"
                         )
@@ -1093,7 +1134,7 @@ def _execute_queued_run(row, client):
     finally:
         heartbeat_stop.set()
         heartbeat.join(timeout=2)
-        with _db() as db, db.transaction():
+        with db.transaction():
             final = db.execute(
                 "SELECT status,cancel_requested FROM langgraph.oss_runs WHERE run_id=%s FOR UPDATE",
                 (run_id,),
@@ -1116,7 +1157,7 @@ def _execute_queued_run(row, client):
     _publish(client, run_id, status)
 
 
-def _worker_loop(stop, client):
+def _worker_loop(stop, client, assistant_ids=None):
     try:
         while not stop.is_set():
             try:
@@ -1126,8 +1167,18 @@ def _worker_loop(stop, client):
             try:
                 for expired in _expire_runs():
                     _publish(client, expired["run_id"], "failed")
-                while row := _claim_run():
-                    _execute_queued_run(row, client)
+                with _dedicated_db() as db:
+                    sweep_at = time.monotonic() + 5
+                    while not stop.is_set() and (row := _claim_run(db, assistant_ids)):
+                        try:
+                            _execute_queued_run(row, client, db)
+                        finally:
+                            db.execute(
+                                "SELECT pg_advisory_unlock(hashtextextended(%s, 2))",
+                                (row["run_id"],),
+                            )
+                        if time.monotonic() >= sweep_at:
+                            break
             except psycopg.Error:
                 stop.wait(1)
     finally:
@@ -1157,24 +1208,24 @@ async def run_wait(request):
         if not body.get("assistant_id") or not isinstance(body.get("input"), dict):
             return _response({"detail": "invalid_request"}, 400)
 
-        def wait_for_run():
-            client = _redis()
-            try:
-                run_id = str(uuid4())
-                _enqueue_run(
-                    run_id, body["assistant_id"], body["input"], thread_id, client
-                )
-                deadline = time.monotonic() + 180
-                while time.monotonic() < deadline:
-                    row = _run_row(run_id)
-                    if row["status"] in {"succeeded", "failed", "cancelled"}:
-                        return run_id, row
-                    time.sleep(0.25)
-                return run_id, None
-            finally:
-                client.close()
-
-        run_id, row = await run_in_threadpool(wait_for_run)
+        run_id = str(uuid4())
+        with _redis() as client:
+            await run_in_threadpool(
+                _enqueue_run,
+                run_id,
+                body["assistant_id"],
+                body["input"],
+                thread_id,
+                client,
+            )
+        deadline = time.monotonic() + 180
+        while time.monotonic() < deadline:
+            row = await run_in_threadpool(_run_row, run_id)
+            if row["status"] in {"succeeded", "failed", "cancelled"}:
+                break
+            await asyncio.sleep(0.25)
+        else:
+            row = None
         if row is None:
             return _response({"detail": "run_timeout", "run_id": run_id}, 504)
         if row["status"] != "succeeded":
@@ -1221,111 +1272,7 @@ async def run_stream(request):
     )
 
     if _redis_enabled():
-        client = _redis()
-        run_id = str(uuid4())
-        pubsub = client.pubsub()
-        try:
-            await run_in_threadpool(pubsub.subscribe, _run_channel(run_id))
-            await run_in_threadpool(
-                pubsub.get_message, ignore_subscribe_messages=True, timeout=1
-            )
-            await run_in_threadpool(
-                _enqueue_run,
-                run_id,
-                body["assistant_id"],
-                body["input"],
-                thread_id,
-                client,
-            )
-        except Exception:
-            pubsub.close()
-            client.close()
-            return _response({"detail": "run_unavailable"}, 503)
-
-        finished = False
-
-        async def events_from_redis():
-            nonlocal finished
-            last_value = None
-            last_check = 0.0
-            pubsub_healthy = True
-            deadline = time.monotonic() + 300
-            while time.monotonic() < deadline:
-                message = None
-                if pubsub_healthy:
-                    try:
-                        message = await run_in_threadpool(
-                            pubsub.get_message,
-                            ignore_subscribe_messages=True,
-                            timeout=0.5,
-                        )
-                    except redis.RedisError:
-                        pubsub_healthy = False
-                now = time.monotonic()
-                if message is None or now - last_check >= 0.25:
-                    row = await run_in_threadpool(_run_row, run_id)
-                    last_check = now
-                else:
-                    row = {"status": "running"}
-                messages = [message] if message else []
-                if (
-                    row["status"] in {"succeeded", "failed", "cancelled"}
-                    and pubsub_healthy
-                ):
-                    while extra := await run_in_threadpool(
-                        pubsub.get_message, ignore_subscribe_messages=True, timeout=0.05
-                    ):
-                        messages.append(extra)
-                for item in messages:
-                    if item["type"] != "message":
-                        continue
-                    event = json.loads(item["data"])
-                    if event["kind"] == "messages" and wants_messages:
-                        yield (
-                            "event: messages\ndata: "
-                            + json.dumps(event["value"])
-                            + "\n\n"
-                        )
-                    elif event["kind"] == "values":
-                        last_value = event["value"]
-                        yield (
-                            "event: values\ndata: "
-                            + json.dumps(
-                                _with_delivery_segments(copy.deepcopy(last_value))
-                            )
-                            + "\n\n"
-                        )
-                if row["status"] in {"succeeded", "failed", "cancelled"}:
-                    finished = True
-                    if row["status"] == "succeeded" and row["result"] != last_value:
-                        yield (
-                            "event: values\ndata: "
-                            + json.dumps(
-                                _with_delivery_segments(copy.deepcopy(row["result"]))
-                            )
-                            + "\n\n"
-                        )
-                    elif row["status"] != "succeeded":
-                        yield 'event: error\ndata: {"error":"run_failed"}\n\n'
-                    return
-                if not pubsub_healthy:
-                    await asyncio.sleep(0.5)
-            yield 'event: error\ndata: {"error":"run_timeout"}\n\n'
-
-        def after_stream():
-            try:
-                if body.get("on_disconnect") == "cancel" and not finished:
-                    _cancel_run(run_id, client)
-            finally:
-                pubsub.close()
-                client.close()
-
-        return StreamingResponse(
-            events_from_redis(),
-            media_type="text/event-stream",
-            headers={"X-Run-Id": run_id},
-            background=BackgroundTask(after_stream),
-        )
+        return await _stream_queued_run(str(uuid4()), wants_messages, body, thread_id)
 
     def events():
         try:
@@ -1351,6 +1298,127 @@ async def run_stream(request):
             yield 'event: error\ndata: {"error":"run_failed"}\n\n'
 
     return StreamingResponse(events(), media_type="text/event-stream")
+
+
+async def resume_run_stream(request):
+    if not _redis_enabled():
+        return _response({"detail": "not_available"}, 404)
+    try:
+        run_id = str(UUID(request.path_params["run_id"]))
+    except ValueError:
+        return _response({"detail": "invalid_run_id"}, 400)
+    if not await run_in_threadpool(_run_row, run_id):
+        return _response({"detail": "not_found"}, 404)
+    return await _stream_queued_run(run_id, True)
+
+
+async def _stream_queued_run(run_id, wants_messages, body=None, thread_id=None):
+    # Subscribe before submitting. A reconnect observes future fragments and the persisted final snapshot.
+    cancel_on_disconnect = body is not None and body.get("on_disconnect") == "cancel"
+    subscriber = async_redis.Redis.from_url(
+        _redis_url(), decode_responses=True, socket_connect_timeout=2, socket_timeout=2
+    )
+    pubsub = subscriber.pubsub()
+    try:
+        await pubsub.subscribe(_run_channel(run_id))
+        await pubsub.get_message(ignore_subscribe_messages=True, timeout=1)
+        if body is not None:
+            with _redis() as client:
+                await run_in_threadpool(
+                    _enqueue_run,
+                    run_id,
+                    body["assistant_id"],
+                    body["input"],
+                    thread_id,
+                    client,
+                )
+    except Exception:
+        await pubsub.aclose()
+        await subscriber.aclose()
+        return _response({"detail": "run_unavailable"}, 503)
+
+    finished = False
+
+    async def events_from_redis():
+        nonlocal finished
+        last_value = None
+        last_check = 0.0
+        pubsub_healthy = True
+        deadline = time.monotonic() + 300
+        while time.monotonic() < deadline:
+            message = None
+            if pubsub_healthy:
+                try:
+                    message = await pubsub.get_message(
+                        ignore_subscribe_messages=True,
+                        timeout=0.5,
+                    )
+                except redis.RedisError:
+                    pubsub_healthy = False
+            now = time.monotonic()
+            terminal = message and json.loads(message["data"])["kind"] in {
+                "succeeded",
+                "failed",
+                "cancelled",
+            }
+            if terminal or now - last_check >= 1:
+                row = await run_in_threadpool(_run_row, run_id)
+                last_check = now
+            else:
+                row = {"status": "running"}
+            messages = [message] if message else []
+            if row["status"] in {"succeeded", "failed", "cancelled"} and pubsub_healthy:
+                while extra := await pubsub.get_message(
+                    ignore_subscribe_messages=True, timeout=0.05
+                ):
+                    messages.append(extra)
+            for item in messages:
+                if item["type"] != "message":
+                    continue
+                event = json.loads(item["data"])
+                if event["kind"] == "messages" and wants_messages:
+                    yield (
+                        "event: messages\ndata: " + json.dumps(event["value"]) + "\n\n"
+                    )
+                elif event["kind"] == "values":
+                    last_value = event["value"]
+                    yield (
+                        "event: values\ndata: "
+                        + json.dumps(_with_delivery_segments(copy.deepcopy(last_value)))
+                        + "\n\n"
+                    )
+            if row["status"] in {"succeeded", "failed", "cancelled"}:
+                finished = True
+                if row["status"] == "succeeded" and row["result"] != last_value:
+                    yield (
+                        "event: values\ndata: "
+                        + json.dumps(
+                            _with_delivery_segments(copy.deepcopy(row["result"]))
+                        )
+                        + "\n\n"
+                    )
+                elif row["status"] != "succeeded":
+                    yield 'event: error\ndata: {"error":"run_failed"}\n\n'
+                return
+            if not pubsub_healthy:
+                await asyncio.sleep(0.5)
+        yield 'event: error\ndata: {"error":"run_timeout"}\n\n'
+
+    async def after_stream():
+        try:
+            if cancel_on_disconnect and not finished:
+                with _redis() as client:
+                    await run_in_threadpool(_cancel_run, run_id, client)
+        finally:
+            await pubsub.aclose()
+            await subscriber.aclose()
+
+    return StreamingResponse(
+        events_from_redis(),
+        media_type="text/event-stream",
+        headers={"X-Run-Id": run_id},
+        background=BackgroundTask(after_stream),
+    )
 
 
 async def run_status(request):
@@ -1389,27 +1457,57 @@ async def auth(request, call_next):
 
 @asynccontextmanager
 async def lifespan(_app):
-    global _run_worker
+    global _db_pool
     _setup()
-    if _redis_enabled():
-        client = _redis()
-        client.ping()
-        client.close()
-        _run_worker_stop.clear()
-        _run_worker = threading.Thread(
-            target=_worker_loop,
-            args=(_run_worker_stop, _redis()),
-            daemon=True,
-            name="oss-run-worker",
-        )
-        _run_worker.start()
+    stop = threading.Event()
     try:
+        if _redis_enabled():
+            worker_count = int(os.getenv("OSS_RUNTIME_WORKERS", "1"))
+            pool_size = int(os.getenv("OSS_RUNTIME_DB_POOL_SIZE", "8"))
+            if worker_count < 1 or pool_size < 1:
+                raise ValueError("invalid_runtime_capacity")
+            _db_pool = ConnectionPool(
+                os.environ["SESSION_DATABASE_URL"],
+                min_size=0,
+                max_size=pool_size,
+                kwargs={
+                    "autocommit": True,
+                    "row_factory": dict_row,
+                    "options": "-c search_path=langgraph",
+                    "connect_timeout": 5,
+                },
+                open=True,
+            )
+            with _redis() as client:
+                client.ping()
+            assistant_ids = [
+                value.strip()
+                for value in os.getenv("OSS_RUNTIME_PARALLEL_ASSISTANTS", "").split(",")
+                if value.strip()
+            ]
+            for index in range(worker_count):
+                worker = threading.Thread(
+                    target=_worker_loop,
+                    args=(
+                        stop,
+                        _redis(),
+                        assistant_ids if index and assistant_ids else None,
+                    ),
+                    daemon=True,
+                    name=f"oss-run-worker-{index}",
+                )
+                worker.start()
+                _run_workers.append(worker)
         yield
     finally:
-        if _run_worker is not None:
-            _run_worker_stop.set()
-            _run_worker.join(timeout=3)
-            _run_worker = None
+        stop.set()
+        deadline = time.monotonic() + 3
+        for worker in _run_workers:
+            worker.join(timeout=max(0, deadline - time.monotonic()))
+        _run_workers.clear()
+        if _db_pool is not None:
+            _db_pool.close()
+            _db_pool = None
 
 
 app = Starlette(
@@ -1452,6 +1550,7 @@ app = Starlette(
         Route("/threads/{thread_id}/runs/wait", run_wait, methods=["POST"]),
         Route("/threads/{thread_id}/runs/stream", run_stream, methods=["POST"]),
         Route("/runs/{run_id}", run_status),
+        Route("/runs/{run_id}/stream", resume_run_stream),
         Route("/runs/{run_id}/cancel", run_cancel, methods=["POST"]),
         Route(
             "/threads/{thread_id}/runs/{run_id}/cancel", run_cancel, methods=["POST"]

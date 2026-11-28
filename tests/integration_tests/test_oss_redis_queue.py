@@ -31,7 +31,9 @@ def test_redis_worker_and_stream(monkeypatch, tmp_path):
 
     from simple_agent import oss_runtime
 
-    def fake_run(_assistant_id, input_value, _thread_id, stream=False):
+    def fake_run(
+        _assistant_id, input_value, _thread_id, stream=False, *, connection=None
+    ):
         assert stream
         yield "messages", (AIMessageChunk(content="stre"), {})
         yield "messages", (AIMessageChunk(content="am"), {})
@@ -82,7 +84,9 @@ def test_redis_worker_and_stream(monkeypatch, tmp_path):
         started = threading.Event()
         release = threading.Event()
 
-        def slow_run(_assistant_id, _input_value, _thread_id, stream=False):
+        def slow_run(
+            _assistant_id, _input_value, _thread_id, stream=False, *, connection=None
+        ):
             assert stream
             started.set()
             assert release.wait(10)
