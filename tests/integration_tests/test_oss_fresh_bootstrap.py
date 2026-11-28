@@ -1,6 +1,7 @@
 """Opt-in bootstrap check against a disposable, empty PostgreSQL database."""
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 from operator import add
 from typing import Annotated, TypedDict
 from uuid import uuid4
@@ -32,7 +33,10 @@ def test_oss_boots_without_legacy_history(monkeypatch):
     from scripts.apply_postgres_migrations import main as apply_migrations
     from simple_agent import oss_runtime
 
-    apply_migrations()
+    with ThreadPoolExecutor(max_workers=4) as workers:
+        tasks = [workers.submit(apply_migrations) for _ in range(4)]
+        for task in tasks:
+            task.result(timeout=20)
     with psycopg.connect(dsn) as db:
         assert (
             db.execute(
@@ -52,8 +56,11 @@ def test_oss_boots_without_legacy_history(monkeypatch):
         "metadata": {},
         "name": "synthetic",
     }
+    with ThreadPoolExecutor(max_workers=4) as workers:
+        tasks = [workers.submit(oss_runtime._setup) for _ in range(4)]
+        for task in tasks:
+            task.result(timeout=30)
     with TestClient(oss_runtime.app) as client:
-        oss_runtime._setup()  # Startup is safe to repeat.
         with psycopg.connect(dsn) as db:
             db.execute(
                 """INSERT INTO langgraph.legacy_assistants

@@ -15,6 +15,20 @@ def test_checkpoint_directory_is_persistent_and_idempotent(tmp_path):
     assert (work / ".langgraph_api" / "checkpoint").read_text() == "survives"
 
 
+def test_oss_entrypoint_skips_legacy_checkpoint_volume(tmp_path, monkeypatch):
+    from simple_agent import startup
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DATA_ROOT", str(tmp_path / "data"))
+    monkeypatch.setenv("OSS_RUNTIME_ENABLED", "true")
+    commands = []
+    monkeypatch.setattr(startup.os, "execvp", lambda *args: commands.append(args))
+    monkeypatch.setattr(startup.sys, "argv", ["startup", "uvicorn", "simple_agent.oss_runtime:app"])
+    startup.main()
+    assert commands == [("uvicorn", ["uvicorn", "simple_agent.oss_runtime:app"])]
+    assert list(tmp_path.iterdir()) == []
+
+
 def test_never_overwrite_existing_checkpoints(tmp_path):
     (tmp_path / ".langgraph_api").mkdir()
     with pytest.raises(RuntimeError):

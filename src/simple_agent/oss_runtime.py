@@ -53,6 +53,7 @@ from simple_agent.llm_control_plane import resolve_routes
 from simple_agent.raw_compiler_graph import graph as raw_graph
 from simple_agent.tools.payment_tools import send_voice_demo_email
 from simple_agent.services.postgres_session_store import PostgresSessionStore
+from simple_agent.services.schema_lock import acquire_bootstrap_lock
 from simple_agent.services.portfolio_okf import (
     active_snapshot,
     configured as portfolio_okf_configured,
@@ -302,10 +303,7 @@ def _setup():
     if os.getenv("LANGGRAPH_STRICT_MSGPACK") != "true":
         raise RuntimeError("strict_serialization_required")
     with _dedicated_db() as db:
-        # The checkpointer runs autocommit DDL. Serialize simultaneous replica starts.
-        db.execute(
-            "SELECT pg_advisory_lock(hashtextextended('oss-runtime-bootstrap', 1))"
-        )
+        acquire_bootstrap_lock(db)
         db.execute("CREATE SCHEMA IF NOT EXISTS langgraph")
         db.execute(
             """CREATE TABLE IF NOT EXISTS langgraph.legacy_assistants (

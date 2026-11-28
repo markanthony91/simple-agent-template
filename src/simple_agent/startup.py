@@ -23,7 +23,8 @@ def prepare(cwd: Path, data_root: Path) -> None:
 
 
 def main() -> None:
-    prepare(Path.cwd(), Path(os.getenv("DATA_ROOT", "/data")))
+    if os.getenv("OSS_RUNTIME_ENABLED") != "true":
+        prepare(Path.cwd(), Path(os.getenv("DATA_ROOT", "/data")))
     command = sys.argv[1:] or [
         "langgraph",
         "dev",

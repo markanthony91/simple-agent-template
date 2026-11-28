@@ -221,3 +221,29 @@ def test_postgres_portfolio_session_is_scoped_and_never_uses_global_fixture(
     db.row["state"] = {"demo_session": True}
     assert store.ensure_portfolio("thread-1", 2, "tenant-2") is False
     assert db.row["state"] == {"demo_session": True}
+
+
+def test_concurrent_first_sessions_share_one_connection_pool(monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Barrier
+    from time import sleep
+
+    gate = Barrier(8)
+    opened = []
+
+    def connect(*args, **kwargs):
+        sleep(0.02)
+        pool = object()
+        opened.append(pool)
+        return pool
+
+    def open_session(_):
+        gate.wait(timeout=5)
+        return module.PostgresSessionStore().pool
+
+    monkeypatch.setenv("SESSION_DATABASE_URL", "postgresql://synthetic-pool-race")
+    monkeypatch.setattr(module, "ConnectionPool", connect)
+    with ThreadPoolExecutor(max_workers=8) as workers:
+        pools = list(workers.map(open_session, range(8)))
+    assert len(opened) == 1
+    assert all(pool is opened[0] for pool in pools)
