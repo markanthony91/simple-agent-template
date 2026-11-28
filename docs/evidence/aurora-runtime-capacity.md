@@ -42,6 +42,18 @@ Dos 2.000 POSTs, 2.000 tiveram sucesso persistido. O provedor recebeu 2.000 cham
 
 Em 123 amostras aproximadamente a cada segundo, os quatro processos Runtime chegaram juntos a 3,43 vCPUs e 666 MiB de RSS. O processo principal e os subprocessos do PostgreSQL chegaram juntos a 0,52 vCPUs e 4223 MiB de RSS. Os máximos de CPU e memória podem ocorrer em instantes diferentes. RSS soma as páginas compartilhadas em cada PID. Na amostra de 2026-11-28T07:15:53.801451+00:00, a memória proporcional (PSS) foi 580 MiB para o Runtime e 368 MiB para o PostgreSQL. O mínimo de memória disponível do host foi 2684 MiB. Cliente, Redis e modelo sintético também usaram recursos do mesmo WSL2 com 12 CPUs visíveis. Os valores descrevem esse ensaio.
 
+## Quatro segundos de inferência com 160 executores
+
+A mesma versão 0.20.1 e a mesma cadência humana, com quatro réplicas de 40 executores e PostgreSQL com 224 conexões, produziram 2.000 respostas corretas, uma por chamada ao modelo. Fila p95 0,146 s, primeiro texto p95 2,863 s e fim p95 5,123 s. Os picos foram 36 chegadas/s, 179 requisições pendentes, 160 execuções, 11 na fila e 213 conexões do PostgreSQL. Nesse perfil o dimensionamento cumpriu fila p95 de até 1 s e primeiro texto p95 de até 5 s.
+
+Nas 120 amostras de recursos, os máximos observados de CPU foram 4,52 vCPUs para o Runtime e 0,53 para o PostgreSQL. O RSS agregado atingiu 682 e 5831 MiB, respectivamente. Na amostra de 2026-11-28T07:18:03.254144+00:00 o PSS foi de 588 e 508 MiB, respectivamente. A leitura de CPU do PostgreSQL acompanha os PIDs ativos nos intervalos consecutivos e pode subestimar subprocessos de curta duração.
+
+## Mil POSTs solicitados juntos
+
+Em uma única rajada, 1.000 conversas pré-abertas iniciaram um turno cada com a mesma configuração 4 × 40 e o provedor de 4 s. O gerador local aceitou até 1.200 conexões HTTP. Houve 1000 requisições pendentes, 1000 corpos inteiramente escritos pelo cliente e 1000 respostas HTTP com identificador de execução. O último corpo terminou de ser escrito 5,549 s após a liberação da rajada, e o último aceite chegou em 22,133 s. Por requisição, da chamada no cliente à escrita do corpo o p95 foi de 4,855 s e até receber o aceite HTTP foi de 18,192 s. O pico de streams já aceitos e ainda abertos foi de 731. Os intervalos incluem agendamento do cliente, conexão TCP e processamento até cada marco.
+
+O cliente validou 1.000 respostas com primeiro texto e o PostgreSQL registrou 1.000 sucessos. O provedor recebeu 1.000 chamadas. Houve zero erros detectados pelo cliente. O pico amostrado foi de 570 turnos na fila, 160 executores e 214 conexões do PostgreSQL. Os p95 foram de 21,640 s de fila, 43,170 s de primeiro texto e 45,317 s para encerrar o stream. Os tempos de fila e primeiro texto ultrapassaram os alvos de 1 s e 5 s nessa rajada.
+
 ## Reconexão com perda do processo
 
 Com um executor em cada uma de duas réplicas, A recebeu dois POSTs. O primeiro ficou bloqueado no provedor pelo executor de A. Ao iniciar B, o segundo ficou bloqueado pelo executor de B. O cliente já havia lido o primeiro fragmento de cada resposta quando o ensaio encerrou o processo A com SIGKILL.
@@ -57,6 +69,8 @@ python scripts/benchmark_oss_capacity.py --replicas 2 --workers 4 --output /tmp/
 python scripts/benchmark_oss_capacity.py --replicas 4 --workers 8 --users 1000 500 250 100 --output /tmp/oss-4x8.json
 python scripts/benchmark_oss_capacity.py --replicas 4 --workers 8 --users 100 --turns 1 --spread 0 --output /tmp/oss-burst.json
 python scripts/benchmark_oss_capacity.py --replicas 4 --workers 24 --model-seconds 4 --users 1000 --output /tmp/oss-model-4s.json
+python scripts/benchmark_oss_capacity.py --replicas 4 --workers 40 --model-seconds 4 --users 1000 --output /tmp/oss-160-workers.json
+python scripts/benchmark_oss_capacity.py --replicas 4 --workers 40 --model-seconds 4 --users 1000 --turns 1 --spread 0 --output /tmp/oss-1000-posts.json
 python scripts/benchmark_oss_capacity.py --replica-loss --output /tmp/oss-reconnect.json
 ```
 

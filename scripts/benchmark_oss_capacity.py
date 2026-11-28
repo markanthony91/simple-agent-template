@@ -18,6 +18,7 @@ from datetime import UTC, datetime
 from hashlib import sha256
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
+from itertools import accumulate
 import math
 import os
 from pathlib import Path
@@ -153,10 +154,11 @@ async def provision(client, base, i):
     return response.json()["assistant_id"]
 
 
-def open_stream(client, base, thread, assistant, tag):
+def open_stream(client, base, thread, assistant, tag, trace=None):
     return client.stream(
         "POST",
         f"{base}/threads/{thread}/runs/stream",
+        extensions={"trace": trace} if trace else {},
         json={
             "assistant_id": assistant,
             "input": {"messages": [{"role": "user", "content": tag}]},
@@ -167,14 +169,20 @@ def open_stream(client, base, thread, assistant, tag):
 
 async def turn(client, base, thread, assistant, tag, scope):
     start_time = time.perf_counter()
-    record = {"tag": tag, "scope": scope}
+    record = {"tag": tag, "scope": scope, "start_at": start_time}
+
+    async def trace(event, _info):
+        if event == "http11.send_request_body.complete":
+            record["wire_at"] = time.perf_counter()
+
     first = None
     text = ""
     final = None
     try:
-        async with open_stream(client, base, thread, assistant, tag) as response:
+        async with open_stream(client, base, thread, assistant, tag, trace) as response:
             response.raise_for_status()
             record["run_id"] = response.headers["x-run-id"]
+            record["accepted_at"] = time.perf_counter()
             event = ""
             async for line in response.aiter_lines():
                 if line.startswith("event: "):
@@ -338,6 +346,11 @@ async def stage(client, bases, assistants, db, users, args, provider, marks):
             err = "incorrect_model_call_count"
         if err:
             errors[err] += 1
+    accepted = [r for r in results if "accepted_at" in r]
+    sent = [r for r in results if "wire_at" in r]
+    edges = [(r["accepted_at"], 1) for r in accepted] + [
+        (r["start_at"] + r["end"], -1) for r in accepted
+    ]
     return {
         "users": users,
         "started_utc": utc_start,
@@ -345,6 +358,19 @@ async def stage(client, bases, assistants, db, users, args, provider, marks):
         "turns": len(results),
         "seconds": round(time.perf_counter() - stage_start, 3),
         "peak_requests": peak,
+        "http_bodies_sent": len(sent),
+        "accepted_run_headers": len(accepted),
+        "peak_accepted_open_streams": max(
+            accumulate(change for _, change in sorted(edges)), default=0
+        ),
+        "client_send_seconds": stats(r["wire_at"] - r["start_at"] for r in sent),
+        "accept_seconds": stats(r["accepted_at"] - r["start_at"] for r in accepted),
+        "stage_to_last_body_seconds": round(
+            max((r["wire_at"] - stage_start for r in sent), default=0), 3
+        ),
+        "stage_to_last_accept_seconds": round(
+            max((r["accepted_at"] - stage_start for r in accepted), default=0), 3
+        ),
         "peak_arrivals_one_second": max(Counter(starts).values()),
         "peak_queued_sampled": peak_queued,
         "peak_running_sampled": peak_running,
@@ -405,7 +431,10 @@ async def run_load(bases, token, dsn, args, provider):
     return all(
         not t["errors"]
         and t["db_statuses"] == {"succeeded": t["turns"]}
-        and t["monotonic_queue_count"] == t["turns"]
+        and t["monotonic_queue_count"]
+        == t["http_bodies_sent"]
+        == t["accepted_run_headers"]
+        == t["turns"]
         for t in result["stages"]
     )
 

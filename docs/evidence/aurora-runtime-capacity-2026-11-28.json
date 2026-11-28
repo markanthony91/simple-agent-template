@@ -514,5 +514,228 @@
     "lost_executor_stream_error": true,
     "lost_executor_seconds": 4.908,
     "lost_executor_model_calls": 1
+  },
+  "four_second_model_160_workers": {
+    "workers_per_replica": 40,
+    "runtime_sha256": "065f067af17349a28c1063e51d9bb4db47e99ec90fe6d64e3002454637879272",
+    "replicas": 4,
+    "spread_seconds": 60,
+    "think_seconds_min": 35,
+    "think_jitter_seconds_max": 10,
+    "synthetic_model_seconds": 4.0,
+    "stages": [
+      {
+        "users": 1000,
+        "started_utc": "2026-11-28T07:17:08.532289+00:00",
+        "model_calls": 2000,
+        "turns": 2000,
+        "seconds": 113.994,
+        "peak_requests": 179,
+        "peak_arrivals_one_second": 36,
+        "peak_queued_sampled": 11,
+        "peak_running_sampled": 160,
+        "peak_db_client_connections_sampled": 213,
+        "db_statuses": {
+          "succeeded": 2000
+        },
+        "errors": {},
+        "queue_seconds": {
+          "p50": 0.023,
+          "p95": 0.146,
+          "p99": 0.268,
+          "p100": 0.408
+        },
+        "monotonic_queue_count": 2000,
+        "db_wall_queue_seconds": {
+          "p50": 0.023,
+          "p95": 0.154,
+          "p99": 0.33,
+          "p100": 34.664
+        },
+        "db_wall_queue_diff_over_one_second": 23,
+        "db_wall_queue_outside_client_bounds": 23,
+        "first_text_seconds": {
+          "p50": 2.137,
+          "p95": 2.863,
+          "p99": 3.141,
+          "p100": 3.556
+        },
+        "first_text_count": 2000,
+        "end_seconds": {
+          "p50": 4.292,
+          "p95": 5.123,
+          "p99": 5.388,
+          "p100": 5.67
+        },
+        "unique_db_runs": 2000
+      }
+    ],
+    "pg_max_connections": 224
+  },
+  "four_second_model_160_workers_resources": {
+    "sample_period_target_s": 1,
+    "scope": "same-host Linux process groups. CPU in cores, 1 = 100% of one vCPU. RSS includes shared pages in each PID. PSS apportions shared pages. PG CPU excludes vanished session backends between samples.",
+    "peak_runtime_rss_mib": 681.68,
+    "peak_pg_rss_mib": 5831.25,
+    "peak_runtime_cpu_cores": 4.52,
+    "peak_pg_cpu_cores": 0.53,
+    "min_host_memavailable_mib": 2553,
+    "sample_count": 120,
+    "peak_runtime_cpu_sample": {
+      "utc": "2026-11-28T07:18:07.486171+00:00",
+      "sample_seconds": 1.01,
+      "runtime_pids": 4,
+      "pg_pids": 217,
+      "runtime_rss_mib": 679.08,
+      "runtime_cpu_cores": 4.52,
+      "pg_rss_mib": 5751.32,
+      "pg_cpu_cores": 0.43,
+      "host_memavailable_mib": 2581
+    },
+    "peak_pg_cpu_sample": {
+      "utc": "2026-11-28T07:17:59.182849+00:00",
+      "sample_seconds": 1.016,
+      "runtime_pids": 4,
+      "pg_pids": 186,
+      "runtime_rss_mib": 663.62,
+      "runtime_cpu_cores": 4.08,
+      "pg_rss_mib": 4890.64,
+      "pg_cpu_cores": 0.53,
+      "host_memavailable_mib": 2683
+    },
+    "pss_sample": {
+      "utc": "2026-11-28T07:18:03.254144+00:00",
+      "sample_seconds": 1.013,
+      "runtime_pids": 4,
+      "pg_pids": 218,
+      "runtime_rss_mib": 669.21,
+      "runtime_cpu_cores": 4.01,
+      "runtime_pss_mib": 588.42,
+      "pg_rss_mib": 5757.04,
+      "pg_cpu_cores": 0.45,
+      "pg_pss_mib": 508.17,
+      "host_memavailable_mib": 2592
+    }
+  },
+  "thousand_simultaneous_posts": {
+    "workers_per_replica": 40,
+    "runtime_sha256": "065f067af17349a28c1063e51d9bb4db47e99ec90fe6d64e3002454637879272",
+    "replicas": 4,
+    "spread_seconds": 0.0,
+    "think_seconds_min": 35,
+    "think_jitter_seconds_max": 10,
+    "synthetic_model_seconds": 4.0,
+    "stages": [
+      {
+        "users": 1000,
+        "started_utc": "2026-11-28T07:19:19.182447+00:00",
+        "model_calls": 1000,
+        "turns": 1000,
+        "seconds": 47.004,
+        "peak_requests": 1000,
+        "http_bodies_sent": 1000,
+        "accepted_run_headers": 1000,
+        "peak_accepted_open_streams": 731,
+        "client_send_seconds": {
+          "p50": 2.512,
+          "p95": 4.855,
+          "p99": 4.917,
+          "p100": 4.92
+        },
+        "accept_seconds": {
+          "p50": 7.595,
+          "p95": 18.192,
+          "p99": 20.897,
+          "p100": 21.511
+        },
+        "stage_to_last_body_seconds": 5.549,
+        "stage_to_last_accept_seconds": 22.133,
+        "peak_arrivals_one_second": 1000,
+        "peak_queued_sampled": 570,
+        "peak_running_sampled": 160,
+        "peak_db_client_connections_sampled": 214,
+        "db_statuses": {
+          "succeeded": 1000
+        },
+        "errors": {},
+        "queue_seconds": {
+          "p50": 15.072,
+          "p95": 21.64,
+          "p99": 21.762,
+          "p100": 21.858
+        },
+        "monotonic_queue_count": 1000,
+        "db_wall_queue_seconds": {
+          "p50": 15.045,
+          "p95": 21.674,
+          "p99": 53.757,
+          "p100": 55.933
+        },
+        "db_wall_queue_diff_over_one_second": 41,
+        "db_wall_queue_outside_client_bounds": 41,
+        "first_text_seconds": {
+          "p50": 26.417,
+          "p95": 43.17,
+          "p99": 43.73,
+          "p100": 43.897
+        },
+        "first_text_count": 1000,
+        "end_seconds": {
+          "p50": 29.42,
+          "p95": 45.317,
+          "p99": 46.289,
+          "p100": 46.454
+        },
+        "unique_db_runs": 1000
+      }
+    ],
+    "pg_max_connections": 224
+  },
+  "thousand_simultaneous_posts_resources": {
+    "sample_period_target_s": 1,
+    "scope": "same-host Linux process groups. CPU in cores, 1 = 100% of one vCPU. RSS includes shared pages in each PID. PSS apportions shared pages. PG CPU excludes vanished session backends between samples.",
+    "peak_runtime_rss_mib": 710.61,
+    "peak_pg_rss_mib": 5520.24,
+    "peak_runtime_cpu_cores": 4.76,
+    "peak_pg_cpu_cores": 0.68,
+    "min_host_memavailable_mib": 2608,
+    "sample_count": 52,
+    "peak_runtime_cpu_sample": {
+      "utc": "2026-11-28T07:19:34.708375+00:00",
+      "sample_seconds": 1.015,
+      "runtime_pids": 4,
+      "pg_pids": 220,
+      "runtime_rss_mib": 682.84,
+      "runtime_cpu_cores": 4.76,
+      "runtime_pss_mib": 602.16,
+      "pg_rss_mib": 5283.52,
+      "pg_cpu_cores": 0.57,
+      "pg_pss_mib": 452.44,
+      "host_memavailable_mib": 2685
+    },
+    "peak_pg_cpu_sample": {
+      "utc": "2026-11-28T07:19:22.293521+00:00",
+      "sample_seconds": 1.011,
+      "runtime_pids": 4,
+      "pg_pids": 190,
+      "runtime_rss_mib": 597.0,
+      "runtime_cpu_cores": 3.76,
+      "pg_rss_mib": 4263.52,
+      "pg_cpu_cores": 0.68,
+      "host_memavailable_mib": 2880
+    },
+    "pss_sample": {
+      "utc": "2026-11-28T07:19:55.308646+00:00",
+      "sample_seconds": 1.012,
+      "runtime_pids": 4,
+      "pg_pids": 220,
+      "runtime_rss_mib": 708.87,
+      "runtime_cpu_cores": 2.96,
+      "runtime_pss_mib": 626.97,
+      "pg_rss_mib": 5495.52,
+      "pg_cpu_cores": 0.21,
+      "pg_pss_mib": 465.8,
+      "host_memavailable_mib": 2608
+    }
   }
 }
