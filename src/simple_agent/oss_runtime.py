@@ -390,6 +390,14 @@ def _setup():
                ON langgraph.oss_runs(thread_id,created_at,run_id)
                WHERE status IN ('queued','running')"""
         )
+        # Older queued rows retain their previous FIFO ordering, ahead of new admissions.
+        db.execute("CREATE SEQUENCE IF NOT EXISTS langgraph.oss_run_admission_seq")
+        db.execute(
+            "ALTER TABLE langgraph.oss_runs ADD COLUMN IF NOT EXISTS admission_seq bigint"
+        )
+        db.execute("""CREATE INDEX IF NOT EXISTS oss_runs_admission_idx
+                      ON langgraph.oss_runs(COALESCE(admission_seq,0),created_at,run_id)
+                      WHERE status='queued'""")
         PostgresSaver(db).setup()
 
 
@@ -971,13 +979,13 @@ def _run_channel(run_id):
 def _enqueue_run(run_id, assistant_id, input_value, thread_id, client):
     with _db() as db, db.transaction():
         if thread_id:
-            # Serialize admission to the same thread before assigning FIFO timestamps.
+            # Serialize admission to the same thread before assigning its place in the queue.
             db.execute(
                 "SELECT pg_advisory_xact_lock(hashtextextended(%s, 3))", (thread_id,)
             )
         db.execute(
-            """INSERT INTO langgraph.oss_runs(run_id,thread_id,assistant_id,input,created_at)
-               VALUES (%s,%s,%s,%s,clock_timestamp())""",
+            """INSERT INTO langgraph.oss_runs(run_id,thread_id,assistant_id,input,created_at,admission_seq)
+               VALUES (%s,%s,%s,%s,clock_timestamp(),nextval('langgraph.oss_run_admission_seq'))""",
             (run_id, thread_id, assistant_id, Jsonb(input_value)),
         )
     # The queue contains only wake-up signals. PostgreSQL owns the run input.
@@ -1021,9 +1029,11 @@ def _claim_run(db, assistant_ids=None):
                      WHERE earlier.thread_id=q.thread_id
                        AND (earlier.status='running' OR
                             (earlier.status='queued' AND
-                             (earlier.created_at,earlier.run_id) < (q.created_at,q.run_id)))
+                             (COALESCE(earlier.admission_seq,0),earlier.created_at,earlier.run_id)
+                              < (COALESCE(q.admission_seq,0),q.created_at,q.run_id)))
                  )
-               ORDER BY q.created_at,q.run_id FOR UPDATE OF q SKIP LOCKED LIMIT 1""",
+               ORDER BY COALESCE(q.admission_seq,0),q.created_at,q.run_id
+               FOR UPDATE OF q SKIP LOCKED LIMIT 1""",
             (assistant_ids, assistant_ids),
         ).fetchone()
         if row:

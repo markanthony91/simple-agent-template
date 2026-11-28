@@ -27,15 +27,27 @@ def test_expired_owner_keeps_turn_and_a_lost_action_is_never_replayed(monkeypatc
     runtime._setup()
     aurora, other = str(uuid4()), str(uuid4())
     thread = str(uuid4())
-    first, second, independent, other_run = [str(uuid4()) for _ in range(4)]
+    first, second, independent, other_run, legacy_run = [str(uuid4()) for _ in range(5)]
+    other_thread = str(uuid4())
     with runtime._redis() as redis:
         runtime._enqueue_run(first, aurora, {}, thread, redis)
         runtime._enqueue_run(second, aurora, {}, thread, redis)
         runtime._enqueue_run(independent, aurora, {}, str(uuid4()), redis)
-        runtime._enqueue_run(other_run, other, {}, str(uuid4()), redis)
+        runtime._enqueue_run(other_run, other, {}, other_thread, redis)
 
     # A durable recorder stands in for a provider that accepted a side effect before a crash.
     with runtime._db() as db:
+        # Pre-upgrade outstanding rows have no admission sequence.
+        db.execute(
+            """INSERT INTO langgraph.oss_runs(run_id,assistant_id,thread_id,input,created_at)
+               VALUES (%s,%s,%s,'{}',now()+interval '1 hour')""",
+            (legacy_run, other, other_thread),
+        )
+        # A corrected wall clock must never make a later user message overtake an earlier one.
+        db.execute(
+            "UPDATE langgraph.oss_runs SET created_at=created_at - interval '1 hour' WHERE run_id=%s",
+            (second,),
+        )
         db.execute(
             "CREATE TABLE IF NOT EXISTS public.lab_action_receipts(run_id uuid, action text)"
         )
@@ -84,6 +96,12 @@ with runtime._dedicated_db() as db:
             assert runtime._run_row(first)["error_code"] == "worker_lost"
             assert runtime._claim_run(monitor, [aurora])["run_id"] == second
             assert runtime._claim_run(monitor, [aurora]) is None
+            assert runtime._claim_run(monitor, [other])["run_id"] == legacy_run
+            assert runtime._claim_run(monitor, [other]) is None
+            monitor.execute(
+                "UPDATE langgraph.oss_runs SET status='succeeded' WHERE run_id=%s",
+                (legacy_run,),
+            )
             assert runtime._claim_run(monitor, [other])["run_id"] == other_run
             rows = monitor.execute(
                 "SELECT action,count(*) n FROM public.lab_action_receipts WHERE run_id=%s GROUP BY action",
