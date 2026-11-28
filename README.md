@@ -449,8 +449,9 @@ A client with the run ID from the POST can reconnect through
 `GET /runs/{run_id}/stream` on any API replica. The final values snapshot
 includes the complete reply. Reconnecting receives future message fragments.
 If a worker dies during a tool call, reconcile the failed turn using the run ID
-before submitting another. See the [replica storage audit](docs/evidence/aurora-replica-storage-2026-11-28.md)
-and [Aurora model timings](docs/evidence/aurora-llm-route.md).
+before submitting another. See the [replica storage audit](docs/evidence/aurora-replica-storage-2026-11-28.md),
+[Aurora model timings](docs/evidence/aurora-llm-route.md) and the
+[1,000-conversation load tests](docs/evidence/aurora-runtime-capacity.md).
 
 The OSS `/info` readiness check now requires PostgreSQL and, when enabled, Redis
 to answer.
