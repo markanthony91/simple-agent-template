@@ -68,6 +68,51 @@ def test_case_collision_is_ambiguous(isolated):
     )
 
 
+def test_raw_institution_product_is_resolved_only_for_matching_portfolio(isolated, monkeypatch):
+    base = "INSTITUTIONS/aurora-sintetica/homologacao-raw-30-45"
+    files = {
+        "index.md": "# Índice",
+        f"{base}/prazo.md": "---\ntype: Knowledge\n---\n# Prazo\n\n45 dias.",
+        "INSTITUTIONS/aurora-sintetica/outro-produto/separado.md": "---\ntype: Knowledge\n---\n# Outro produto",
+    }
+    snapshot = isolated.import_bundle("raw-portfolio", "0.2", files)["bundle_id"]
+    session = state(snapshot, institution="Aurora Sintética", product="Homologação RAW 30-45")
+    assert customer_knowledge(session)["okf_directory"] is None
+    session["portfolio_scope_id"] = 7
+    monkeypatch.delenv("OKF_RAW_PILOT_SCOPE_ID", raising=False)
+    assert customer_knowledge(session)["okf_directory"] is None
+    monkeypatch.setenv("OKF_RAW_PILOT_SCOPE_ID", "7")
+    for scope in (1, 2, 5, 8, "7", None):
+        other = {**session, "portfolio_scope_id": scope}
+        assert customer_knowledge(other)["okf_directory"] is None
+    assert customer_knowledge(session)["okf_directory"] == base
+    assert customer_knowledge(session)["company"] is None
+    session["fixture"]["product"] = "Produto ausente"
+    assert customer_knowledge(session)["okf_directory"] is None
+    session["fixture"].update(institution="Outro banco", product="Homologação RAW 30-45")
+    assert customer_knowledge(session)["okf_directory"] is None
+
+
+def test_raw_pilot_rejects_ambiguous_product_and_prefers_existing_company_tree(isolated, monkeypatch):
+    monkeypatch.setenv("OKF_RAW_PILOT_SCOPE_ID", "7")
+    branch = "INSTITUTIONS/aurora"
+    files = {
+        "index.md": "# Index",
+        f"{branch}/cartao/index.md": "# Cartão",
+        f"{branch}/Cartao/index.md": "# Cartão",
+    }
+
+    def resolve():
+        snapshot = isolated.import_bundle("pilot", "0.2", files)["bundle_id"]
+        session = state(snapshot, institution="Aurora", product="cartao")
+        return customer_knowledge({**session, "portfolio_scope_id": 7})
+
+    assert resolve()["okf_context_status"] == "ambiguous"
+    legacy = f"COMPANIES/acme/{branch}/cartao"
+    files[f"{legacy}/index.md"] = "# Cartão"
+    assert resolve()["okf_directory"] == legacy
+
+
 def test_snapshot_is_pinned_even_after_new_bundle(isolated):
     old = bundle(isolated, ("old-company",))
     new = bundle(isolated, ("new-company",))
@@ -146,3 +191,54 @@ def test_demo_company_survives_relational_hydration_and_reset(isolated):
     assert result["company_source"] == "customer"
     assert result["company"] == "Fastpay"
     assert result["okf_context_status"] == "resolved"
+
+
+@pytest.mark.parametrize("fixture_product", ["Cartão", "Produto sem pasta"])
+def test_raw_pilot_tools_read_whole_institution_only(isolated, monkeypatch, fixture_product):
+    from simple_agent.tools.okf_tools import okf_index, okf_list, okf_read, okf_read_section, okf_search
+
+    monkeypatch.setenv("OKF_RAW_PILOT_SCOPE_ID", "7")
+    institution = "INSTITUTIONS/aurora-sintetica"
+    shared = f"{institution}/atendimento.md"
+    own = f"{institution}/cartao/revisao.md"
+    sibling = f"{institution}/emprestimo/contato/agencia.md"
+    foreign = "INSTITUTIONS/aurora-sintetica-norte/atendimento.md"
+    content = "---\ntype: Knowledge\n---\n# Horário\n"
+    files = {
+        "index.md": "# Índice",
+        f"{institution}/index.md": "[Atendimento](atendimento.md)\n[Cartão](cartao/)\n[Empréstimo](emprestimo/)",
+        shared: content + "Atendimento geral.",
+        own: content + "Revisão.",
+        sibling: content + "Atendimento regional.",
+        foreign: content + "Atendimento da instituição vizinha.",
+    }
+    snapshot = isolated.import_bundle("instituicao", "0.2", files)["bundle_id"]
+    with SessionStore().transaction("lab") as session:
+        session.update(portfolio_scope_id=7, snapshot_id=snapshot)
+        session["fixture"].update(institution="Aurora Sintética", product=fixture_product)
+    rt = runtime("lab")
+    for result in (okf_search.func(runtime=rt, query="horário"),
+                   okf_search.func(runtime=rt, query="horário", scope=institution),
+                   okf_list.func(runtime=rt)):
+        assert all(path in result for path in (shared, own, sibling))
+        assert foreign not in result
+    assert institution in okf_index.func(runtime=rt)
+    assert "Atendimento" in okf_index.func(runtime=rt, directory=institution)
+    assert "Atendimento geral" in okf_read_section.func(runtime=rt, path=shared, heading="Horário")
+    assert "Atendimento regional" in okf_read.func(runtime=rt, path=sibling)
+    assert json.loads(okf_read.func(runtime=rt, path=foreign))["error_type"] == "PermissionError"
+    with SessionStore().transaction("lab") as session:
+        session["portfolio_scope_id"] = 5
+    assert shared not in okf_search.func(runtime=rt, query="horário")
+    assert json.loads(okf_read.func(runtime=rt, path=sibling))["error_type"] == "PermissionError"
+
+
+def test_raw_institution_lookup_requires_unique_institution(isolated, monkeypatch):
+    monkeypatch.setenv("OKF_RAW_PILOT_SCOPE_ID", "7")
+    files = {"index.md": "# Índice", "INSTITUTIONS/aurora-sintetica/index.md": "# A",
+             "INSTITUTIONS/aurora-sintética/index.md": "# B"}
+    snapshot = isolated.import_bundle("ambiguo", "0.2", files)["bundle_id"]
+    session = {**state(snapshot, institution="Aurora Sintética"), "portfolio_scope_id": 7}
+    result = customer_knowledge(session, institution_root=True)
+    assert result["okf_context_status"] == "ambiguous"
+    assert result["okf_directory"] is None

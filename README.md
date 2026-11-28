@@ -109,6 +109,8 @@ Principal nem o Runtime legado.
 
 ## 0.17.9 — OKF ativado por carteira na homologação
 
+O piloto de leitura RAW usa `OKF_RAW_PILOT_SCOPE_ID` (vazio por padrão). Na carteira indicada, as tools de navegação, busca e leitura usam `GLOBAL/` e toda a árvore `INSTITUTIONS/<instituição>/` da release fixada na conversa, inclusive outros produtos da mesma instituição. A instituição vem da sessão e deve corresponder a uma única pasta. O contexto operacional do cliente continua sendo resolvido por produto.
+
 Configure `PORTFOLIO_OKF_SERVICE_URL` e `PORTFOLIO_OKF_SERVICE_TOKEN` somente
 no Runtime de homologação, apontando para o mesmo serviço OKF usado por Canais.
 O serviço OKF deve oferecer o download versionado `/bundles/{id}/archive`.
@@ -438,6 +440,19 @@ results in PostgreSQL and uses Redis database 1 for worker wake-ups and live
 streaming. The principal `langgraph dev` service remains unchanged.
 Interrupted worker runs expire after a renewed PostgreSQL lease and end as
 `worker_lost` without automatic replay of possible external actions.
+With Redis-enabled OSS 0.20.0, set `OSS_RUNTIME_WORKERS` for concurrent turns
+per process (default 1). `OSS_RUNTIME_PARALLEL_ASSISTANTS` optionally limits
+extra consumers to a comma-separated list of assistant IDs. The first consumer
+continues to serve every assistant. The runtime's short-operation Postgres pool
+defaults to 8 connections per process (`OSS_RUNTIME_DB_POOL_SIZE`).
+A client with the run ID from the POST can reconnect through
+`GET /runs/{run_id}/stream` on any API replica. The final values snapshot
+includes the complete reply. Reconnecting receives future message fragments.
+If a worker dies during a tool call, reconcile the failed turn using the run ID
+before submitting another. See the [replica storage audit](docs/evidence/aurora-replica-storage-2026-11-28.md),
+[Aurora model timings](docs/evidence/aurora-llm-route.md) and the
+[1,000-conversation load tests](docs/evidence/aurora-runtime-capacity.md).
+
 The OSS `/info` readiness check now requires PostgreSQL and, when enabled, Redis
 to answer.
 An SSE client using `on_disconnect=cancel` requests cancellation promptly;

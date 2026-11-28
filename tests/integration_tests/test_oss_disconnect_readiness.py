@@ -43,7 +43,9 @@ def test_disconnect_cancel_and_readiness(monkeypatch, tmp_path):
     started = threading.Event()
     release = threading.Event()
 
-    def slow_run(_assistant_id, _input_value, _thread_id, stream=False):
+    def slow_run(
+        _assistant_id, _input_value, _thread_id, stream=False, *, connection=None
+    ):
         assert stream
         started.set()
         yield "values", {"messages": [{"type": "ai", "content": "FIRST"}]}
@@ -137,7 +139,14 @@ def test_disconnect_cancel_and_readiness(monkeypatch, tmp_path):
 
             message_released = threading.Event()
 
-            def staged_run(_assistant_id, _input_value, _thread_id, stream=False):
+            def staged_run(
+                _assistant_id,
+                _input_value,
+                _thread_id,
+                stream=False,
+                *,
+                connection=None,
+            ):
                 assert stream
                 yield "messages", (AIMessageChunk(content="early"), {})
                 assert message_released.wait(10)

@@ -7,6 +7,7 @@ import os
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
+from threading import Lock
 from typing import Iterator
 
 from psycopg.types.json import Jsonb
@@ -20,6 +21,9 @@ from simple_agent.services.simulator_schema import normalize_fixture
 from simple_agent.tool_timing import timed_phase
 
 
+_pool_init_lock = Lock()
+
+
 @lru_cache(maxsize=4)
 def _pool(dsn: str) -> ConnectionPool:
     size = int(os.getenv("SESSION_DATABASE_POOL_SIZE", "5"))
@@ -31,7 +35,9 @@ class PostgresSessionStore:
         dsn = os.getenv("SESSION_DATABASE_URL", "").strip()
         if not dsn:
             raise ValueError("SESSION_DATABASE_URL_required")
-        self.pool = _pool(dsn)
+        # lru_cache alone allows concurrent first calls to open duplicate pools.
+        with _pool_init_lock:
+            self.pool = _pool(dsn)
 
     @staticmethod
     def _initial_state(*, fixture: dict | None = None, demo: bool = False) -> dict:

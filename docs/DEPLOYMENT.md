@@ -118,3 +118,29 @@ conversa sintética está em
 [Homologação PostgreSQL, Redis e OKF](POSTGRES_REDIS_HOMOLOGATION_2026-10-05.md).
 Ainda há bloqueios de recuperação de runs e integração real dos clientes antes
 de qualquer virada de tráfego.
+
+## Runtime OSS 0.20.1 · piloto Aurora
+
+O Agente de Homologação admite quatro execuções simultâneas para o assistente
+da Aurora com `OSS_RUNTIME_WORKERS=4` e `OSS_RUNTIME_PARALLEL_ASSISTANTS`
+apontando para o ID cadastrado no escopo 7. O consumidor geral atende todas as
+carteiras. Cada consumidor adicional atende somente os IDs da lista quando a
+lista está preenchida. O padrão do OSS continua sendo um consumidor.
+
+O PostgreSQL atribui uma sequência aos turnos por ordem de admissão. Turnos
+pendentes de versões anteriores mantêm a precedência. A conexão que executa o
+grafo mantém a posse do turno até finalizar ou cair. Quando um processo
+desaparece, o Runtime registra `worker_lost` após a expiração da reserva.
+Consultar o resultado da operação pelo identificador antes de repetir uma ação
+externa. Um cliente que guardou `X-Run-Id` pode recuperar o resultado final e
+acompanhar os próximos fragmentos em `GET /runs/{run_id}/stream`.
+
+O catálogo de tools da homologação passou ao volume em `/data/tools` após
+conferência de conteúdo. A aplicação continua com uma réplica no Railway. Antes
+de retirar o volume, disponibilizar snapshots históricos, alterações de ferramentas
+e fixtures em uma fonte compartilhada. Voltar ao paralelismo anterior requer definir
+`OSS_RUNTIME_WORKERS=1` e aplicar a configuração em uma janela com a fila vazia.
+Os campos adicionais do banco são compatíveis com o executável anterior.
+
+- [Inventário do volume, orçamento do PostgreSQL e ensaios de recuperação](evidence/aurora-replica-storage-2026-11-28.md)
+- [Rota Gemini e teste de quatro conversas hospedadas](evidence/aurora-llm-route.md)
